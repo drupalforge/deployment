@@ -1,6 +1,9 @@
 ARG PHP_VERSION=8.3
 FROM devpanel/php:${PHP_VERSION}-base
 
+# Switch to root for system-level operations
+USER root
+
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
@@ -17,6 +20,9 @@ RUN a2enmod proxy && \
     a2enmod proxy_http && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
+
+# Switch back to non-root user for runtime
+USER ${USER}
 
 # Use ENTRYPOINT to ensure deployment setup always runs
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
