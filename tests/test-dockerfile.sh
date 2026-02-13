@@ -1,5 +1,11 @@
 #!/bin/bash
 # Tests for Dockerfile configuration
+#
+# NOTE: These are SYNTAX/PATTERN tests that check the Dockerfile text.
+# They do NOT build Docker images. Actual builds happen in CI's docker-build job.
+# To test actual Docker builds locally, run:
+#   docker build --build-arg PHP_VERSION=8.3 -t test:latest .
+#
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

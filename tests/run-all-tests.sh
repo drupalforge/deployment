@@ -1,5 +1,11 @@
 #!/bin/bash
 # Test runner - runs all test suites
+#
+# NOTE: These tests check syntax and patterns in files (grep-based validation).
+# They do NOT build Docker images or run integration tests.
+# 
+# For full validation including Docker builds, see tests/README.md
+#
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
