@@ -70,12 +70,15 @@ test_apache_config_copy() {
     fi
 }
 
-# Test 7: Makes scripts executable
-test_executable_chmod() {
-    if grep -q "chmod +x.*bootstrap-app\|chmod +x.*deployment-entrypoint" "$DOCKERFILE"; then
-        echo "✓ Makes scripts executable"
+# Test 7: Scripts are copied (execute permissions preserved from source)
+test_scripts_copied() {
+    # The scripts in the scripts/ directory already have execute permissions
+    # which are preserved when copied to the image via COPY command
+    local scripts_dir="$SCRIPT_DIR/scripts"
+    if [ -x "$scripts_dir/bootstrap-app.sh" ] && [ -x "$scripts_dir/deployment-entrypoint.sh" ]; then
+        echo "✓ Scripts have execute permissions in source"
     else
-        echo "✗ Scripts may not be executable"
+        echo "✗ Scripts missing execute permissions in source"
         exit 1
     fi
 }
@@ -119,7 +122,7 @@ test_php_version_arg
 test_script_copies
 test_php_handler_copy
 test_apache_config_copy
-test_executable_chmod
+test_scripts_copied
 test_apache_modules
 test_entrypoint
 test_labels

@@ -11,13 +11,6 @@ COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
 COPY proxy-handler.php /var/www/drupalforge-proxy-handler.php
 
-# Make scripts executable
-RUN chmod +x /usr/local/bin/bootstrap-app && \
-    chmod +x /usr/local/bin/import-database && \
-    chmod +x /usr/local/bin/setup-proxy && \
-    chmod +x /usr/local/bin/deployment-entrypoint && \
-    chmod 644 /var/www/drupalforge-proxy-handler.php
-
 # Enable Apache proxy and rewrite modules for conditional file serving
 # Requests for missing files are routed to PHP handler which downloads to expected path
 RUN a2enmod proxy && \
