@@ -1,0 +1,5 @@
+# Test application
+/vendor/
+/node_modules/
+.env
+.env.local

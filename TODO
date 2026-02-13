@@ -1,0 +1,3 @@
+Add support for image styles in Apache conditional proxying. Retrieve the
+original file instead of the requested file if the subdirectory of the public
+files path starts with styles/*/public.

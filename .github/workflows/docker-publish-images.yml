@@ -1,0 +1,28 @@
+name: Build and publish deployment images
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-php-8-2:
+    uses: ./.github/workflows/docker-publish-image.yml
+    with:
+      php_version: '8.2'
+    secrets: inherit
+
+  build-php-8-3:
+    uses: ./.github/workflows/docker-publish-image.yml
+    with:
+      php_version: '8.3'
+    secrets: inherit
