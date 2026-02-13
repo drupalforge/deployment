@@ -22,7 +22,8 @@ RUN a2enmod proxy && \
     a2enconf drupalforge-proxy || true
 
 # Switch back to non-root user for runtime
-USER ${USER}
+# The base image uses 'www' user (UID 1000)
+USER www
 
 # Use ENTRYPOINT to ensure deployment setup always runs
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
