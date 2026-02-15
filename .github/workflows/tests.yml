@@ -16,47 +16,47 @@ jobs:
     runs-on: ubuntu-latest
     # Skip draft PRs - standard GitHub approach
     if: github.event_name == 'push' || !github.event.pull_request.draft
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up shell test environment
-      run: |
-        # Install PHP for syntax checking
-        sudo apt-get update
-        sudo apt-get install -y php-cli php-curl
-    
-    - name: Run unit tests
-      run: |
-        bash tests/unit-test.sh
-  
+      - uses: actions/checkout@v3
+
+      - name: Set up shell test environment
+        run: |
+          # Install PHP for syntax checking
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-curl
+
+      - name: Run unit tests
+        run: |
+          bash tests/unit-test.sh
+
   docker-build:
     runs-on: ubuntu-latest
     # Skip draft PRs - standard GitHub approach
     if: github.event_name == 'push' || !github.event.pull_request.draft
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    
-    - name: Build PHP 8.2 image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: ./Dockerfile
-        build-args: |
-          PHP_VERSION=8.2
-        push: false
-        tags: ${{ github.repository }}:8.2-test
-    
-    - name: Build PHP 8.3 image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        file: ./Dockerfile
-        build-args: |
-          PHP_VERSION=8.3
-        push: false
-        tags: ${{ github.repository }}:8.3-test
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build PHP 8.2 image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            PHP_VERSION=8.2
+          push: false
+          tags: ${{ github.repository }}:8.2-test
+
+      - name: Build PHP 8.3 image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            PHP_VERSION=8.3
+          push: false
+          tags: ${{ github.repository }}:8.3-test

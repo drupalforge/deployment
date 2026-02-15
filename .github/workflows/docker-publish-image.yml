@@ -34,10 +34,7 @@ jobs:
           images: ${{ github.repository }}
           tags: |
             type=semver,pattern={{version}},value=${{ inputs.php_version }}
-            type=ref,event=branch
-            type=sha,prefix=${{ inputs.php_version }}-
             type=raw,value=${{ inputs.php_version }},enable={{is_default_branch}}
-            type=raw,value=latest,enable={{is_default_branch}},enable=${{ inputs.php_version == '8.3' }}
 
       - name: Build and push image
         uses: docker/build-push-action@v5

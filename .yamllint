@@ -1,0 +1,23 @@
+---
+# YAML linting configuration for Drupal Forge Deployment
+# Using relaxed rules appropriate for CI/CD workflows
+
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  document-start:
+    present: false
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  brackets:
+    max-spaces-inside: 1
+  braces:
+    max-spaces-inside: 1
