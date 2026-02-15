@@ -7,17 +7,17 @@ This directory contains different types of tests for the Drupal Forge deployment
 ### Run All Tests (Recommended)
 ```bash
 cd tests
-bash test-all.sh
+bash run-all-tests.sh
 ```
 Runs unit tests, Docker builds, and integration tests in sequence. **Use this before pushing.**
 
 ### Run Specific Test Types
 ```bash
 # Unit tests only (fast, ~1 second)
-bash test-unit.sh
+bash unit-test.sh
 
 # Docker build tests only (~1-2 minutes)
-bash test-docker-build.sh
+bash docker-build-test.sh
 
 # Integration tests only (~3-5 minutes)
 bash integration-test.sh
@@ -34,10 +34,10 @@ See [.githooks/README.md](../.githooks/README.md) for details.
 
 | Test Type | Builds Docker Image? | Runtime | Cleanup | Command |
 |-----------|---------------------|---------|---------|---------|
-| Unit Tests | ❌ No | < 1 sec | N/A | `test-unit.sh` |
-| Docker Build | ✅ Yes | ~1-2 min | ✅ Auto | `test-docker-build.sh` |
+| Unit Tests | ❌ No | < 1 sec | N/A | `unit-test.sh` |
+| Docker Build | ✅ Yes | ~1-2 min | ✅ Auto | `docker-build-test.sh` |
 | Integration Test | ✅ Yes | ~3-5 min | ✅ Auto | `integration-test.sh` |
-| **All Tests** | ✅ Yes | ~5-8 min | ✅ Auto | `test-all.sh` |
+| **All Tests** | ✅ Yes | ~5-8 min | ✅ Auto | `run-all-tests.sh` |
 
 **All tests automatically clean up after themselves** - no leftover Docker images or containers.
 
@@ -46,7 +46,7 @@ See [.githooks/README.md](../.githooks/README.md) for details.
 ### 1. Unit Tests (Syntax/Pattern Checks)
 
 **Files**: `test-*.sh` scripts  
-**Run via**: `bash test-unit.sh`  
+**Run via**: `bash unit-test.sh`  
 **Purpose**: Validate Dockerfile syntax and script structure without building images
 
 These tests use `grep` and file inspection to check:
@@ -100,7 +100,7 @@ See [INTEGRATION_TESTING.md](./INTEGRATION_TESTING.md) for details.
 ### Recommended: Run All Tests
 ```bash
 cd tests
-bash test-all.sh
+bash run-all-tests.sh
 ```
 ✅ Runs unit tests, Docker builds, and integration tests  
 ✅ Automatic cleanup of all test artifacts  
@@ -112,7 +112,7 @@ bash test-all.sh
 ### Quick: Unit Tests Only
 ```bash
 cd tests
-bash test-unit.sh
+bash unit-test.sh
 ```
 ✅ Fast (< 1 second)  
 ⚠️ Does not build Docker images  
@@ -121,7 +121,7 @@ bash test-unit.sh
 ### Medium: Docker Build Tests
 ```bash
 cd tests
-bash test-docker-build.sh
+bash docker-build-test.sh
 ```
 ✅ Tests PHP 8.2 and 8.3 builds  
 ✅ Verifies user configuration and permissions  
@@ -169,7 +169,7 @@ Both must pass for the workflow to succeed.
 
 ### "Tests passed locally but failed in CI"
 
-If you ran `bash test-unit.sh` locally, you only ran the **unit tests** (syntax checks). The CI also runs **docker-build** which actually compiles the Dockerfile.
+If you ran `bash unit-test.sh` locally, you only ran the **unit tests** (syntax checks). The CI also runs **docker-build** which actually compiles the Dockerfile.
 
 **Solution**: Test Docker builds locally before pushing:
 ```bash

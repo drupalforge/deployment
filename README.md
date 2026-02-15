@@ -265,7 +265,7 @@ This repository includes a comprehensive test suite to validate all components:
 
 ```bash
 # Run all unit tests
-bash tests/test-unit.sh
+bash tests/unit-test.sh
 
 # Run specific test suite
 bash tests/test-bootstrap-app.sh

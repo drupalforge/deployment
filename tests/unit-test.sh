@@ -5,7 +5,7 @@
 # They do NOT build Docker images or run integration tests.
 # 
 # For full validation including Docker builds, see tests/README.md
-# or run: bash test-all.sh
+# or run: bash run-all-tests.sh
 #
 set -e
 
@@ -44,15 +44,8 @@ run_test_suite() {
     fi
 }
 
-# Find and run all unit test files (excluding test-all, test-docker-build, test-unit itself)
+# Find and run all unit test files (test-*.sh pattern)
 for test_file in "$TEST_DIR"/test-*.sh; do
-    test_name=$(basename "$test_file")
-    # Skip orchestrator scripts and self
-    if [ "$test_name" = "test-all.sh" ] || \
-       [ "$test_name" = "test-docker-build.sh" ] || \
-       [ "$test_name" = "test-unit.sh" ]; then
-        continue
-    fi
     if [ -f "$test_file" ]; then
         run_test_suite "$test_file"
     fi

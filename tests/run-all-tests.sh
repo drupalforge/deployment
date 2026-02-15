@@ -46,10 +46,10 @@ run_test_suite() {
 }
 
 # Run unit tests
-run_test_suite "Unit Tests" "cd '$SCRIPT_DIR' && bash test-unit.sh"
+run_test_suite "Unit Tests" "cd '$SCRIPT_DIR' && bash unit-test.sh"
 
 # Run Docker build tests
-run_test_suite "Docker Build Tests" "cd '$SCRIPT_DIR' && bash test-docker-build.sh"
+run_test_suite "Docker Build Tests" "cd '$SCRIPT_DIR' && bash docker-build-test.sh"
 
 # Run integration tests
 run_test_suite "Integration Tests" "cd '$SCRIPT_DIR' && bash integration-test.sh"

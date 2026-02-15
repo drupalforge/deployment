@@ -155,8 +155,8 @@ The hook runs only relevant tests. If Docker build or integration tests are slow
 Make sure you're running the same tests:
 ```bash
 cd tests
-bash test-unit.sh           # Unit tests
-bash test-docker-build.sh   # Docker builds
+bash unit-test.sh           # Unit tests
+bash docker-build-test.sh   # Docker builds
 bash integration-test.sh    # Full integration
 ```
 
