@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HANDLER="$SCRIPT_DIR/proxy-handler.php"
+HANDLER="$SCRIPT_DIR/scripts/proxy-handler.php"
 
 echo "Testing proxy-handler.php..."
 
