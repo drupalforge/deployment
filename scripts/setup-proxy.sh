@@ -40,12 +40,6 @@ has_stage_file_proxy() {
     fi
   fi
   
-  # Fallback: Check if stage_file_proxy module exists in standard locations
-  if [ -d "$drupal_root/modules/contrib/stage_file_proxy" ] || \
-     [ -d "$drupal_root/modules/stage_file_proxy" ]; then
-    return 0
-  fi
-  
   return 1
 }
 
