@@ -35,11 +35,11 @@ run_test_suite() {
     echo -e "${YELLOW}Running $test_name...${NC}"
     if bash "$test_file"; then
         echo -e "${GREEN}✓ $test_name passed${NC}"
-        ((passed_suites++))
+        passed_suites=$((passed_suites + 1))
         echo ""
     else
         echo -e "${RED}✗ $test_name failed${NC}"
-        ((failed_tests++))
+        failed_tests=$((failed_tests + 1))
         echo ""
     fi
 }
