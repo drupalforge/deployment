@@ -39,8 +39,21 @@ cleanup() {
     echo ""
     echo -e "${YELLOW}Cleaning up test environment...${NC}"
     cd "$SCRIPT_DIR"
+    
+    # Stop and remove containers, networks, volumes
     docker-compose -f docker-compose.test.yml down -v 2>/dev/null || true
-    echo "Cleanup complete"
+    
+    # Clean up test images
+    echo "Removing test images..."
+    docker-compose -f docker-compose.test.yml rm -f 2>/dev/null || true
+    
+    # Remove dangling images created during test
+    local test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "deployment.*deployment" || true)
+    if [ -n "$test_images" ]; then
+        echo "$test_images" | xargs -r docker rmi 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
 trap cleanup EXIT

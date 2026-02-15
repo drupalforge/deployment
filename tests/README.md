@@ -2,15 +2,44 @@
 
 This directory contains different types of tests for the Drupal Forge deployment image.
 
+## Test Commands
+
+### Run All Tests (Recommended)
+```bash
+cd tests
+bash test-all.sh
+```
+Runs unit tests, Docker builds, and integration tests in sequence. **Use this before pushing.**
+
+### Run Specific Test Types
+```bash
+# Unit tests only (fast, ~1 second)
+bash run-all-tests.sh
+
+# Docker build tests only (~1-2 minutes)
+bash test-docker-build.sh
+
+# Integration tests only (~3-5 minutes)
+bash integration-test.sh
+```
+
+### Git Hooks (Automated)
+```bash
+# Set up pre-push hook to run tests automatically
+git config core.hooksPath .githooks
+```
+See [.githooks/README.md](../.githooks/README.md) for details.
+
 ## Quick Reference
 
-| Test Type | Builds Docker Image? | Runtime | When to Use |
-|-----------|---------------------|---------|-------------|
-| Unit Tests (`test-*.sh`) | ❌ No | < 1 sec | Quick syntax validation |
-| CI Docker Build | ✅ Yes | ~1 min | Automated CI checks |
-| Integration Test | ✅ Yes | ~3 min | Full E2E + build validation |
+| Test Type | Builds Docker Image? | Runtime | Cleanup | Command |
+|-----------|---------------------|---------|---------|---------|
+| Unit Tests | ❌ No | < 1 sec | N/A | `run-all-tests.sh` |
+| Docker Build | ✅ Yes | ~1-2 min | ✅ Auto | `test-docker-build.sh` |
+| Integration Test | ✅ Yes | ~3-5 min | ✅ Auto | `integration-test.sh` |
+| **All Tests** | ✅ Yes | ~5-8 min | ✅ Auto | `test-all.sh` |
 
-**Key Point**: Only integration tests and CI docker-build actually compile the Dockerfile. Running `bash run-all-tests.sh` alone does NOT catch Docker build errors!
+**All tests automatically clean up after themselves** - no leftover Docker images or containers.
 
 ## Test Types
 
@@ -68,35 +97,62 @@ See [INTEGRATION_TESTING.md](./INTEGRATION_TESTING.md) for details.
 
 ## Running Tests Locally
 
-### Quick Validation (Unit Tests Only)
+### Recommended: Run All Tests
+```bash
+cd tests
+bash test-all.sh
+```
+✅ Runs unit tests, Docker builds, and integration tests  
+✅ Automatic cleanup of all test artifacts  
+✅ Clear pass/fail summary  
+⏱️ Takes ~5-8 minutes
+
+**Use this command before pushing to catch all issues.**
+
+### Quick: Unit Tests Only
 ```bash
 cd tests
 bash run-all-tests.sh
 ```
 ✅ Fast (< 1 second)  
-⚠️ Does not build Docker images
+⚠️ Does not build Docker images  
+⚠️ May miss Docker build errors
 
-### Build Validation (Manual Docker Build)
+### Medium: Docker Build Tests
 ```bash
-# Build and test PHP 8.3 image
-docker build --build-arg PHP_VERSION=8.3 -t test:8.3 .
-
-# Build and test PHP 8.2 image
-docker build --build-arg PHP_VERSION=8.2 -t test:8.2 .
+cd tests
+bash test-docker-build.sh
 ```
-✅ Validates actual Docker build  
-⏱️ Slower (~30-60 seconds per image)
+✅ Tests PHP 8.2 and 8.3 builds  
+✅ Verifies user configuration and permissions  
+✅ Automatic cleanup of test images  
+⏱️ Takes ~1-2 minutes
 
-### Full Integration Test (Build + E2E)
+### Comprehensive: Integration Tests
 ```bash
 cd tests
 bash integration-test.sh
 ```
-✅ **Builds Docker image** (PHP 8.3) via docker-compose  
+✅ Builds Docker image via docker-compose  
 ✅ Complete end-to-end validation with real services  
-⏱️ Slowest (~2-5 minutes)
+✅ Automatic cleanup of containers and images  
+⏱️ Takes ~3-5 minutes
 
-**Note**: Integration tests automatically build the Docker image using `docker-compose up --build`. This is the most comprehensive local test option.
+## Automated Testing with Git Hooks
+
+Set up the pre-push hook to automatically run tests before pushing:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook will:
+- Detect which files changed
+- Run only relevant tests (faster)
+- Block push if tests fail
+- Clean up automatically
+
+See [.githooks/README.md](../.githooks/README.md) for details.
 
 ## CI Workflow
 
