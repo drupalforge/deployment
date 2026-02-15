@@ -137,8 +137,6 @@ When using Apache reverse proxy (fallback when Stage File Proxy not available), 
 **Drupal Image Styles Support:**
 The proxy handler has special support for Drupal image styles. When a styled image is requested (e.g., `/sites/default/files/styles/thumbnail/public/image.jpg`) and doesn't exist locally, the handler automatically retrieves the original file (e.g., `/sites/default/files/image.jpg`) from the origin server. This allows Drupal to generate the styled version on-demand. The original file is saved to disk for future use, and Drupal can create all necessary image style derivatives from it.
 
-
-
 - `APP_ROOT` - Application root directory
 - `PHP_MEMORY_LIMIT` - PHP memory limit
 - `PHP_MAX_EXECUTION_TIME` - PHP maximum execution time
