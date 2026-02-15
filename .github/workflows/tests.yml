@@ -5,10 +5,36 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
+  # This job checks if the PR is a draft and requires manual approval
+  approval-check:
+    runs-on: ubuntu-latest
+    # Only run for pull requests (not pushes to main)
+    if: github.event_name == 'pull_request'
+    # Use environment with protection rules for draft PRs
+    # Note: An environment named 'draft-pr-approval' needs to be configured in repository settings
+    # with required reviewers for this to require approval on draft PRs
+    environment: ${{ github.event.pull_request.draft && 'draft-pr-approval' || 'auto-approve' }}
+    outputs:
+      approved: ${{ steps.check.outputs.approved }}
+    steps:
+      - name: Check approval status
+        id: check
+        run: |
+          if [ "${{ github.event.pull_request.draft }}" == "true" ]; then
+            echo "This is a draft PR - requires manual approval to run tests"
+          else
+            echo "This is a ready-for-review PR - tests will run automatically"
+          fi
+          echo "approved=true" >> $GITHUB_OUTPUT
+  
   unit-tests:
     runs-on: ubuntu-latest
+    # Run on push to main, or on PRs after approval check
+    needs: [approval-check]
+    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && needs.approval-check.result == 'success'))
     
     steps:
     - uses: actions/checkout@v3
@@ -25,6 +51,9 @@ jobs:
   
   docker-build:
     runs-on: ubuntu-latest
+    # Run on push to main, or on PRs after approval check
+    needs: [approval-check]
+    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && needs.approval-check.result == 'success'))
     
     steps:
     - uses: actions/checkout@v3
