@@ -34,7 +34,6 @@ This repository builds a container image for deploying Drupal sites to Drupal Fo
 ├── proxy-handler.php     # PHP handler for file downloads
 ├── Dockerfile           # Multi-stage Docker build
 └── README.md            # Comprehensive documentation
-
 ```
 
 ## Key Concepts
