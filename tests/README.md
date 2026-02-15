@@ -54,6 +54,7 @@ These tests use `grep` and file inspection to check:
 - Scripts have proper permissions
 - Configuration files exist
 - Code patterns are present
+- YAML files follow consistent formatting (via yamllint)
 
 **Important**: These tests do NOT build Docker images. They only check the text content of files.
 
@@ -216,3 +217,25 @@ When adding new tests:
 3. **Integration tests** - Update `integration-test.sh` for functional features
 
 Keep tests fast, focused, and independent.
+
+### YAML Linting
+
+The test suite includes YAML linting via `yamllint` to ensure consistent formatting across all YAML files (workflows, docker-compose, etc.).
+
+**Configuration**: `.yamllint` at repository root
+
+**To fix linting errors**:
+```bash
+# Check which files have issues
+yamllint .github/workflows/*.yml tests/*.yml
+
+# Common fixes:
+# - Remove trailing whitespace
+# - Use 2-space indentation
+# - Keep lines under 120 characters
+```
+
+**Requirements**: Install yamllint if not available:
+```bash
+pip install yamllint
+```

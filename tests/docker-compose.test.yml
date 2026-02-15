@@ -89,19 +89,19 @@ services:
       DB_USER: drupal
       DB_PASSWORD: drupal_password
       DB_NAME: drupaldb
-      
+
       # S3 configuration for database import
       S3_BUCKET: test-deployments
       S3_DATABASE_PATH: test-db.sql
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_REGION: us-east-1
-      
+
       # File proxy configuration
       ORIGIN_URL: http://origin-server:8000
       FILE_PROXY_PATHS: /sites/default/files
       WEB_ROOT: /var/www/html/web
-      
+
       # AWS S3 endpoint override for MinIO
       AWS_S3_ENDPOINT: http://minio:9000
     volumes:
