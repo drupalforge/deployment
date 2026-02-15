@@ -19,10 +19,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y php-cli php-curl
     
-    - name: Make test scripts executable
-      run: |
-        chmod +x tests/*.sh
-    
     - name: Run unit tests
       run: |
         bash tests/test-unit.sh
