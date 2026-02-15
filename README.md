@@ -337,7 +337,7 @@ Check logs for:
 
 ### File Proxy Not Working
 
-- **Stage File Proxy:** Verify module is installed at `modules/contrib/stage_file_proxy`
+- **Stage File Proxy:** Verify module is installed via Composer (`composer show drupal/stage_file_proxy`)
 - **Apache Proxy:** Check `FILE_PROXY_PATHS` matches actual file locations in your app
 - **Origin URL:** Ensure `ORIGIN_URL` is accessible from container
 
