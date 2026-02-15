@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on push to main, or on PRs after approval check
     needs: [approval-check]
-    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && needs.approval-check.result == 'success'))
+    if: always() && (github.event_name == 'push' || (needs.approval-check.result == 'success'))
     
     steps:
     - uses: actions/checkout@v3
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     # Run on push to main, or on PRs after approval check
     needs: [approval-check]
-    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && needs.approval-check.result == 'success'))
+    if: always() && (github.event_name == 'push' || (needs.approval-check.result == 'success'))
     
     steps:
     - uses: actions/checkout@v3
