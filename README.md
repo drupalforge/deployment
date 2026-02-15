@@ -310,6 +310,7 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 - **CI/CD**: Automated tests on every PR and push to main branch
   - Tests run automatically on pull requests that are ready for review
   - Draft pull requests require manual approval before tests run
+  - When a draft PR is marked as ready for review, any pending workflow runs waiting for approval are automatically canceled
 
 See `.github/workflows/tests.yml` for details.
 
