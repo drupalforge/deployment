@@ -5,118 +5,17 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    # Don't run on draft PRs - only when ready for review
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  # Cancel any pending workflow runs waiting for approval when PR becomes ready for review
-  cancel-pending-on-ready:
-    runs-on: ubuntu-latest
-    # Only run when a draft PR becomes ready for review
-    if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
-    steps:
-      - name: Cancel pending workflow runs
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const prNumber = context.payload.pull_request.number;
-            const currentRunId = context.runId;
-            const headSha = context.payload.pull_request.head.sha;
-            
-            console.log(`Looking for workflow runs of "Tests" for PR #${prNumber}`);
-            
-            // Get all workflow runs for this specific workflow file and PR
-            // Using the workflow file name to ensure we only cancel runs from the same workflow
-            const { data: workflowRuns } = await github.rest.actions.listWorkflowRuns({
-              owner,
-              repo,
-              workflow_id: 'tests.yml',
-              event: 'pull_request',
-              per_page: 100
-              // Note: Not filtering by status to capture runs waiting for environment approval
-            });
-            
-            console.log(`Found ${workflowRuns.total_count} total workflow runs for this workflow`);
-            
-            // Filter to runs for this PR that are waiting for approval or in progress
-            const runsToCancel = workflowRuns.workflow_runs.filter(run => {
-              // Don't cancel the current run
-              if (run.id === currentRunId) {
-                console.log(`Skipping current run ${run.id}`);
-                return false;
-              }
-              
-              // For action_required runs, cancel ALL of them for this PR regardless of SHA
-              // These are stuck from when the PR was in draft state
-              if (run.conclusion === 'action_required') {
-                // Match by PR number using pull_requests array
-                const matchingPr = run.pull_requests.find(pr => pr.number === prNumber);
-                if (matchingPr) {
-                  console.log(`Found action_required run ${run.id} for PR #${prNumber}`);
-                  return true;
-                }
-              }
-              
-              // For non-completed runs, match by head SHA to ensure we're only
-              // canceling runs for the current commit
-              if (run.status !== 'completed' && run.head_sha === headSha) {
-                console.log(`Found in-progress run ${run.id} with status ${run.status} for SHA ${headSha}`);
-                return true;
-              }
-              
-              return false;
-            });
-            
-            console.log(`Found ${runsToCancel.length} workflow runs to cancel for PR #${prNumber}`);
-            
-            // Cancel each pending run
-            // Use force-cancel to ensure we can cancel runs waiting for environment approval
-            for (const run of runsToCancel) {
-              console.log(`Canceling workflow run ${run.id} (status: ${run.status})`);
-              try {
-                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel', {
-                  owner,
-                  repo,
-                  run_id: run.id
-                });
-                console.log(`Successfully force-canceled run ${run.id}`);
-              } catch (error) {
-                console.log(`Failed to force-cancel run ${run.id}: ${error.message}`);
-              }
-            }
-
-  # This job checks if the PR is a draft and requires manual approval
-  approval-check:
-    runs-on: ubuntu-latest
-    # Only run for pull requests (not pushes to main)
-    if: github.event_name == 'pull_request'
-    # Use environment with protection rules for draft PRs
-    # Note: An environment named 'draft-pr-approval' needs to be configured in repository settings
-    # with required reviewers for this to require approval on draft PRs
-    environment: ${{ github.event.pull_request.draft && 'draft-pr-approval' || 'auto-approve' }}
-    outputs:
-      approved: ${{ steps.check.outputs.approved }}
-    steps:
-      - name: Check approval status
-        id: check
-        run: |
-          if [ "${{ github.event.pull_request.draft }}" == "true" ]; then
-            echo "This is a draft PR - requires manual approval to run tests"
-          else
-            echo "This is a ready-for-review PR - tests will run automatically"
-          fi
-          echo "approved=true" >> $GITHUB_OUTPUT
-  
   unit-tests:
     runs-on: ubuntu-latest
-    # Run on push to main, or on PRs after approval check
-    needs: [approval-check]
-    if: always() && (github.event_name == 'push' || (needs.approval-check.result == 'success'))
+    # Skip draft PRs - standard GitHub approach
+    if: github.event_name == 'push' || !github.event.pull_request.draft
     
     steps:
     - uses: actions/checkout@v3
@@ -133,9 +32,8 @@ jobs:
   
   docker-build:
     runs-on: ubuntu-latest
-    # Run on push to main, or on PRs after approval check
-    needs: [approval-check]
-    if: always() && (github.event_name == 'push' || (needs.approval-check.result == 'success'))
+    # Skip draft PRs - standard GitHub approach
+    if: github.event_name == 'push' || !github.event.pull_request.draft
     
     steps:
     - uses: actions/checkout@v3
