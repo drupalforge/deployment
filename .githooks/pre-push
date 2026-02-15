@@ -82,7 +82,7 @@ cd "$PROJECT_ROOT/tests"
 
 if [ "$RUN_UNIT_TESTS" = true ]; then
     echo -e "${YELLOW}Running unit tests...${NC}"
-    if ! bash run-all-tests.sh; then
+    if ! bash test-unit.sh; then
         echo -e "${RED}✗ Unit tests failed${NC}"
         echo -e "${RED}Push aborted. Fix the tests and try again.${NC}"
         exit 1

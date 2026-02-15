@@ -1,10 +1,11 @@
 #!/bin/bash
-# Test runner - runs all test suites
+# Unit test runner - runs syntax and pattern validation tests
 #
 # NOTE: These tests check syntax and patterns in files (grep-based validation).
 # They do NOT build Docker images or run integration tests.
 # 
 # For full validation including Docker builds, see tests/README.md
+# or run: bash test-all.sh
 #
 set -e
 
@@ -43,9 +44,16 @@ run_test_suite() {
     fi
 }
 
-# Find and run all test files
+# Find and run all unit test files (excluding test-all, test-docker-build, test-unit itself)
 for test_file in "$TEST_DIR"/test-*.sh; do
-    if [ -f "$test_file" ] && [ "$test_file" != "$0" ]; then
+    test_name=$(basename "$test_file")
+    # Skip orchestrator scripts and self
+    if [ "$test_name" = "test-all.sh" ] || \
+       [ "$test_name" = "test-docker-build.sh" ] || \
+       [ "$test_name" = "test-unit.sh" ]; then
+        continue
+    fi
+    if [ -f "$test_file" ]; then
         run_test_suite "$test_file"
     fi
 done
