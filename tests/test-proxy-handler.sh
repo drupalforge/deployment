@@ -95,6 +95,16 @@ test_env_origin() {
     fi
 }
 
+# Test 10: Handles Drupal image styles
+test_image_styles() {
+    if grep -q "styles.*public\|image.*styles" "$HANDLER"; then
+        echo "✓ Script handles Drupal image styles"
+    else
+        echo "✗ Script doesn't handle image styles"
+        exit 1
+    fi
+}
+
 # Run tests
 test_file_exists
 test_php_syntax
@@ -105,5 +115,6 @@ test_permissions
 test_mime_detection
 test_error_handling
 test_env_origin
+test_image_styles
 
 echo "✓ PHP handler tests passed"

@@ -112,7 +112,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `ORIGIN_URL` | Origin site URL for file proxy (required to enable proxy) | `https://prod-site.example.com` |
-| `FILE_PROXY_PATHS` | Comma-separated paths to proxy (optional, default: `/sites/default/files`) | `/sites/default/files,/config` |
+| `FILE_PROXY_PATHS` | Comma-separated paths to proxy (optional, default: `/sites/default/files`) | `/sites/default/files,/sites/all/themes/custom/assets` |
 | `USE_STAGE_FILE_PROXY` | Force Stage File Proxy or Apache proxy (`yes`/`no`, optional auto-detect) | `yes` |
 | `WEB_ROOT` | Web root path (optional, default: `/var/www/html/web`) | `/var/www/html/web` |
 
@@ -134,6 +134,8 @@ When using Apache reverse proxy (fallback when Stage File Proxy not available), 
 
 **Result:** Origin files are downloaded on first access and saved to their real paths. Users can add new local files anytime. Downloaded files are discoverable and editable in the filesystem.
 
+**Drupal Image Styles Support:**
+The proxy handler has special support for Drupal image styles. When a styled image is requested (e.g., `/sites/default/files/styles/thumbnail/public/image.jpg`) and doesn't exist locally, the handler automatically retrieves the original file (e.g., `/sites/default/files/image.jpg`) from the origin server. This allows Drupal to generate the styled version on-demand. The original file is saved to disk for future use, and Drupal can create all necessary image style derivatives from it.
 
 - `APP_ROOT` - Application root directory
 - `PHP_MEMORY_LIMIT` - PHP memory limit
@@ -308,6 +310,7 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 - **CI/CD**: Automated tests on every PR and push to main branch
   - Tests run automatically on pull requests that are ready for review
   - Draft pull requests require manual approval before tests run
+  - When a draft PR is marked as ready for review, any pending workflow runs waiting for approval are automatically canceled
 
 See `.github/workflows/tests.yml` for details.
 
@@ -334,7 +337,7 @@ Check logs for:
 
 ### File Proxy Not Working
 
-- **Stage File Proxy:** Verify module is installed at `modules/contrib/stage_file_proxy`
+- **Stage File Proxy:** Verify module is installed via Composer (`composer show drupal/stage_file_proxy`)
 - **Apache Proxy:** Check `FILE_PROXY_PATHS` matches actual file locations in your app
 - **Origin URL:** Ensure `ORIGIN_URL` is accessible from container
 

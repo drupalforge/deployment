@@ -18,11 +18,13 @@ Runs unit tests and Docker builds for the deployment image.
 - Runs all tests automatically
 - No approval required
 - Uses `auto-approve` environment (no protection rules needed)
+- **Automatically cancels any pending workflow runs** that were waiting for approval from when the PR was in draft state
 
 **On Pull Request - Draft:**
 - Requires manual approval before tests run
 - Uses `draft-pr-approval` environment with required reviewers
 - Tests run after approval is granted
+- If the PR is later marked as ready for review, pending approval requests are automatically canceled
 
 #### Setup Requirements
 
@@ -49,17 +51,22 @@ The workflow runs on:
 
 #### Jobs
 
-1. **approval-check**
+1. **cancel-pending-on-ready**
+   - Cancels pending workflow runs waiting for approval when a PR becomes ready for review
+   - Only runs when `ready_for_review` event is triggered
+   - Ensures no stale approval requests remain when a draft PR transitions to ready
+
+2. **approval-check**
    - Verifies PR status and applies appropriate environment
    - Only runs for pull request events
    - Outputs approval status for dependent jobs
 
-2. **unit-tests**
+3. **unit-tests**
    - Runs shell-based unit tests
    - Depends on approval-check for PRs
    - Validates scripts and PHP syntax
 
-3. **docker-build**
+4. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
    - Depends on approval-check for PRs
    - Validates Docker build process
