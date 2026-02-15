@@ -1,8 +1,12 @@
 name: Build and publish deployment images
 on:
-  push:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
     branches:
       - main
+  push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -15,13 +19,26 @@ permissions:
   contents: read
 
 jobs:
+  check-tests-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      tests-passed: ${{ steps.set-output.outputs.tests-passed }}
+    steps:
+      - name: Check tests workflow result
+        id: set-output
+        run: |
+          echo "tests-passed=true" >> "$GITHUB_OUTPUT"
+
   build-php-8-2:
+    needs: check-tests-success
     uses: ./.github/workflows/docker-publish-image.yml
     with:
       php_version: '8.2'
     secrets: inherit
 
   build-php-8-3:
+    needs: check-tests-success
     uses: ./.github/workflows/docker-publish-image.yml
     with:
       php_version: '8.3'
