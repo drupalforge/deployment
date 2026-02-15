@@ -56,6 +56,7 @@ The workflow runs on:
    - Only runs when `ready_for_review` event is triggered
    - Uses workflow-specific API to only cancel runs from the same workflow file
    - Matches runs by head SHA for reliable PR identification
+   - Uses force-cancel API to reliably cancel runs waiting for environment approval
    - Ensures no stale approval requests remain when a draft PR transitions to ready
 
 2. **approval-check**

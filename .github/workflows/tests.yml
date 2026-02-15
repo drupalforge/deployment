@@ -72,17 +72,18 @@ jobs:
             console.log(`Found ${runsToCancel.length} workflow runs to cancel for PR #${prNumber}`);
             
             // Cancel each pending run
+            // Use force-cancel to ensure we can cancel runs waiting for environment approval
             for (const run of runsToCancel) {
               console.log(`Canceling workflow run ${run.id} (status: ${run.status})`);
               try {
-                await github.rest.actions.cancelWorkflowRun({
+                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel', {
                   owner,
                   repo,
                   run_id: run.id
                 });
-                console.log(`Successfully canceled run ${run.id}`);
+                console.log(`Successfully force-canceled run ${run.id}`);
               } catch (error) {
-                console.log(`Failed to cancel run ${run.id}: ${error.message}`);
+                console.log(`Failed to force-cancel run ${run.id}: ${error.message}`);
               }
             }
 
