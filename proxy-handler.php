@@ -32,6 +32,15 @@ $web_root = rtrim($web_root, '/');
 // Build paths
 $target_path = $web_root . $requested_path;
 
+// Handle Drupal image styles: if requesting a styled image that doesn't exist,
+// fetch the original file instead so Drupal can generate the style
+// Pattern: /sites/default/files/styles/{style_name}/public/{original_path}
+// Original: /sites/default/files/{original_path}
+$download_path = $requested_path;
+if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_path, $matches)) {
+    $download_path = $matches[1] . '/' . $matches[2];
+}
+
 // Security check: ensure target is within web root
 $real_web_root = realpath($web_root);
 $real_target = realpath(dirname($target_path));
@@ -51,7 +60,7 @@ if (!is_dir($target_dir)) {
 
 // Build origin URL (remove trailing slash from origin, add leading slash to requested path)
 $origin_url = rtrim($origin_url, '/');
-$full_url = $origin_url . $requested_path;
+$full_url = $origin_url . $download_path;
 
 // Download file using curl
 $ch = curl_init();
