@@ -26,33 +26,54 @@ jobs:
             const repo = context.repo.repo;
             const prNumber = context.payload.pull_request.number;
             const currentRunId = context.runId;
+            const headSha = context.payload.pull_request.head.sha;
             
-            // Get all workflow runs for this PR (including those waiting for approval)
-            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+            // Get the current workflow ID from the workflow file name
+            const workflowFileName = context.workflow;
+            
+            console.log(`Looking for workflow runs of "${workflowFileName}" for PR #${prNumber}`);
+            
+            // Get all workflow runs for this specific workflow file and PR
+            // Using the workflow file name to ensure we only cancel runs from the same workflow
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRuns({
               owner,
               repo,
-              event: 'pull_request'
+              workflow_id: 'tests.yml',
+              event: 'pull_request',
+              per_page: 100
               // Note: Not filtering by status to capture runs waiting for environment approval
             });
+            
+            console.log(`Found ${workflowRuns.total_count} total workflow runs for this workflow`);
             
             // Filter to runs for this PR that are waiting for approval or in progress
             const runsToCancel = workflowRuns.workflow_runs.filter(run => {
               // Don't cancel the current run
-              if (run.id === currentRunId) return false;
+              if (run.id === currentRunId) {
+                console.log(`Skipping current run ${run.id}`);
+                return false;
+              }
               
               // Only cancel runs that are not completed
-              if (run.status === 'completed') return false;
+              if (run.status === 'completed') {
+                return false;
+              }
               
-              // Only cancel runs for this specific PR
-              const matchingPr = run.pull_requests.find(pr => pr.number === prNumber);
-              return matchingPr !== undefined;
+              // Match by head SHA to ensure we're canceling runs for this specific PR
+              // This is more reliable than checking the pull_requests array
+              if (run.head_sha === headSha) {
+                console.log(`Found matching run ${run.id} with status ${run.status} for SHA ${headSha}`);
+                return true;
+              }
+              
+              return false;
             });
             
             console.log(`Found ${runsToCancel.length} workflow runs to cancel for PR #${prNumber}`);
             
             // Cancel each pending run
             for (const run of runsToCancel) {
-              console.log(`Canceling workflow run ${run.id} (${run.name})`);
+              console.log(`Canceling workflow run ${run.id} (status: ${run.status})`);
               try {
                 await github.rest.actions.cancelWorkflowRun({
                   owner,

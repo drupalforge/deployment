@@ -54,6 +54,8 @@ The workflow runs on:
 1. **cancel-pending-on-ready**
    - Cancels pending workflow runs waiting for approval when a PR becomes ready for review
    - Only runs when `ready_for_review` event is triggered
+   - Uses workflow-specific API to only cancel runs from the same workflow file
+   - Matches runs by head SHA for reliable PR identification
    - Ensures no stale approval requests remain when a draft PR transitions to ready
 
 2. **approval-check**
