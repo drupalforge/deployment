@@ -29,11 +29,20 @@ error() {
 has_stage_file_proxy() {
   local drupal_root="${1:-.}"
   
-  # Check if stage_file_proxy module exists
+  # Check if composer is available and composer.json exists
+  if command -v composer &> /dev/null && [ -f "$drupal_root/composer.json" ]; then
+    # Use composer to check if stage_file_proxy package is installed
+    if (cd "$drupal_root" && composer show drupal/stage_file_proxy &> /dev/null); then
+      return 0
+    fi
+  fi
+  
+  # Fallback: Check if stage_file_proxy module exists in standard locations
   if [ -d "$drupal_root/modules/contrib/stage_file_proxy" ] || \
      [ -d "$drupal_root/modules/stage_file_proxy" ]; then
     return 0
   fi
+  
   return 1
 }
 
