@@ -1,6 +1,9 @@
 ARG PHP_VERSION=8.3
 FROM devpanel/php:${PHP_VERSION}-base
 
+# Switch to root for system-level operations
+USER root
+
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
@@ -11,19 +14,16 @@ COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
 COPY proxy-handler.php /var/www/drupalforge-proxy-handler.php
 
-# Make scripts executable
-RUN chmod +x /usr/local/bin/bootstrap-app && \
-    chmod +x /usr/local/bin/import-database && \
-    chmod +x /usr/local/bin/setup-proxy && \
-    chmod +x /usr/local/bin/deployment-entrypoint && \
-    chmod 644 /var/www/drupalforge-proxy-handler.php
-
 # Enable Apache proxy and rewrite modules for conditional file serving
 # Requests for missing files are routed to PHP handler which downloads to expected path
 RUN a2enmod proxy && \
     a2enmod proxy_http && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
+
+# Switch back to non-root user for runtime
+# Use USER environment variable from base image
+USER ${USER}
 
 # Use ENTRYPOINT to ensure deployment setup always runs
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]

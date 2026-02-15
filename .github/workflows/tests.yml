@@ -16,16 +16,12 @@ jobs:
     - name: Set up shell test environment
       run: |
         # Install PHP for syntax checking
-        apt-get update
-        apt-get install -y php-cli php-curl
+        sudo apt-get update
+        sudo apt-get install -y php-cli php-curl
     
-    - name: Make test scripts executable
+    - name: Run unit tests
       run: |
-        chmod +x tests/*.sh
-    
-    - name: Run all tests
-      run: |
-        bash tests/run-all-tests.sh
+        bash tests/unit-test.sh
   
   docker-build:
     runs-on: ubuntu-latest

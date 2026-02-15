@@ -1,0 +1,122 @@
+#!/bin/bash
+# Pre-push hook to run tests before pushing
+# Only tests files that have changed since the last successful push
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║                     Pre-Push Hook                              ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Get the remote branch we're pushing to
+remote="$1"
+url="$2"
+
+# Get list of changed files
+CHANGED_FILES=$(git diff --name-only @{upstream}...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD 2>/dev/null || echo "")
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo -e "${YELLOW}No changes detected. Running minimal tests...${NC}"
+    CHANGED_FILES="all"
+fi
+
+echo -e "${BLUE}Changed files:${NC}"
+echo "$CHANGED_FILES" | head -10
+if [ $(echo "$CHANGED_FILES" | wc -l) -gt 10 ]; then
+    echo "... and $(( $(echo "$CHANGED_FILES" | wc -l) - 10 )) more"
+fi
+echo ""
+
+# Determine which tests to run based on changed files
+RUN_UNIT_TESTS=false
+RUN_DOCKER_BUILD=false
+RUN_INTEGRATION=false
+
+# Check if Dockerfile changed
+if echo "$CHANGED_FILES" | grep -q "Dockerfile" || [ "$CHANGED_FILES" == "all" ]; then
+    RUN_DOCKER_BUILD=true
+    RUN_INTEGRATION=true
+fi
+
+# Check if scripts changed
+if echo "$CHANGED_FILES" | grep -q "scripts/" || [ "$CHANGED_FILES" == "all" ]; then
+    RUN_UNIT_TESTS=true
+    RUN_DOCKER_BUILD=true
+fi
+
+# Check if test files changed
+if echo "$CHANGED_FILES" | grep -q "tests/" || [ "$CHANGED_FILES" == "all" ]; then
+    RUN_UNIT_TESTS=true
+fi
+
+# Check if CI workflow changed
+if echo "$CHANGED_FILES" | grep -q ".github/workflows/" || [ "$CHANGED_FILES" == "all" ]; then
+    RUN_UNIT_TESTS=true
+    RUN_DOCKER_BUILD=true
+fi
+
+# If nothing specific matched, run unit tests at minimum
+if [ "$RUN_UNIT_TESTS" = false ] && [ "$RUN_DOCKER_BUILD" = false ] && [ "$RUN_INTEGRATION" = false ]; then
+    RUN_UNIT_TESTS=true
+fi
+
+echo -e "${YELLOW}Tests to run:${NC}"
+[ "$RUN_UNIT_TESTS" = true ] && echo "  ✓ Unit tests"
+[ "$RUN_DOCKER_BUILD" = true ] && echo "  ✓ Docker build tests"
+[ "$RUN_INTEGRATION" = true ] && echo "  ✓ Integration tests"
+echo ""
+
+# Run selected tests
+cd "$PROJECT_ROOT/tests"
+
+if [ "$RUN_UNIT_TESTS" = true ]; then
+    echo -e "${YELLOW}Running unit tests...${NC}"
+    if ! bash unit-test.sh; then
+        echo -e "${RED}✗ Unit tests failed${NC}"
+        echo -e "${RED}Push aborted. Fix the tests and try again.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Unit tests passed${NC}"
+    echo ""
+fi
+
+if [ "$RUN_DOCKER_BUILD" = true ]; then
+    echo -e "${YELLOW}Running Docker build tests...${NC}"
+    if ! bash docker-build-test.sh; then
+        echo -e "${RED}✗ Docker build tests failed${NC}"
+        echo -e "${RED}Push aborted. Fix the tests and try again.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Docker build tests passed${NC}"
+    echo ""
+fi
+
+if [ "$RUN_INTEGRATION" = true ]; then
+    echo -e "${YELLOW}Running integration tests...${NC}"
+    echo -e "${YELLOW}Note: This may take a few minutes...${NC}"
+    if ! bash integration-test.sh; then
+        echo -e "${RED}✗ Integration tests failed${NC}"
+        echo -e "${RED}Push aborted. Fix the tests and try again.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Integration tests passed${NC}"
+    echo ""
+fi
+
+echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║         All tests passed! Proceeding with push...             ║${NC}"
+echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+exit 0
