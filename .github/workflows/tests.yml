@@ -40,7 +40,7 @@ jobs:
         build-args: |
           PHP_VERSION=8.2
         push: false
-        tags: drupalforge/deployment:8.2-test
+        tags: ${{ github.repository }}:8.2-test
     
     - name: Build PHP 8.3 image
       uses: docker/build-push-action@v4
@@ -50,4 +50,4 @@ jobs:
         build-args: |
           PHP_VERSION=8.3
         push: false
-        tags: drupalforge/deployment:8.3-test
+        tags: ${{ github.repository }}:8.3-test
