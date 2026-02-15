@@ -306,8 +306,22 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 - **Unit Tests**: 40+ individual tests covering all scripts and configuration
 - **Integration Tests**: 11 end-to-end validation checks
 - **CI/CD**: Automated tests on every PR and push to main branch
+  - Tests run automatically on pull requests that are ready for review
+  - Draft pull requests require manual approval before tests run
 
 See `.github/workflows/tests.yml` for details.
+
+#### Setting Up Draft PR Approval (Optional)
+
+To require manual approval for tests on draft PRs, configure GitHub environments:
+
+1. Go to repository **Settings** → **Environments**
+2. Create environment named `draft-pr-approval`
+3. Enable **Required reviewers** protection rule
+4. Add reviewers who can approve test runs on draft PRs
+5. Create environment named `auto-approve` with no protection rules
+
+Without these environments configured, the workflow will still function but won't enforce approval requirements.
 
 ## Troubleshooting
 
