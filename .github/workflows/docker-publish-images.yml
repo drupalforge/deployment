@@ -4,8 +4,6 @@ on:
     workflows: ["Tests"]
     types:
       - completed
-    branches:
-      - main
   push:
     tags:
       - 'v*.*.*'
@@ -21,14 +19,10 @@ permissions:
 jobs:
   check-tests-success:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    outputs:
-      tests-passed: ${{ steps.set-output.outputs.tests-passed }}
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     steps:
       - name: Check tests workflow result
-        id: set-output
-        run: |
-          echo "tests-passed=true" >> "$GITHUB_OUTPUT"
+        run: echo "Tests workflow succeeded, proceeding with image build"
 
   build-php-8-2:
     needs: check-tests-success
