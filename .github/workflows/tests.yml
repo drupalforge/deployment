@@ -9,8 +9,60 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
+  # Cancel any pending workflow runs waiting for approval when PR becomes ready for review
+  cancel-pending-on-ready:
+    runs-on: ubuntu-latest
+    # Only run when a draft PR becomes ready for review
+    if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
+    steps:
+      - name: Cancel pending workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = context.payload.pull_request.number;
+            const currentRunId = context.runId;
+            
+            // Get all workflow runs for this PR
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              event: 'pull_request',
+              status: 'in_progress'
+            });
+            
+            // Filter to runs for this PR that are waiting for approval
+            const runsToCancel = workflowRuns.workflow_runs.filter(run => {
+              // Don't cancel the current run
+              if (run.id === currentRunId) return false;
+              
+              // Only cancel runs for this specific PR
+              // Check if the run is associated with the same head SHA or same PR number
+              const runPrNumber = run.pull_requests.find(pr => pr.number === prNumber);
+              return runPrNumber !== undefined;
+            });
+            
+            console.log(`Found ${runsToCancel.length} workflow runs to cancel for PR #${prNumber}`);
+            
+            // Cancel each pending run
+            for (const run of runsToCancel) {
+              console.log(`Canceling workflow run ${run.id} (${run.name})`);
+              try {
+                await github.rest.actions.cancelWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: run.id
+                });
+                console.log(`Successfully canceled run ${run.id}`);
+              } catch (error) {
+                console.log(`Failed to cancel run ${run.id}: ${error.message}`);
+              }
+            }
+
   # This job checks if the PR is a draft and requires manual approval
   approval-check:
     runs-on: ubuntu-latest
