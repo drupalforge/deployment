@@ -28,10 +28,7 @@ jobs:
             const currentRunId = context.runId;
             const headSha = context.payload.pull_request.head.sha;
             
-            // Get the current workflow ID from the workflow file name
-            const workflowFileName = context.workflow;
-            
-            console.log(`Looking for workflow runs of "${workflowFileName}" for PR #${prNumber}`);
+            console.log(`Looking for workflow runs of "Tests" for PR #${prNumber}`);
             
             // Get all workflow runs for this specific workflow file and PR
             // Using the workflow file name to ensure we only cancel runs from the same workflow
