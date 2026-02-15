@@ -51,15 +51,16 @@ jobs:
                 return false;
               }
               
-              // Only cancel runs that are not completed
-              if (run.status === 'completed') {
+              // Match by head SHA to ensure we're canceling runs for this specific PR
+              // This is more reliable than checking the pull_requests array
+              if (run.head_sha !== headSha) {
                 return false;
               }
               
-              // Match by head SHA to ensure we're canceling runs for this specific PR
-              // This is more reliable than checking the pull_requests array
-              if (run.head_sha === headSha) {
-                console.log(`Found matching run ${run.id} with status ${run.status} for SHA ${headSha}`);
+              // Cancel runs that are not completed, OR completed with action_required
+              // Runs with action_required conclusion are stuck waiting for approval
+              if (run.status !== 'completed' || run.conclusion === 'action_required') {
+                console.log(`Found matching run ${run.id} with status ${run.status}, conclusion ${run.conclusion} for SHA ${headSha}`);
                 return true;
               }
               
