@@ -112,7 +112,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `ORIGIN_URL` | Origin site URL for file proxy (required to enable proxy) | `https://prod-site.example.com` |
-| `FILE_PROXY_PATHS` | Comma-separated paths to proxy (optional, default: `/sites/default/files`) | `/sites/default/files,/config` |
+| `FILE_PROXY_PATHS` | Comma-separated paths to proxy (optional, default: `/sites/default/files`) | `/sites/default/files,/sites/all/themes/custom/assets` |
 | `USE_STAGE_FILE_PROXY` | Force Stage File Proxy or Apache proxy (`yes`/`no`, optional auto-detect) | `yes` |
 | `WEB_ROOT` | Web root path (optional, default: `/var/www/html/web`) | `/var/www/html/web` |
 
