@@ -50,6 +50,13 @@ fi
 log "Deployment initialization complete, executing main command..."
 
 # Execute the provided command (from CMD or docker run override)
-# This allows: docker run image → runs apache-start.sh
-#             docker run image /bin/bash → runs /bin/bash
-exec "$@"
+# If no command provided, default to the base image's apache startup script
+# This allows: docker run image → runs apache-start.sh (default)
+#             docker run image /bin/bash → runs /bin/bash (override)
+if [ $# -eq 0 ]; then
+  # No command provided, use base image's default
+  exec sudo -E /bin/bash /scripts/apache-start.sh
+else
+  # Command provided, execute it
+  exec "$@"
+fi
