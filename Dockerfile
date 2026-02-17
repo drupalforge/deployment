@@ -28,5 +28,9 @@ USER ${USER}
 # Use ENTRYPOINT to ensure deployment setup always runs
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
+# Preserve CMD from base image (lost when USER directive is used)
+# This command is passed to deployment-entrypoint which executes it via "exec $@"
+CMD ["sudo", "-E", "/bin/bash", "/scripts/apache-start.sh"]
+
 LABEL org.opencontainers.image.source="https://github.com/drupalforge/deployment" \
       org.opencontainers.image.description="Drupal Forge deployment image with S3 database import and conditional file proxy support"
