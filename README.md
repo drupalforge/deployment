@@ -271,7 +271,7 @@ The GitHub Actions workflows include several performance optimizations for build
    - QEMU emulation for cross-platform builds
    - Docker Buildx Cloud builder for multi-platform builds (automatically enabled when building for multiple platforms or ARM)
    - Defaults to `linux/amd64` (uses standard buildx for optimal performance)
-   - Easy ARM support: pass `build_platform: 'linux/amd64,linux/arm64'` to enable ARM builds with cloud builder
+   - Easy ARM support: add `linux/arm64` to the platform matrix in the workflow file
 
 These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
 
