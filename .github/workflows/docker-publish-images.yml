@@ -17,7 +17,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write  # Required for cancel-workflows-action
 
 jobs:
   check-tests-success:
@@ -40,17 +39,3 @@ jobs:
     with:
       php_version: '8.3'
     secrets: inherit
-
-  cancel-superseded-workflows:
-    runs-on: ubuntu-latest
-    # Run after successful builds to cancel any superseded workflows waiting for approval
-    if: ${{ always() && contains(join(needs.*.result, ','), 'success') }}
-    needs: [build-php-8-2, build-php-8-3]
-    steps:
-      - name: Cancel superseded workflow runs
-        uses: viveklak/cancel-workflows@v1.1.1
-        with:
-          # Cancels workflows waiting for approval that have been superseded by this run
-          limit-to-previous-successful-run-commit: "true"
-          # Set to false to actually cancel workflows (dry-run mode by default for safety)
-          dry-run: "false"

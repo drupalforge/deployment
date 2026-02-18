@@ -9,13 +9,14 @@ on:
 
 permissions:
   contents: read
+  actions: write  # Required for cancel-workflows-action
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
     # Job-level concurrency: only one instance of this job runs at a time per PR/branch
     # Note: Concurrency does NOT cancel jobs waiting for environment approval
-    # See docker-publish-images.yml for cancel-workflows-action implementation
+    # See cancel-superseded-workflows job below for handling approval-waiting workflows
     # Docs: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-unit-tests-${{ github.event.pull_request.number || github.ref }}
@@ -38,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     # Job-level concurrency: only one instance of this job runs at a time per PR/branch
     # Note: Concurrency does NOT cancel jobs waiting for environment approval
-    # See docker-publish-images.yml for cancel-workflows-action implementation
+    # See cancel-superseded-workflows job below for handling approval-waiting workflows
     # Docs: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-docker-build-${{ github.event.pull_request.number || github.ref }}
@@ -69,3 +70,17 @@ jobs:
             PHP_VERSION=8.3
           push: false
           tags: ${{ github.repository }}:8.3-test
+
+  cancel-superseded-workflows:
+    runs-on: ubuntu-latest
+    # Run after successful tests to cancel any superseded workflows waiting for approval
+    if: ${{ always() && contains(join(needs.*.result, ','), 'success') }}
+    needs: [unit-tests, docker-build]
+    steps:
+      - name: Cancel superseded workflow runs
+        uses: viveklak/cancel-workflows@v1.1.1
+        with:
+          # Cancels workflows waiting for approval that have been superseded by this run
+          limit-to-previous-successful-run-commit: "true"
+          # Set to false to actually cancel workflows (dry-run mode by default for safety)
+          dry-run: "false"
