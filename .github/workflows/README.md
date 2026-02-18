@@ -8,18 +8,11 @@ This directory contains the CI/CD workflows for the Deployment Image repository.
 
 Runs unit tests and Docker builds for the deployment image.
 
-#### Behavior
+#### Triggered Events
 
-**On Push to Main:**
-- Runs all tests automatically
-
-**On Pull Request:**
-- Workflow runs are created
-- Tests execute on all PRs (draft and ready for review)
-
-**Concurrency:**
-- Previous in-progress runs are automatically canceled when new runs start
-- Only the most recent run for each PR is active
+The workflow runs on:
+- `push` to `main` branch
+- `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 
 #### Concurrency Control
 
@@ -28,12 +21,6 @@ The workflow uses a concurrency setting to automatically cancel in-progress runs
 - `cancel-in-progress: true`
 
 This ensures that only the most recent workflow run for each PR or ref is active, preventing resource waste and reducing clutter.
-
-#### Triggered Events
-
-The workflow runs on:
-- `push` to `main` branch
-- `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 
 #### Jobs
 
