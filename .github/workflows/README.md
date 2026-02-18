@@ -12,15 +12,10 @@ Runs unit tests and Docker builds for the deployment image.
 
 **On Push to Main:**
 - Runs all tests automatically
-- No approval required
 
-**On Pull Request - Draft:**
+**On Pull Request:**
 - Workflow runs are created
-- Tests execute on draft PRs
-
-**On Pull Request - Ready for Review:**
-- Workflow runs are created
-- Tests execute automatically
+- Tests execute on all PRs (draft and ready for review)
 
 **Concurrency:**
 - Previous in-progress runs are automatically canceled when new runs start
@@ -38,7 +33,7 @@ This ensures that only the most recent workflow run for each PR or ref is active
 
 The workflow runs on:
 - `push` to `main` branch
-- `pull_request` events (default types: `opened`, `synchronize`, `reopened`)
+- `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 
 #### Jobs
 
