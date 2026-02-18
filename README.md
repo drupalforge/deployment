@@ -290,6 +290,18 @@ build-php-8-3:
 
 The cloud builder will automatically activate for better multi-platform build performance.
 
+**Multi-Architecture Manifests:**
+When multiple platforms are specified, `docker/build-push-action` automatically:
+- Builds each platform separately (amd64, arm64, etc.)
+- Pushes platform-specific images to the registry
+- Creates and pushes a manifest list that references all platform images
+- The manifest list allows Docker to automatically pull the correct image for the host architecture
+
+No manual manifest creation is required. You can verify a multi-arch image with:
+```bash
+docker buildx imagetools inspect drupalforge/deployment:8.3
+```
+
 ## Deployment Workflow
 
 1. **Code Volume:** Application code is mounted at `$APP_ROOT`
