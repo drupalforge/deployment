@@ -10,8 +10,6 @@
 This repository builds a container image for deploying sites to Drupal Forge.
 This provides a safe environment to develop, preview, and share changes.
 
-<!-- Testing workflow cancelation - trigger 2 -->
-
 ## Overview
 
 The deployment image is built on [devpanel/php](https://github.com/devpanel/php) base images (PHP 8.2 and 8.3) and adds the following deployment capabilities:
