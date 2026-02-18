@@ -56,6 +56,14 @@ Extends `devpanel/php:{8.2,8.3}-base` with:
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
 
+**CMD Inheritance:** The deployment image dynamically inherits the CMD from the base image at build time. This is achieved by:
+1. Extracting the base image's CMD using `docker inspect`
+2. Passing it as a `BASE_CMD` build argument
+3. Setting it as an environment variable in the container
+4. Using it in the entrypoint when no command is explicitly provided
+
+This ensures compatibility with future base image updates without hardcoding the startup command.
+
 ## Requirements
 
 ### The repository and application code
@@ -240,15 +248,45 @@ docker run \
 
 ## Build Images
 
-To build locally:
+The build process dynamically extracts the CMD from the base image to ensure compatibility across different base image versions.
+
+### Quick Build (Recommended)
+
+Use the provided build script which automatically extracts the base image's CMD:
 
 ```bash
 # Build PHP 8.3 image
-docker build --build-arg PHP_VERSION=8.3 -t drupalforge/deployment:8.3 .
+./build.sh 8.3
 
 # Build PHP 8.2 image
-docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
+./build.sh 8.2
 ```
+
+### Manual Build
+
+If you prefer to build manually, extract the CMD first:
+
+```bash
+# Extract CMD from base image
+BASE_CMD=$(./extract-base-cmd.sh 8.3)
+
+# Build with extracted CMD
+docker build \
+  --build-arg PHP_VERSION=8.3 \
+  --build-arg BASE_CMD="${BASE_CMD}" \
+  -t drupalforge/deployment:8.3 \
+  .
+```
+
+**Note:** The `BASE_CMD` build argument is optional. If not provided, it defaults to `sudo -E /bin/bash /scripts/apache-start.sh`.
+
+### How It Works
+
+1. **extract-base-cmd.sh** - Extracts the CMD from the base image using `docker inspect`
+2. **Dockerfile** - Accepts `BASE_CMD` as a build argument and sets it as an environment variable
+3. **deployment-entrypoint.sh** - Uses the `BASE_CMD` environment variable when no command is specified
+
+This approach ensures the deployment image always uses the correct startup command from the base image, even if it changes in future versions.
 
 ## Deployment Workflow
 
