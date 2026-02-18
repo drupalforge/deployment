@@ -36,7 +36,8 @@ jobs:
 
             // Extract workflow filename from workflow_ref
             // Example: owner/repo/.github/workflows/tests.yml@refs/heads/main -> tests.yml
-            const workflowFilename = workflowRef.split('/').pop().split('@')[0];
+            // Example: owner/repo/.github/workflows/tests.yml@refs/pull/20/merge -> tests.yml
+            const workflowFilename = workflowRef.split('@')[0].split('/').pop();
 
             console.log(`Current run ID: ${currentRunId}`);
             console.log(`PR number: ${prNumber}`);
