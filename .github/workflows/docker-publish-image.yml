@@ -11,7 +11,32 @@ on:
         required: true
 
 jobs:
+  extract-base-cmd:
+    runs-on: ubuntu-latest
+    outputs:
+      base_cmd: ${{ steps.extract-cmd.outputs.base_cmd }}
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract CMD from base image
+        id: extract-cmd
+        run: |
+          BASE_IMAGE="devpanel/php:${{ inputs.php_version }}-base"
+          echo "Pulling base image: ${BASE_IMAGE}"
+          docker pull "${BASE_IMAGE}"
+
+          echo "Extracting CMD from base image..."
+          BASE_CMD=$(docker inspect "${BASE_IMAGE}" --format='{{json .Config.Cmd}}' | jq -r 'join(" ")')
+          echo "Extracted CMD: ${BASE_CMD}"
+
+          echo "base_cmd=${BASE_CMD}" >> $GITHUB_OUTPUT
+
   build-and-push:
+    needs: extract-base-cmd
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -53,19 +78,6 @@ jobs:
           PLATFORM_TAG=$(echo "${{ matrix.platform }}" | sed 's/\//-/g')
           echo "tag=$PLATFORM_TAG" >> $GITHUB_OUTPUT
 
-      - name: Extract CMD from base image
-        id: extract-cmd
-        run: |
-          BASE_IMAGE="devpanel/php:${{ inputs.php_version }}-base"
-          echo "Pulling base image: ${BASE_IMAGE}"
-          docker pull "${BASE_IMAGE}"
-
-          echo "Extracting CMD from base image..."
-          BASE_CMD=$(docker inspect "${BASE_IMAGE}" --format='{{json .Config.Cmd}}' | jq -r 'join(" ")')
-          echo "Extracted CMD: ${BASE_CMD}"
-
-          echo "base_cmd=${BASE_CMD}" >> $GITHUB_OUTPUT
-
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -86,7 +98,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             PHP_VERSION=${{ inputs.php_version }}
-            BASE_CMD=${{ steps.extract-cmd.outputs.base_cmd }}
+            BASE_CMD=${{ needs.extract-base-cmd.outputs.base_cmd }}
           cache-from: type=registry,ref=${{ github.repository }}:buildcache-${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }}
           cache-to: type=registry,ref=${{ github.repository }}:buildcache-${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }},mode=max
           outputs: type=image,name=${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
