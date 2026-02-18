@@ -260,6 +260,18 @@ docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
 
 **Note:** The `BASE_CMD` is dynamically extracted from the base image in CI/CD workflows. For local builds, the Dockerfile provides a default value that matches the current base image.
 
+### CI/CD Build Optimizations
+
+The GitHub Actions workflows include several performance optimizations for building Docker images:
+
+1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
+2. **Docker Buildx Cloud builder**: Attempts to use Docker's cloud builder for faster multi-architecture builds, with automatic fallback to local builder
+3. **QEMU support**: Enables building for multiple platforms (e.g., linux/amd64, linux/arm64)
+4. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
+5. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
+
+These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
+
 ## Deployment Workflow
 
 1. **Code Volume:** Application code is mounted at `$APP_ROOT`
