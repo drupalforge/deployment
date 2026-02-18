@@ -277,21 +277,22 @@ These optimizations can significantly reduce build times, especially for rebuild
 
 #### Enabling ARM Builds
 
-To build for ARM architecture when the base image supports it:
+To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-image.yml`:
 
 ```yaml
-build-php-8-3:
-  uses: ./.github/workflows/docker-publish-image.yml
-  with:
-    php_version: '8.3'
-    build_platform: 'linux/amd64,linux/arm64'  # Add ARM platform
-  secrets: inherit
+jobs:
+  build-and-push:
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64  # Add ARM platform
 ```
 
-The cloud builder will automatically activate for better multi-platform build performance.
+The cloud builder will automatically activate for ARM builds for better multi-platform build performance.
 
 **Parallel Multi-Architecture Builds:**
-When multiple platforms are specified (e.g., `linux/amd64,linux/arm64`), the workflow:
+When multiple platforms are specified in the matrix, the workflow:
 - Builds each architecture in parallel as separate jobs for faster builds
 - Each platform job runs independently with its own cache
 - Platform-specific images are pushed by digest during the build

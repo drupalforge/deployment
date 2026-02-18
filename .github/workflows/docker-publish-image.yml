@@ -6,46 +6,19 @@ on:
         required: true
         type: string
         description: PHP version (e.g., '8.2' or '8.3')
-      build_platform:
-        required: false
-        type: string
-        description: Target platform(s) for the build (e.g., 'linux/amd64' or 'linux/amd64,linux/arm64')
-        default: 'linux/amd64'
     secrets:
       DOCKERHUB_TOKEN:
         required: true
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      platforms: ${{ steps.platforms.outputs.matrix }}
-      is_multi_platform: ${{ steps.platforms.outputs.is_multi }}
-    steps:
-      - name: Prepare platform matrix
-        id: platforms
-        run: |
-          # Convert comma-separated platforms to JSON array
-          PLATFORMS="${{ inputs.build_platform }}"
-          if [[ "$PLATFORMS" == *","* ]]; then
-            # Multi-platform build
-            echo "is_multi=true" >> $GITHUB_OUTPUT
-            # Convert to JSON array: "linux/amd64,linux/arm64" -> ["linux/amd64","linux/arm64"]
-            MATRIX=$(echo "$PLATFORMS" | jq -R -c 'split(",") | map(gsub("^\\s+|\\s+$";""))')
-            echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          else
-            # Single platform build
-            echo "is_multi=false" >> $GITHUB_OUTPUT
-            echo "matrix=[\"$PLATFORMS\"]" >> $GITHUB_OUTPUT
-          fi
-
   build-and-push:
-    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJson(needs.prepare.outputs.platforms) }}
+        platform:
+          - linux/amd64
+          # Add more platforms when ready (e.g., linux/arm64)
 
     steps:
       - name: Checkout code
@@ -61,7 +34,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Try Docker Buildx Cloud builder
-        if: inputs.build_platform != 'linux/amd64'
+        if: matrix.platform != 'linux/amd64'
         id: buildx_cloud
         continue-on-error: true
         uses: docker/setup-buildx-action@v3
@@ -133,7 +106,7 @@ jobs:
           retention-days: 1
 
   merge:
-    needs: [prepare, build-and-push]
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Download digests
