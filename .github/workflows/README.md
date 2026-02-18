@@ -14,17 +14,29 @@ Runs unit tests and Docker builds for the deployment image.
 - Runs all tests automatically
 - No approval required
 
-**On Pull Request - Ready for Review:**
-- Runs all tests automatically
-- No approval required
-- Cancels any previous in-progress workflow runs
-
 **On Pull Request - Draft:**
-- Workflow runs are created but jobs are skipped
-- Tests do not run on draft PRs
-- Mark PR as "ready for review" to run tests
+- Workflow runs are created and require approval
+- Jobs run after approval is granted
+- Tests execute once approved
 
-This approach uses conditional logic (`if: !github.event.pull_request.draft`) to skip jobs for draft PRs, ensuring that only ready-for-review PRs execute tests.
+**On Pull Request - Ready for Review:**
+- When marked ready, new workflow runs are triggered
+- These new runs execute WITHOUT requiring approval
+- Tests run automatically
+
+**Concurrency:**
+- Previous in-progress runs are automatically canceled when new runs start
+- Only the most recent run for each PR is active
+
+#### How Approval Works
+
+GitHub's security policy requires approval for workflow runs from first-time contributors (like the Copilot bot). However:
+
+1. **Draft PRs**: Workflow requires approval → jobs run after approval
+2. **Marking PR ready**: Triggers `ready_for_review` event → new runs execute WITHOUT approval
+3. **Concurrency setting**: Automatically cancels old runs, including those awaiting approval
+
+This means draft PRs can be tested (after approval), while ready PRs run tests automatically without approval.
 
 #### Concurrency Control
 
@@ -39,21 +51,21 @@ This ensures that only the most recent workflow run for each PR or ref is active
 The workflow runs on:
 - `push` to `main` branch
 - `pull_request` events (default types: `opened`, `synchronize`, `reopened`)
-  - Jobs are skipped for draft PRs using `if: !github.event.pull_request.draft`
-  - Ready-for-review PRs run without requiring approval
-  - Previous runs are automatically canceled when new runs start (via concurrency setting)
+  - No conditional logic - all jobs run for all PRs
+  - Approval requirement is enforced by GitHub for first-time contributors
+  - Ready-for-review PRs trigger new runs without approval
 
 #### Jobs
 
 1. **unit-tests**
    - Runs shell-based unit tests
-   - Skips draft PRs (via `if` condition)
    - Validates scripts and PHP syntax
+   - Runs for all PRs (with approval for drafts)
 
 2. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
-   - Skips draft PRs (via `if` condition)
    - Validates Docker build process
+   - Runs for all PRs (with approval for drafts)
 
 2. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
