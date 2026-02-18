@@ -246,35 +246,19 @@ docker run \
 - `drupalforge/deployment:8.3` - PHP 8.3 base (latest)
 - Branch and SHA-based tags available for development/testing
 
-## Build Images
+## Build Images Locally
 
-The build process extracts the CMD from the base image to ensure compatibility.
-
-### Quick Build (Recommended)
+Build the deployment images for local development:
 
 ```bash
 # Build PHP 8.3 image
-./build.sh 8.3
+docker build --build-arg PHP_VERSION=8.3 -t drupalforge/deployment:8.3 .
 
 # Build PHP 8.2 image
-./build.sh 8.2
+docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
 ```
 
-### Manual Build
-
-```bash
-# Extract CMD from base image
-BASE_CMD=$(./extract-base-cmd.sh 8.3)
-
-# Build with extracted CMD
-docker build \
-  --build-arg PHP_VERSION=8.3 \
-  --build-arg BASE_CMD="${BASE_CMD}" \
-  -t drupalforge/deployment:8.3 \
-  .
-```
-
-**Note:** If `BASE_CMD` is not provided, it defaults to `sudo -E /bin/bash /scripts/apache-start.sh`.
+**Note:** The `BASE_CMD` is dynamically extracted from the base image in CI/CD workflows. For local builds, the Dockerfile provides a default value that matches the current base image.
 
 ## Deployment Workflow
 

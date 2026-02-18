@@ -27,6 +27,19 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Extract CMD from base image
+        id: extract-cmd
+        run: |
+          BASE_IMAGE="devpanel/php:${{ inputs.php_version }}-base"
+          echo "Pulling base image: ${BASE_IMAGE}"
+          docker pull "${BASE_IMAGE}"
+
+          echo "Extracting CMD from base image..."
+          BASE_CMD=$(docker inspect "${BASE_IMAGE}" --format='{{json .Config.Cmd}}' | jq -r 'join(" ")')
+          echo "Extracted CMD: ${BASE_CMD}"
+
+          echo "base_cmd=${BASE_CMD}" >> $GITHUB_OUTPUT
+
       - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -45,5 +58,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             PHP_VERSION=${{ inputs.php_version }}
+            BASE_CMD=${{ steps.extract-cmd.outputs.base_cmd }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
