@@ -93,14 +93,14 @@ jobs:
 
           echo "base_cmd=${BASE_CMD}" >> $GITHUB_OUTPUT
 
-      - name: Generate image metadata
+      - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }}
-            type=raw,value=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }},enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=Drupal Forge Deployment
+            org.opencontainers.image.description=Drupal Forge deployment image
 
       - name: Build and push image
         id: build
@@ -110,8 +110,6 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             PHP_VERSION=${{ inputs.php_version }}
