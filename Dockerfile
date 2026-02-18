@@ -2,7 +2,9 @@ ARG PHP_VERSION=8.3
 FROM devpanel/php:${PHP_VERSION}-base
 
 # Accept the base image's CMD as a build argument
-# This should be extracted before build using: ./extract-base-cmd.sh
+# NOTE: Dockerfile CANNOT read CMD from base image directly - this is a Docker limitation
+# The ENTRYPOINT instruction (line 38) resets CMD to null, so we must pass it externally
+# Extract before build using: ./extract-base-cmd.sh
 # Example: docker build --build-arg BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh" ...
 ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 
@@ -35,10 +37,13 @@ USER ${USER}
 ENV BASE_CMD="${BASE_CMD}"
 
 # Use ENTRYPOINT to ensure deployment setup always runs
+# NOTE: Setting ENTRYPOINT resets CMD from base image to null
+# This is why we need BASE_CMD environment variable (set above)
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
-# CMD is intentionally not set - inherited behavior is implemented
-# in deployment-entrypoint.sh which defaults to apache-start.sh when no CMD provided
+# CMD is intentionally not set - it was reset to null by ENTRYPOINT above
+# The inherited CMD behavior is implemented in deployment-entrypoint.sh
+# which uses BASE_CMD environment variable when no command is provided
 
 LABEL org.opencontainers.image.source="https://github.com/drupalforge/deployment" \
       org.opencontainers.image.description="Drupal Forge deployment image with S3 database import and conditional file proxy support"
