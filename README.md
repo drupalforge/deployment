@@ -393,3 +393,5 @@ Check logs for:
 
 Optional features (database import, file proxy) gracefully skip if not configured. Only required variables are `APP_ROOT` and the database/proxy info matched to your setup.
 
+<!-- Test: workflow cancellation behavior -->
+
