@@ -24,19 +24,7 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Try Docker Buildx Cloud builder
-        id: buildx_cloud
-        continue-on-error: true
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: cloud
-          endpoint: "${{ vars.DOCKERHUB_USERNAME }}/github"
-
-      - name: Fall back to docker-container builder if cloud did not succeed
-        if: steps.buildx_cloud.outcome != 'success'
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Extract CMD from base image
