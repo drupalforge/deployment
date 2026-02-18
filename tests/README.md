@@ -56,7 +56,7 @@ These tests use `grep` and file inspection to check:
 - Code patterns are present
 - YAML files follow consistent formatting (via yamllint)
 
-**Important**: These tests do NOT build Docker images. They only check the text content of files.
+**Important**: Unit tests do NOT build Docker images. They only check the text content of files.
 
 Example:
 ```bash
@@ -68,15 +68,19 @@ fi
 
 ### 2. Docker Build Tests (CI)
 
-**Location**: `.github/workflows/tests.yml` (docker-build job)  
+**File**: `docker-build-test.sh`  
+**Run via**: `bash docker-build-test.sh` (from tests/ directory)  
 **Purpose**: Build Docker images to validate they compile successfully
 
 These tests:
 - Build images for PHP 8.2 and 8.3
 - Validate that all RUN commands execute successfully
 - Catch runtime issues like permission errors
-- Use GitHub Actions' `docker/build-push-action`
-- Run automatically in CI on every push
+- Verify user configuration is correct
+- Verify BASE_CMD environment variable is set
+- **Test CMD execution**: Container runs with default CMD, Apache starts, command override works
+- Use automatic cleanup of test images
+- Run in CI on every push
 
 ### 3. Integration Tests (Build + E2E)
 

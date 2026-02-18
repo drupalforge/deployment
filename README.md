@@ -56,6 +56,14 @@ Extends `devpanel/php:{8.2,8.3}-base` with:
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
 
+**CMD Inheritance:** The deployment image dynamically inherits the CMD from the base image at build time. This is achieved by:
+1. Extracting the base image's CMD using `docker inspect`
+2. Passing it as a `BASE_CMD` build argument
+3. Setting it as an environment variable in the container
+4. Using it in the entrypoint when no command is explicitly provided
+
+This ensures compatibility with future base image updates without hardcoding the startup command.
+
 ## Requirements
 
 ### The repository and application code
@@ -238,9 +246,9 @@ docker run \
 - `drupalforge/deployment:8.3` - PHP 8.3 base (latest)
 - Branch and SHA-based tags available for development/testing
 
-## Build Images
+## Build Images Locally
 
-To build locally:
+Build the deployment images for local development:
 
 ```bash
 # Build PHP 8.3 image
@@ -249,6 +257,8 @@ docker build --build-arg PHP_VERSION=8.3 -t drupalforge/deployment:8.3 .
 # Build PHP 8.2 image
 docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
 ```
+
+**Note:** The `BASE_CMD` is dynamically extracted from the base image in CI/CD workflows. For local builds, the Dockerfile provides a default value that matches the current base image.
 
 ## Deployment Workflow
 

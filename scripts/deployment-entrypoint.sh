@@ -50,6 +50,4 @@ fi
 log "Deployment initialization complete, executing main command..."
 
 # Execute the provided command (from CMD or docker run override)
-# This allows: docker run image → runs apache-start.sh
-#             docker run image /bin/bash → runs /bin/bash
 exec "$@"
