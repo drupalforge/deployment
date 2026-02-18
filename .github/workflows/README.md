@@ -57,7 +57,7 @@ Automatically approves workflow runs from the Copilot bot to prevent manual appr
 
 #### Why This Is Needed
 
-GitHub treats the Copilot bot as a first-time/outside contributor, requiring manual approval before workflows can run. This workflow automatically approves pending workflow runs from Copilot, enabling automated testing without manual intervention.
+GitHub treats the Copilot bot as a first-time/outside contributor, requiring manual approval before workflows can run. This workflow automatically approves pending workflow runs from Copilot, allowing the workflow to execute (though test jobs are still skipped for draft PRs per the tests.yml configuration).
 
 #### How It Works
 
