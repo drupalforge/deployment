@@ -19,10 +19,18 @@ Runs unit tests and Docker builds for the deployment image.
 - No approval required
 
 **On Pull Request - Draft:**
-- Workflow runs but skips test jobs (shows as successful)
-- Mark PR as "ready for review" to run tests
+- Workflow runs and completes successfully (check job always runs)
+- Test jobs are skipped for draft PRs
+- Mark PR as "ready for review" to run full tests
+- **Note:** Repository may require manual approval for Copilot bot PRs (see below)
 
-This uses a conditional check job pattern to avoid "action_required" status on draft PRs.
+This uses a conditional check job pattern that:
+1. Prevents "action_required" status when all test jobs are skipped
+2. Ensures workflow completes successfully rather than waiting for approval
+3. Provides clear status even for draft PRs
+
+**Repository Security Settings:**
+Draft PRs from Copilot bot may show "Workflow awaiting approval" due to GitHub's security policy for first-time/outside contributors. This is a separate repository-level setting (Settings → Actions → General → "Fork pull request workflows") that repo admins can configure.
 
 #### Triggered Events
 
