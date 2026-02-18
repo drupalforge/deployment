@@ -18,11 +18,11 @@ permissions:
   actions: write  # Required to cancel workflow runs
 
 jobs:
-  cancel-previous-runs:
+  delete-previous-runs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - name: Cancel previous runs for this PR
+      - name: Delete previous runs for this PR
         uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -53,7 +53,7 @@ jobs:
             });
 
             // Filter to runs for this PR that are not the current run
-            const runsToHandle = runs.data.workflow_runs.filter(run => {
+            const runsToDelete = runs.data.workflow_runs.filter(run => {
               // Skip the current run
               if (run.id === currentRunId) {
                 return false;
@@ -65,52 +65,34 @@ jobs:
                 return false;
               }
 
-              // Handle all matching runs regardless of status
-              // Skip runs that are already in a terminal state (except action_required)
-              if (run.status === 'completed') {
-                // Only delete completed runs with 'action_required' conclusion
-                return run.conclusion === 'action_required';
+              // Only delete completed runs with 'action_required' conclusion
+              if (run.status === 'completed' && run.conclusion === 'action_required') {
+                return true;
               }
-              // Cancel runs that are queued, in_progress, or waiting
-              return true;
+
+              return false;
             });
 
-            console.log(`Found ${runsToHandle.length} runs to handle`);
+            console.log(`Found ${runsToDelete.length} runs to delete`);
 
-            for (const run of runsToHandle) {
-              if (run.status === 'completed' && run.conclusion === 'action_required') {
-                // Delete completed runs with action_required conclusion
-                console.log(`Deleting run #${run.run_number} (ID: ${run.id}, ` +
-                  `status: ${run.status}, conclusion: ${run.conclusion})`);
-                try {
-                  await github.rest.actions.deleteWorkflowRun({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: run.id
-                  });
-                  console.log(`  ✓ Deleted successfully`);
-                } catch (error) {
-                  console.log(`  ✗ Failed to delete: ${error.message}`);
-                }
-              } else {
-                // Cancel in-progress runs
-                console.log(`Cancelling run #${run.run_number} (ID: ${run.id}, status: ${run.status})`);
-                try {
-                  await github.rest.actions.cancelWorkflowRun({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: run.id
-                  });
-                  console.log(`  ✓ Cancelled successfully`);
-                } catch (error) {
-                  console.log(`  ✗ Failed to cancel: ${error.message}`);
-                }
+            for (const run of runsToDelete) {
+              console.log(`Deleting run #${run.run_number} (ID: ${run.id}, ` +
+                `status: ${run.status}, conclusion: ${run.conclusion})`);
+              try {
+                await github.rest.actions.deleteWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+                console.log(`  ✓ Deleted successfully`);
+              } catch (error) {
+                console.log(`  ✗ Failed to delete: ${error.message}`);
               }
             }
 
   unit-tests:
     runs-on: ubuntu-latest
-    needs: [cancel-previous-runs]
+    needs: [delete-previous-runs]
     if: always()
 
     steps:
@@ -128,7 +110,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [cancel-previous-runs]
+    needs: [delete-previous-runs]
     if: always()
 
     steps:
