@@ -15,10 +15,84 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write  # Required to cancel workflow runs
 
 jobs:
+  cancel-previous-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel previous runs for this PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Only cancel for pull requests
+            if (!context.payload.pull_request) {
+              console.log('Not a pull request, skipping cancellation');
+              return;
+            }
+
+            const prNumber = context.payload.pull_request.number;
+            const currentRunId = context.runId;
+
+            console.log(`Current run ID: ${currentRunId}`);
+            console.log(`PR number: ${prNumber}`);
+
+            // Get all workflow runs for the Tests workflow
+            const workflows = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            const testsWorkflow = workflows.data.workflows.find(w => w.name === 'Tests');
+            if (!testsWorkflow) {
+              console.log('Tests workflow not found');
+              return;
+            }
+
+            // Get all runs for this workflow
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: testsWorkflow.id,
+              per_page: 100
+            });
+
+            // Filter to runs for this PR that are not the current run
+            const runsToCancel = runs.data.workflow_runs.filter(run => {
+              // Skip the current run
+              if (run.id === currentRunId) {
+                return false;
+              }
+
+              // Check if this run is for the same PR
+              const runPR = run.pull_requests.find(pr => pr.number === prNumber);
+              if (!runPR) {
+                return false;
+              }
+
+              // Only cancel runs that are queued or in_progress
+              return run.status === 'queued' || run.status === 'in_progress' || run.status === 'waiting';
+            });
+
+            console.log(`Found ${runsToCancel.length} runs to cancel`);
+
+            for (const run of runsToCancel) {
+              console.log(`Cancelling run #${run.run_number} (ID: ${run.id}, status: ${run.status})`);
+              try {
+                await github.rest.actions.cancelWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+                console.log(`  ✓ Cancelled successfully`);
+              } catch (error) {
+                console.log(`  ✗ Failed to cancel: ${error.message}`);
+              }
+            }
+
   unit-tests:
     runs-on: ubuntu-latest
+    needs: [cancel-previous-runs]
 
     steps:
       - uses: actions/checkout@v3
@@ -35,6 +109,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
+    needs: [cancel-previous-runs]
 
     steps:
       - uses: actions/checkout@v3

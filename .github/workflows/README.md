@@ -16,21 +16,32 @@ The workflow runs on:
 
 #### Concurrency Control
 
-The workflow uses a concurrency setting to automatically cancel superseded workflow runs when a new run is triggered:
-- `group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}`
-- `cancel-in-progress: true`
+The workflow uses multiple mechanisms to ensure only the most recent run is active:
+
+1. **Built-in concurrency setting**: Cancels in-progress runs when a new run starts
+   - `group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}`
+   - `cancel-in-progress: true`
+
+2. **Explicit cancellation job**: The `cancel-previous-runs` job runs at the start of each PR workflow to cancel any previous runs for the same PR, including those in `queued`, `in_progress`, or `waiting` status.
 
 This ensures that only the most recent workflow run for each PR or ref is active, preventing resource waste and reducing clutter.
 
 #### Jobs
 
-1. **unit-tests**
+1. **cancel-previous-runs** (PR workflows only)
+   - Runs first to cancel previous workflow runs for the same PR
+   - Uses GitHub API to find and cancel queued/in-progress/waiting runs
+   - Skips if the workflow is triggered by a push to main (not a PR)
+
+2. **unit-tests**
    - Runs shell-based unit tests
    - Validates scripts and PHP syntax
+   - Depends on: `cancel-previous-runs`
 
-2. **docker-build**
+3. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
    - Validates Docker build process
+   - Depends on: `cancel-previous-runs`
 
 ### docker-publish-images.yml
 

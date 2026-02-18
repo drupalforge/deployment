@@ -36,31 +36,31 @@ These runs were **canceled by the concurrency mechanism**, not actually waiting 
 
 ## How to Handle action_required Runs
 
-### Option 1: Use the Cancel Workflow (Recommended)
+The Tests workflow now includes automatic cancellation logic that runs at the start of each PR workflow run. This job will:
+- Cancel any previous Tests workflow runs for the same PR
+- Only cancel runs that are `queued`, `in_progress`, or `waiting`
+- Skip runs that have already completed
 
-A dedicated workflow has been created to cancel these runs:
+### What Happens Automatically
 
-1. Go to Actions tab
-2. Select "Cancel Action Required Workflows"
-3. Click "Run workflow"
-4. Choose options:
-   - **pr_number**: Enter `18` to only cancel runs for PR #18 (or leave empty for all)
-   - **dry_run**: Leave as `true` to preview what will be canceled (set to `false` to actually cancel)
-5. Click "Run workflow"
+When a new commit is pushed to a PR:
+1. A new Tests workflow run starts
+2. The `cancel-previous-runs` job executes first
+3. It finds and cancels any other Tests runs for the same PR
+4. The `unit-tests` and `docker-build` jobs then proceed
 
-The workflow will:
-- List all workflow runs with `action_required` status
-- Show details about each run
-- Cancel them (if dry_run is false)
+### Manual Cancellation (If Needed)
 
-### Option 2: Manual Cancellation via GitHub UI
+If you need to manually cancel runs with `action_required` status:
+
+#### Option 1: GitHub UI
 
 1. Go to the Actions tab
 2. Find each workflow run with "Action required" status
 3. Click on the run
 4. Click "Cancel workflow" button
 
-### Option 3: Using GitHub CLI
+#### Option 2: Using GitHub CLI
 
 ```bash
 # List all action_required runs
