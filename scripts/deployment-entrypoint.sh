@@ -50,21 +50,4 @@ fi
 log "Deployment initialization complete, executing main command..."
 
 # Execute the provided command (from CMD or docker run override)
-# If no command provided, default to the base image's CMD (from BASE_CMD env var)
-# This allows: docker run image → runs base image's CMD (from BASE_CMD)
-#             docker run image /bin/bash → runs /bin/bash (override)
-if [ $# -eq 0 ]; then
-  # No command provided, use base image's default from BASE_CMD environment variable
-  # BASE_CMD is set at build time from the base image's CMD
-  if [ -n "${BASE_CMD}" ]; then
-    log "Executing base image CMD: ${BASE_CMD}"
-    exec ${BASE_CMD}
-  else
-    # Fallback if BASE_CMD not set (shouldn't happen)
-    log "Warning: BASE_CMD not set, using hardcoded fallback"
-    exec sudo -E /bin/bash /scripts/apache-start.sh
-  fi
-else
-  # Command provided, execute it
-  exec "$@"
-fi
+exec "$@"

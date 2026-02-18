@@ -248,11 +248,9 @@ docker run \
 
 ## Build Images
 
-The build process dynamically extracts the CMD from the base image to ensure compatibility across different base image versions.
+The build process extracts the CMD from the base image to ensure compatibility.
 
 ### Quick Build (Recommended)
-
-Use the provided build script which automatically extracts the base image's CMD:
 
 ```bash
 # Build PHP 8.3 image
@@ -263,8 +261,6 @@ Use the provided build script which automatically extracts the base image's CMD:
 ```
 
 ### Manual Build
-
-If you prefer to build manually, extract the CMD first:
 
 ```bash
 # Extract CMD from base image
@@ -278,15 +274,7 @@ docker build \
   .
 ```
 
-**Note:** The `BASE_CMD` build argument is optional. If not provided, it defaults to `sudo -E /bin/bash /scripts/apache-start.sh`.
-
-### How It Works
-
-1. **extract-base-cmd.sh** - Extracts the CMD from the base image using `docker inspect`
-2. **Dockerfile** - Accepts `BASE_CMD` as a build argument and sets it as an environment variable
-3. **deployment-entrypoint.sh** - Uses the `BASE_CMD` environment variable when no command is specified
-
-This approach ensures the deployment image always uses the correct startup command from the base image, even if it changes in future versions.
+**Note:** If `BASE_CMD` is not provided, it defaults to `sudo -E /bin/bash /scripts/apache-start.sh`.
 
 ## Deployment Workflow
 

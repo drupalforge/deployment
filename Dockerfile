@@ -2,7 +2,7 @@ ARG PHP_VERSION=8.3
 FROM devpanel/php:${PHP_VERSION}-base
 
 # Accept the base image's CMD as a build argument
-# ENTRYPOINT resets CMD, so extract it before build: ./extract-base-cmd.sh
+# Extract before build using: ./extract-base-cmd.sh
 ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 
 # Switch to root for system-level operations
@@ -29,15 +29,14 @@ RUN a2enmod proxy && \
 # Use USER environment variable from base image
 USER ${USER}
 
-# Make BASE_CMD available at runtime by converting ARG to ENV
-# This allows deployment-entrypoint.sh to use the dynamically extracted CMD
+# Make BASE_CMD available as environment variable
 ENV BASE_CMD="${BASE_CMD}"
 
 # Use ENTRYPOINT to ensure deployment setup always runs
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
-# CMD intentionally not set - ENTRYPOINT resets it
-# deployment-entrypoint.sh uses BASE_CMD environment variable
+# Set CMD from base image (passed as build arg)
+CMD $BASE_CMD
 
 LABEL org.opencontainers.image.source="https://github.com/drupalforge/deployment" \
       org.opencontainers.image.description="Drupal Forge deployment image with S3 database import and conditional file proxy support"
