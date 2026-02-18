@@ -20,11 +20,11 @@ Runs unit tests and Docker builds for the deployment image.
 - Cancels any previous in-progress workflow runs
 
 **On Pull Request - Draft:**
-- Workflow runs are created but require manual approval
-- Approval requirement prevents automatic execution
-- Any new commits cancel previous runs automatically
+- Workflow runs are created but jobs are skipped
+- Tests do not run on draft PRs
+- Mark PR as "ready for review" to run tests
 
-This approach relies on GitHub's approval requirement for first-time contributors instead of using conditional logic to skip draft PRs.
+This approach uses conditional logic (`if: !github.event.pull_request.draft`) to skip jobs for draft PRs, ensuring that only ready-for-review PRs execute tests.
 
 #### Concurrency Control
 
@@ -39,14 +39,21 @@ This ensures that only the most recent workflow run for each PR or ref is active
 The workflow runs on:
 - `push` to `main` branch
 - `pull_request` events (default types: `opened`, `synchronize`, `reopened`)
-  - Draft PRs require approval (enforced by GitHub repository settings)
+  - Jobs are skipped for draft PRs using `if: !github.event.pull_request.draft`
+  - Ready-for-review PRs run without requiring approval
   - Previous runs are automatically canceled when new runs start (via concurrency setting)
 
 #### Jobs
 
 1. **unit-tests**
    - Runs shell-based unit tests
+   - Skips draft PRs (via `if` condition)
    - Validates scripts and PHP syntax
+
+2. **docker-build**
+   - Builds Docker images for PHP 8.2 and 8.3
+   - Skips draft PRs (via `if` condition)
+   - Validates Docker build process
 
 2. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3

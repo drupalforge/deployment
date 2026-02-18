@@ -17,6 +17,8 @@ permissions:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    # Skip draft PRs to avoid requiring approval
+    if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
       - uses: actions/checkout@v3
@@ -33,6 +35,8 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
+    # Skip draft PRs to avoid requiring approval
+    if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
       - uses: actions/checkout@v3
