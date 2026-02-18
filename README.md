@@ -260,6 +260,57 @@ docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
 
 **Note:** The `BASE_CMD` is dynamically extracted from the base image in CI/CD workflows. For local builds, the Dockerfile provides a default value that matches the current base image.
 
+### CI/CD Build Optimizations
+
+The GitHub Actions workflows include several performance optimizations for building Docker images:
+
+1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
+2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
+3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
+4. **Multi-platform support**: 
+   - QEMU emulation for cross-platform builds
+   - Docker Buildx Cloud builder for multi-platform builds (automatically enabled when building for multiple platforms or ARM)
+   - Defaults to `linux/amd64` (uses standard buildx for optimal performance)
+   - Easy ARM support: add `linux/arm64` to the platform matrix in the workflow file
+
+These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
+
+#### Enabling ARM Builds
+
+To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-image.yml`:
+
+```yaml
+jobs:
+  build-and-push:
+    strategy:
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64  # Add ARM platform
+```
+
+The cloud builder will automatically activate for ARM builds for better multi-platform build performance.
+
+**Parallel Multi-Architecture Builds:**
+When multiple platforms are specified in the matrix, the workflow:
+- Builds each architecture in parallel as separate jobs for faster builds
+- Each platform job runs independently with its own cache
+- Platform-specific images are pushed by digest during the build
+- A final merge job creates and pushes a manifest list combining all platforms
+- Total build time = max(platform build times) instead of sum of all platform build times
+
+**Multi-Architecture Manifests:**
+The workflow automatically creates manifest lists for multi-platform builds:
+- Each platform is built and pushed independently
+- Platform images are referenced by digest
+- Manifest list is created referencing all platform digests
+- The manifest list allows Docker to automatically pull the correct image for the host architecture
+
+No manual manifest creation is required. You can verify a multi-arch image with:
+```bash
+docker buildx imagetools inspect drupalforge/deployment:8.3
+```
+
 ## Deployment Workflow
 
 1. **Code Volume:** Application code is mounted at `$APP_ROOT`
