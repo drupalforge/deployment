@@ -72,6 +72,16 @@ for version in "${PHP_VERSIONS[@]}"; do
             BUILD_FAILED=1
         fi
         
+        # Verify BASE_CMD environment variable is set
+        echo -e "${YELLOW}  Verifying BASE_CMD environment...${NC}"
+        base_cmd=$(docker inspect "$tag" --format='{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "^BASE_CMD=" | cut -d= -f2-)
+        if [ -n "$base_cmd" ]; then
+            echo -e "${GREEN}  ✓ BASE_CMD is set: ${base_cmd}${NC}"
+        else
+            echo -e "${RED}  ✗ BASE_CMD environment variable not set${NC}"
+            BUILD_FAILED=1
+        fi
+        
     else
         echo -e "${RED}✗ PHP ${version} build failed${NC}"
         BUILD_FAILED=1

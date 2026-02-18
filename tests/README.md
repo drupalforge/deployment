@@ -55,8 +55,9 @@ These tests use `grep` and file inspection to check:
 - Configuration files exist
 - Code patterns are present
 - YAML files follow consistent formatting (via yamllint)
+- **CMD execution**: Verifies BASE_CMD is set and container executes it correctly
 
-**Important**: These tests do NOT build Docker images. They only check the text content of files.
+**Important**: Most unit tests do NOT build Docker images - they only check file content. The exception is `test-cmd-execution.sh` which builds a test image to verify runtime CMD behavior.
 
 Example:
 ```bash
@@ -217,6 +218,26 @@ When adding new tests:
 3. **Integration tests** - Update `integration-test.sh` for functional features
 
 Keep tests fast, focused, and independent.
+
+### CMD Execution Tests
+
+The `test-cmd-execution.sh` test specifically validates that:
+
+1. **BASE_CMD Environment Variable**: The `BASE_CMD` extracted from the base image is correctly set as an environment variable
+2. **Container Runs**: Container starts and stays running when using default CMD
+3. **CMD Logging**: The entrypoint logs which CMD is being executed
+4. **Apache Starts**: Apache (or code-server) starts successfully via the CMD
+5. **No Premature Exit**: Container doesn't exit with "stream closed: EOF" error
+6. **Command Override**: Custom commands still work (`docker run image /bin/bash`)
+7. **Fallback Works**: Hardcoded fallback is used if BASE_CMD not set
+
+This test builds a Docker image to verify runtime behavior, making it unique among unit tests.
+
+**Run it standalone**:
+```bash
+cd tests
+bash test-cmd-execution.sh
+```
 
 ### YAML Linting
 
