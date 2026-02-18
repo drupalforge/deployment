@@ -22,15 +22,25 @@ The workflow uses a concurrency setting to automatically cancel in-progress runs
 
 This ensures that only the most recent workflow run for each PR or ref is active, preventing resource waste and reducing clutter.
 
+**Note**: The built-in concurrency cancellation does NOT cancel workflows that are waiting for environment approval. To handle these cases, the workflow includes a `cancel-superseded-workflows` job that uses the `viveklak/cancel-workflows` action to explicitly cancel approval-waiting workflows that have been superseded.
+
 #### Jobs
 
-1. **unit-tests**
+1. **cancel-superseded-workflows**
+   - Runs first to cancel any superseded workflows waiting for approval
+   - Uses `viveklak/cancel-workflows` action
+   - Required because built-in concurrency cancellation doesn't affect approval-waiting workflows
+   - Configured with `dry-run: false` to actually perform cancellations
+
+2. **unit-tests**
    - Runs shell-based unit tests
    - Validates scripts and PHP syntax
+   - Depends on: `cancel-superseded-workflows`
 
-2. **docker-build**
+3. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
    - Validates Docker build process
+   - Depends on: `cancel-superseded-workflows`
 
 ### docker-publish-images.yml
 
