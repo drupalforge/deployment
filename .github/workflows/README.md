@@ -38,10 +38,9 @@ This ensures that only the most recent workflow run for each PR or ref is active
 
 The workflow runs on:
 - `push` to `main` branch
-- `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
-  - All events trigger workflow runs
+- `pull_request` events (default types: `opened`, `synchronize`, `reopened`)
   - Draft PRs require approval (enforced by GitHub repository settings)
-  - Previous runs are automatically canceled when new runs start
+  - Previous runs are automatically canceled when new runs start (via concurrency setting)
 
 #### Jobs
 
