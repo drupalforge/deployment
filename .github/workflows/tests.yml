@@ -20,19 +20,17 @@ permissions:
 jobs:
   cancel-previous-runs:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - name: Cancel previous runs for this PR
         uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
         with:
           script: |
-            // Only cancel for pull requests
-            if (!context.payload.pull_request) {
-              console.log('Not a pull request, skipping cancellation');
-              return;
-            }
-
-            const prNumber = context.payload.pull_request.number;
-            const currentRunId = context.runId;
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const currentRunId = parseInt(process.env.CURRENT_RUN_ID);
 
             console.log(`Current run ID: ${currentRunId}`);
             console.log(`PR number: ${prNumber}`);
@@ -93,6 +91,7 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     needs: [cancel-previous-runs]
+    if: always()
 
     steps:
       - uses: actions/checkout@v3
@@ -110,6 +109,7 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     needs: [cancel-previous-runs]
+    if: always()
 
     steps:
       - uses: actions/checkout@v3
