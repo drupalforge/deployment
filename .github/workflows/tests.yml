@@ -8,32 +8,17 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 # Cancel in-progress runs when a new run is triggered
-# Note: This does NOT cancel jobs waiting for environment approval
-# See cancel-superseded-workflows job below for handling approval-waiting workflows
+# This automatically cancels superseded workflow runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: write  # Required for cancel-workflows-action
 
 jobs:
-  cancel-superseded-workflows:
-    runs-on: ubuntu-latest
-    # Run first to cancel any superseded workflows waiting for approval before starting tests
-    steps:
-      - name: Cancel superseded workflow runs
-        uses: viveklak/cancel-workflows@v1.1.1
-        with:
-          # Cancels workflows waiting for approval that have been superseded by this run
-          limit-to-previous-successful-run-commit: "true"
-          # Set to false to actually cancel workflows (dry-run mode by default for safety)
-          dry-run: "false"
-
   unit-tests:
     runs-on: ubuntu-latest
-    needs: [cancel-superseded-workflows]
 
     steps:
       - uses: actions/checkout@v3
@@ -50,7 +35,6 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [cancel-superseded-workflows]
 
     steps:
       - uses: actions/checkout@v3
