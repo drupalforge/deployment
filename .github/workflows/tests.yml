@@ -35,23 +35,15 @@ jobs:
             console.log(`Current run ID: ${currentRunId}`);
             console.log(`PR number: ${prNumber}`);
 
-            // Get all workflow runs for the Tests workflow
-            const workflows = await github.rest.actions.listRepoWorkflows({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-
-            const testsWorkflow = workflows.data.workflows.find(w => w.name === 'Tests');
-            if (!testsWorkflow) {
-              console.log('Tests workflow not found');
-              return;
-            }
+            // Get the current workflow ID
+            const currentWorkflowId = context.payload.workflow_run?.workflow_id || context.workflow;
+            console.log(`Current workflow: ${currentWorkflowId}`);
 
             // Get all runs for this workflow
             const runs = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: testsWorkflow.id,
+              workflow_id: currentWorkflowId,
               per_page: 100
             });
 
@@ -68,8 +60,8 @@ jobs:
                 return false;
               }
 
-              // Only cancel runs that are queued or in_progress
-              return run.status === 'queued' || run.status === 'in_progress' || run.status === 'waiting';
+              // Cancel all matching runs regardless of status
+              return true;
             });
 
             console.log(`Found ${runsToCancel.length} runs to cancel`);
