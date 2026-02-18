@@ -7,17 +7,16 @@ on:
     branches: [ main ]
     types: [opened, synchronize, reopened, ready_for_review]
 
-# Cancel in-progress runs when a new run is triggered
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    # Cancel in-progress runs when a new run is triggered
+    concurrency:
+      group: ${{ github.workflow }}-unit-tests-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v3
@@ -34,6 +33,10 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
+    # Cancel in-progress runs when a new run is triggered
+    concurrency:
+      group: ${{ github.workflow }}-docker-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v3
