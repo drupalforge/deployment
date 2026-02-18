@@ -1,0 +1,44 @@
+name: Auto-approve Copilot Workflow Runs
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    if: github.actor == 'Copilot' || github.actor == 'github-copilot[bot]'
+    steps:
+      - name: Approve pending workflow runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "Checking for pending workflow runs from Copilot..."
+
+          # Get all workflow runs for this PR that are awaiting approval
+          RUNS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/runs?event=pull_request&status=action_required" \
+            --jq ".workflow_runs[] | select(.head_sha == \"${PR_SHA}\") | .id")
+
+          if [ -z "$RUNS" ]; then
+            echo "No workflow runs awaiting approval"
+            exit 0
+          fi
+
+          # Approve each pending run
+          for run_id in $RUNS; do
+            echo "Approving workflow run: $run_id"
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/actions/runs/${run_id}/approve" \
+              || echo "Failed to approve run $run_id (may already be approved)"
+          done
+
+          echo "✅ Copilot workflow runs approved"
