@@ -5,8 +5,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-    # Don't run on draft PRs - only when ready for review
     types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,8 +18,6 @@ permissions:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    # Skip draft PRs - standard GitHub approach
-    if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
       - uses: actions/checkout@v3
@@ -32,8 +34,6 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    # Skip draft PRs - standard GitHub approach
-    if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
       - uses: actions/checkout@v3
