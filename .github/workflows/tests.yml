@@ -8,32 +8,87 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 # Cancel in-progress runs when a new run is triggered
-# Note: This does NOT cancel jobs waiting for environment approval
-# See cancel-superseded-workflows job below for handling approval-waiting workflows
+# This automatically cancels superseded workflow runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: write  # Required for cancel-workflows-action
+  actions: write  # Required to cancel workflow runs
 
 jobs:
-  cancel-superseded-workflows:
+  cancel-previous-runs:
     runs-on: ubuntu-latest
-    # Run first to cancel any superseded workflows waiting for approval before starting tests
+    if: github.event_name == 'pull_request'
     steps:
-      - name: Cancel superseded workflow runs
-        uses: viveklak/cancel-workflows@v1.1.1
+      - name: Cancel previous runs for this PR
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_ID: ${{ github.workflow }}
         with:
-          # Cancels workflows waiting for approval that have been superseded by this run
-          limit-to-previous-successful-run-commit: "true"
-          # Set to false to actually cancel workflows (dry-run mode by default for safety)
-          dry-run: "false"
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const currentRunId = parseInt(process.env.CURRENT_RUN_ID);
+            const currentWorkflowId = process.env.WORKFLOW_ID;
+
+            console.log(`Current run ID: ${currentRunId}`);
+            console.log(`PR number: ${prNumber}`);
+            console.log(`Current workflow: ${currentWorkflowId}`);
+
+            // Get all runs for this workflow
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: currentWorkflowId,
+              per_page: 100
+            });
+
+            // Filter to runs for this PR that are not the current run
+            const runsToCancel = runs.data.workflow_runs.filter(run => {
+              // Skip the current run
+              if (run.id === currentRunId) {
+                return false;
+              }
+
+              // Check if this run is for the same PR
+              const runPR = run.pull_requests.find(pr => pr.number === prNumber);
+              if (!runPR) {
+                return false;
+              }
+
+              // Cancel all matching runs regardless of status
+              // Skip runs that are already in a terminal state
+              if (run.status === 'completed') {
+                // Only cancel completed runs with 'action_required' conclusion
+                return run.conclusion === 'action_required';
+              }
+              // Cancel runs that are queued, in_progress, or waiting
+              return true;
+            });
+
+            console.log(`Found ${runsToCancel.length} runs to cancel`);
+
+            for (const run of runsToCancel) {
+              console.log(`Cancelling run #${run.run_number} (ID: ${run.id}, status: ${run.status})`);
+              try {
+                await github.rest.actions.cancelWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id
+                });
+                console.log(`  ✓ Cancelled successfully`);
+              } catch (error) {
+                console.log(`  ✗ Failed to cancel: ${error.message}`);
+              }
+            }
 
   unit-tests:
     runs-on: ubuntu-latest
-    needs: [cancel-superseded-workflows]
+    needs: [cancel-previous-runs]
+    if: always()
 
     steps:
       - uses: actions/checkout@v3
@@ -50,7 +105,8 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [cancel-superseded-workflows]
+    needs: [cancel-previous-runs]
+    if: always()
 
     steps:
       - uses: actions/checkout@v3
