@@ -66,6 +66,10 @@ GitHub treats the Copilot bot as a first-time/outside contributor, requiring man
 3. Queries for workflow runs with `action_required` status
 4. Automatically approves those runs using the GitHub API
 
+**Important:** This workflow uses `pull_request_target`, which runs from the base branch (main), not from the PR branch. This means:
+- **This PR requires manual approval** - the auto-approve workflow won't work until after it's merged to main
+- **Future Copilot PRs will be auto-approved** - once this workflow is in main, it will automatically approve subsequent Copilot bot PRs
+
 #### Security Considerations
 
 - Uses `pull_request_target` which has write permissions to approve workflows

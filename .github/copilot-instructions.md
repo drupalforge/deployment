@@ -194,8 +194,9 @@ The repository uses GitHub Actions for automated testing:
   - Executes unit tests and Docker builds
   - Skips draft PRs automatically
 - **auto-approve-copilot.yml**: Auto-approves workflow runs from Copilot bot
-  - Prevents manual approval requirements for Copilot PRs
+  - Prevents manual approval requirements for Copilot PRs (after this workflow is merged to main)
   - Uses `pull_request_target` with `actions: write` permission
+  - Note: Runs from base branch, so won't work until merged
 - **docker-publish-images.yml**: Builds and publishes Docker images for multiple PHP versions
 - **docker-publish-image.yml**: Builds and publishes a single Docker image (deprecated)
 
