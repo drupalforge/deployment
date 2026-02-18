@@ -27,16 +27,15 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           CURRENT_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_ID: ${{ github.workflow }}
         with:
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER);
             const currentRunId = parseInt(process.env.CURRENT_RUN_ID);
+            const currentWorkflowId = process.env.WORKFLOW_ID;
 
             console.log(`Current run ID: ${currentRunId}`);
             console.log(`PR number: ${prNumber}`);
-
-            // Get the current workflow ID
-            const currentWorkflowId = context.payload.workflow_run?.workflow_id || context.workflow;
             console.log(`Current workflow: ${currentWorkflowId}`);
 
             // Get all runs for this workflow
