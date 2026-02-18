@@ -267,6 +267,7 @@ The GitHub Actions workflows include several performance optimizations for build
 1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
 2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
 3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
+4. **Multi-platform ready**: Configured for multi-platform builds (currently builds for `linux/amd64`, with capability to add more platforms like `linux/arm64` in the future)
 
 These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
 
