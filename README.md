@@ -290,11 +290,19 @@ build-php-8-3:
 
 The cloud builder will automatically activate for better multi-platform build performance.
 
+**Parallel Multi-Architecture Builds:**
+When multiple platforms are specified (e.g., `linux/amd64,linux/arm64`), the workflow:
+- Builds each architecture in parallel as separate jobs for faster builds
+- Each platform job runs independently with its own cache
+- Platform-specific images are pushed by digest during the build
+- A final merge job creates and pushes a manifest list combining all platforms
+- Total build time = max(platform build times) instead of sum of all platform build times
+
 **Multi-Architecture Manifests:**
-When multiple platforms are specified, `docker/build-push-action` automatically:
-- Builds each platform separately (amd64, arm64, etc.)
-- Pushes platform-specific images to the registry
-- Creates and pushes a manifest list that references all platform images
+The workflow automatically creates manifest lists for multi-platform builds:
+- Each platform is built and pushed independently
+- Platform images are referenced by digest
+- Manifest list is created referencing all platform digests
 - The manifest list allows Docker to automatically pull the correct image for the host architecture
 
 No manual manifest creation is required. You can verify a multi-arch image with:
