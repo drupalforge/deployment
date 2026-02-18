@@ -19,28 +19,35 @@ Runs unit tests and Docker builds for the deployment image.
 - No approval required
 
 **On Pull Request - Draft:**
-- Tests are skipped (workflow does not run)
+- Workflow runs but skips test jobs (shows as successful)
 - Mark PR as "ready for review" to run tests
 
-This follows the standard GitHub Actions pattern for handling draft PRs.
+This uses a conditional check job pattern to avoid "action_required" status on draft PRs.
 
 #### Triggered Events
 
 The workflow runs on:
 - `push` to `main` branch
 - `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
-  - Skips draft PRs using `if: !github.event.pull_request.draft`
+  - Skips test jobs for draft PRs using conditional check job pattern
 
 #### Jobs
 
-1. **unit-tests**
+1. **check-if-should-run**
+   - Always runs and succeeds
+   - Determines if test jobs should run based on draft status
+   - Prevents "action_required" status on draft PRs
+
+2. **unit-tests**
+   - Depends on check-if-should-run
    - Runs shell-based unit tests
-   - Skips draft PRs
+   - Skips for draft PRs
    - Validates scripts and PHP syntax
 
-2. **docker-build**
+3. **docker-build**
+   - Depends on check-if-should-run
    - Builds Docker images for PHP 8.2 and 8.3
-   - Skips draft PRs
+   - Skips for draft PRs
    - Validates Docker build process
 
 ### docker-publish-images.yml

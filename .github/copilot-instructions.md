@@ -192,8 +192,8 @@ Key environment variables used by the deployment scripts:
 The repository uses GitHub Actions for automated testing:
 - **tests.yml**: Runs on pull requests and pushes to main
   - Executes unit tests and integration tests
-  - Draft PRs require manual approval before tests run
-  - Approval is automatically canceled when draft PR is marked ready for review
+  - Draft PRs: Workflow runs but skips test jobs (shows as successful)
+  - Non-draft PRs: All test jobs run normally
 - **docker-publish-images.yml**: Builds and publishes Docker images for multiple PHP versions
 - **docker-publish-image.yml**: Builds and publishes a single Docker image (deprecated)
 
