@@ -82,6 +82,51 @@ for version in "${PHP_VERSIONS[@]}"; do
             BUILD_FAILED=1
         fi
         
+        # Test CMD execution: container runs with default CMD
+        echo -e "${YELLOW}  Testing CMD execution...${NC}"
+        if docker run -d --name "test-cmd-${version}" "$tag" >/dev/null 2>&1; then
+            sleep 8  # Wait for container to initialize
+            
+            # Check if container is still running
+            if docker ps --filter "name=test-cmd-${version}" --format '{{.Names}}' | grep -q "test-cmd-${version}"; then
+                echo -e "${GREEN}  ✓ Container runs with default CMD${NC}"
+                
+                # Verify CMD execution is logged
+                logs=$(docker logs "test-cmd-${version}" 2>&1)
+                if echo "$logs" | grep -q "Executing base image CMD"; then
+                    echo -e "${GREEN}  ✓ CMD execution logged${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ CMD execution message not in logs${NC}"
+                fi
+                
+                # Verify Apache or code-server started
+                if echo "$logs" | grep -qE "Apache.*configured|code-server.*HTTP server listening"; then
+                    echo -e "${GREEN}  ✓ Apache/code-server started${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Apache/code-server startup not detected${NC}"
+                fi
+            else
+                echo -e "${RED}  ✗ Container exited (should be running)${NC}"
+                BUILD_FAILED=1
+            fi
+            
+            # Cleanup container
+            docker rm -f "test-cmd-${version}" >/dev/null 2>&1
+        else
+            echo -e "${RED}  ✗ Failed to start container${NC}"
+            BUILD_FAILED=1
+        fi
+        
+        # Test command override
+        echo -e "${YELLOW}  Testing command override...${NC}"
+        override_output=$(docker run --rm "$tag" echo "Override works" 2>&1)
+        if echo "$override_output" | grep -q "Override works"; then
+            echo -e "${GREEN}  ✓ Command override works${NC}"
+        else
+            echo -e "${RED}  ✗ Command override failed${NC}"
+            BUILD_FAILED=1
+        fi
+        
     else
         echo -e "${RED}✗ PHP ${version} build failed${NC}"
         BUILD_FAILED=1
