@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     # Job-level concurrency: only one instance of this job runs at a time per PR/branch
     # Note: Concurrency does NOT cancel jobs waiting for environment approval
-    # For that, use: https://github.com/marketplace/actions/cancel-workflows-action
-    # See: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
+    # See docker-publish-images.yml for cancel-workflows-action implementation
+    # Docs: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-unit-tests-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
@@ -38,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     # Job-level concurrency: only one instance of this job runs at a time per PR/branch
     # Note: Concurrency does NOT cancel jobs waiting for environment approval
-    # For that, use: https://github.com/marketplace/actions/cancel-workflows-action
-    # See: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
+    # See docker-publish-images.yml for cancel-workflows-action implementation
+    # Docs: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-docker-build-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
