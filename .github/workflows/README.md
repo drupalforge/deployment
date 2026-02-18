@@ -57,7 +57,9 @@ Automatically approves workflow runs from the Copilot bot to prevent manual appr
 
 #### Why This Is Needed
 
-GitHub treats the Copilot bot as a first-time/outside contributor, requiring manual approval before workflows can run. This workflow automatically approves pending workflow runs from Copilot, allowing the workflow to execute (though test jobs are still skipped for draft PRs per the tests.yml configuration).
+GitHub treats the Copilot bot as a first-time/outside contributor, requiring manual approval before workflows can run on draft PRs. 
+
+**Note:** When a draft PR is marked "ready for review," the `ready_for_review` event triggers new workflow runs that execute WITHOUT requiring approval. However, the old runs awaiting approval remain in that state and are not automatically canceled. This auto-approve workflow allows workflow runs to execute on draft PRs without waiting for manual approval or marking the PR ready.
 
 #### How It Works
 

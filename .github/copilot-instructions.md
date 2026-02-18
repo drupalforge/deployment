@@ -192,10 +192,12 @@ Key environment variables used by the deployment scripts:
 The repository uses GitHub Actions for automated testing:
 - **tests.yml**: Runs on pull requests and pushes to main
   - Executes unit tests and Docker builds
-  - Skips draft PRs automatically
+  - Skips draft PRs automatically (jobs don't run)
+  - When draft PR is marked "ready for review", new runs execute without requiring approval
 - **auto-approve-copilot.yml**: Auto-approves workflow runs from Copilot bot
-  - Prevents manual approval requirements for Copilot PRs
+  - Allows workflows to run on draft PRs without manual approval
   - Uses `pull_request_target` with `actions: write` permission
+  - Alternative to marking PR ready or manually approving
 - **docker-publish-images.yml**: Builds and publishes Docker images for multiple PHP versions
 - **docker-publish-image.yml**: Builds and publishes a single Docker image (deprecated)
 
