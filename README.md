@@ -267,9 +267,28 @@ The GitHub Actions workflows include several performance optimizations for build
 1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
 2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
 3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
-4. **Multi-platform ready**: Configured for multi-platform builds (currently builds for `linux/amd64`, with capability to add more platforms like `linux/arm64` in the future)
+4. **Multi-platform support**: 
+   - QEMU emulation for cross-platform builds
+   - Docker Buildx Cloud builder for multi-platform builds (automatically enabled when building for multiple platforms or ARM)
+   - Defaults to `linux/amd64` (uses standard buildx for optimal performance)
+   - Easy ARM support: pass `build_platform: 'linux/amd64,linux/arm64'` to enable ARM builds with cloud builder
 
 These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
+
+#### Enabling ARM Builds
+
+To build for ARM architecture when the base image supports it:
+
+```yaml
+build-php-8-3:
+  uses: ./.github/workflows/docker-publish-image.yml
+  with:
+    php_version: '8.3'
+    build_platform: 'linux/amd64,linux/arm64'  # Add ARM platform
+  secrets: inherit
+```
+
+The cloud builder will automatically activate for better multi-platform build performance.
 
 ## Deployment Workflow
 
