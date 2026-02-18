@@ -193,11 +193,7 @@ The repository uses GitHub Actions for automated testing:
 - **tests.yml**: Runs on pull requests and pushes to main
   - Executes unit tests and Docker builds
   - Draft PRs: Workflow runs require approval (enforced by GitHub, prevents automatic execution)
-  - Ready PRs: Runs execute without approval and cancel previous runs awaiting approval
-- **auto-approve-copilot.yml**: Auto-approves workflow runs from Copilot bot
-  - Allows workflows to run on draft PRs without manual approval
-  - Uses `pull_request_target` with `actions: write` permission
-  - Alternative to marking PR ready or manually approving
+  - Uses concurrency setting to automatically cancel previous runs when new commits are pushed
 - **docker-publish-images.yml**: Builds and publishes Docker images for multiple PHP versions
 - **docker-publish-image.yml**: Builds and publishes a single Docker image (deprecated)
 

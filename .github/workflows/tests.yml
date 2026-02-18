@@ -9,48 +9,17 @@ on:
     # Draft PRs require approval, which prevents automatic execution
     types: [opened, synchronize, reopened, ready_for_review]
 
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  cancel-previous:
-    runs-on: ubuntu-latest
-    if: github.event.action == 'ready_for_review'
-    steps:
-      - name: Cancel previous workflow runs awaiting approval
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Canceling previous workflow runs awaiting approval..."
-
-          # Get workflow runs for this PR that are awaiting approval
-          RUNS=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/actions/runs?event=pull_request&status=action_required" \
-            --jq ".workflow_runs[] | select(.head_sha == \"${{ github.event.pull_request.head.sha }}\") | .id")
-
-          if [ -z "$RUNS" ]; then
-            echo "No workflow runs awaiting approval to cancel"
-            exit 0
-          fi
-
-          # Cancel each pending run
-          for run_id in $RUNS; do
-            echo "Canceling workflow run: $run_id"
-            gh api \
-              --method POST \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/actions/runs/${run_id}/cancel" \
-              || echo "Failed to cancel run $run_id (may already be canceled or completed)"
-          done
-
-          echo "✅ Previous workflow runs canceled"
-
   unit-tests:
     runs-on: ubuntu-latest
-    needs: [cancel-previous]
-    if: always()
 
     steps:
       - uses: actions/checkout@v3
@@ -67,8 +36,6 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [cancel-previous]
-    if: always()
 
     steps:
       - uses: actions/checkout@v3
