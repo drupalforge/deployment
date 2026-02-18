@@ -27,7 +27,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           CURRENT_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_ID: ${{ github.workflow }}
+          WORKFLOW_ID: tests.yml
         with:
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER);
