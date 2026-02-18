@@ -17,30 +17,39 @@ Runs unit tests and Docker builds for the deployment image.
 **On Pull Request - Ready for Review:**
 - Runs all tests automatically
 - No approval required
+- Cancels any previous workflow runs that were awaiting approval
 
 **On Pull Request - Draft:**
-- Tests are skipped (workflow does not run)
-- Mark PR as "ready for review" to run tests
+- Workflow runs are created but require manual approval
+- Approval requirement prevents automatic execution
+- Mark PR as "ready for review" to run tests without approval and cancel pending runs
 
-This follows the standard GitHub Actions pattern for handling draft PRs.
+This approach relies on GitHub's approval requirement for first-time contributors instead of using conditional logic to skip draft PRs.
 
 #### Triggered Events
 
 The workflow runs on:
 - `push` to `main` branch
 - `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
-  - Skips draft PRs using `if: !github.event.pull_request.draft`
+  - All events trigger workflow runs
+  - Draft PRs require approval (enforced by GitHub repository settings)
+  - Ready PRs run without approval and cancel previous awaiting runs
 
 #### Jobs
 
-1. **unit-tests**
+1. **cancel-previous**
+   - Only runs when PR is marked "ready for review"
+   - Cancels workflow runs awaiting approval
+   - Prevents stale pending runs from cluttering the UI
+
+2. **unit-tests**
    - Runs shell-based unit tests
-   - Skips draft PRs
+   - Depends on cancel-previous (runs even if cancel-previous is skipped)
    - Validates scripts and PHP syntax
 
-2. **docker-build**
+3. **docker-build**
    - Builds Docker images for PHP 8.2 and 8.3
-   - Skips draft PRs
+   - Depends on cancel-previous (runs even if cancel-previous is skipped)
    - Validates Docker build process
 
 ### docker-publish-images.yml

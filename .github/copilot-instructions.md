@@ -192,8 +192,8 @@ Key environment variables used by the deployment scripts:
 The repository uses GitHub Actions for automated testing:
 - **tests.yml**: Runs on pull requests and pushes to main
   - Executes unit tests and Docker builds
-  - Skips draft PRs automatically (jobs don't run)
-  - When draft PR is marked "ready for review", new runs execute without requiring approval
+  - Draft PRs: Workflow runs require approval (enforced by GitHub, prevents automatic execution)
+  - Ready PRs: Runs execute without approval and cancel previous runs awaiting approval
 - **auto-approve-copilot.yml**: Auto-approves workflow runs from Copilot bot
   - Allows workflows to run on draft PRs without manual approval
   - Uses `pull_request_target` with `actions: write` permission
