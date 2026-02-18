@@ -13,8 +13,8 @@ permissions:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    # Cancel in-progress runs when a new run is triggered
-    # Job-level concurrency properly handles cancellation of jobs waiting for approval
+    # Job-level concurrency: only one instance of this job runs at a time per PR/branch
+    # With cancel-in-progress: true, superseded jobs are cancelled (even if waiting for approval)
     # See: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-unit-tests-${{ github.event.pull_request.number || github.ref }}
@@ -35,8 +35,8 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    # Cancel in-progress runs when a new run is triggered
-    # Job-level concurrency properly handles cancellation of jobs waiting for approval
+    # Job-level concurrency: only one instance of this job runs at a time per PR/branch
+    # With cancel-in-progress: true, superseded jobs are cancelled (even if waiting for approval)
     # See: https://docs.github.com/en/actions/writing-workflows/control-the-concurrency-of-workflows-and-jobs
     concurrency:
       group: ${{ github.workflow }}-docker-build-${{ github.event.pull_request.number || github.ref }}
