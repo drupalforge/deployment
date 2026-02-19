@@ -108,7 +108,20 @@ for version in "${PHP_VERSIONS[@]}"; do
                 # Check for code-server only if enabled
                 codes_enabled=$(docker exec "test-cmd-${version}" printenv CODES_ENABLE 2>/dev/null || echo "no")
                 if [ "$codes_enabled" = "yes" ]; then
-                    if echo "$logs" | grep -q "code-server.*HTTP server listening"; then
+                    code_server_running=0
+                    # Prefer process check; logs can appear later and on separate lines.
+                    if docker exec "test-cmd-${version}" pgrep -af code-server >/dev/null 2>&1; then
+                        code_server_running=1
+                    else
+                        # Give logs a bit more time to show startup.
+                        sleep 12
+                        logs=$(docker logs "test-cmd-${version}" 2>&1)
+                        if echo "$logs" | grep -q "HTTP server listening"; then
+                            code_server_running=1
+                        fi
+                    fi
+
+                    if [ "$code_server_running" -eq 1 ]; then
                         echo -e "${GREEN}  ✓ code-server started (CODES_ENABLE=yes)${NC}"
                     else
                         echo -e "${YELLOW}  ⚠ code-server not detected but CODES_ENABLE=yes${NC}"
