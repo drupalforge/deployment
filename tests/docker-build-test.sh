@@ -44,7 +44,6 @@ for version in "${PHP_VERSIONS[@]}"; do
     
     echo -e "${YELLOW}Building PHP ${version} image...${NC}"
     
-    # TODO: Remove --platform specification when devpanel/php base image is available for linux/arm64
     if docker build \
         --platform linux/amd64 \
         --build-arg PHP_VERSION="$version" \

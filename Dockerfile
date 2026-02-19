@@ -8,6 +8,14 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 # Switch to root for system-level operations
 USER root
 
+# Install AWS CLI for S3 database import functionality and gosu for user switching
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        awscli \
+        gosu \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
@@ -25,14 +33,11 @@ RUN a2enmod proxy && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
 
-# Switch back to non-root user for runtime
-# Use USER environment variable from base image
-USER ${USER}
-
 # Make BASE_CMD available as environment variable
 ENV BASE_CMD="${BASE_CMD}"
 
 # Use ENTRYPOINT to ensure deployment setup always runs
+# Entrypoint runs as root to handle permissions, then switches to USER
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
 # Set CMD from base image (passed as build arg)

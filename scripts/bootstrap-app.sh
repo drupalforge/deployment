@@ -58,6 +58,8 @@ main() {
     fi
     
     # Run composer install (allow lock file write failures for mounted volumes)
+    # Note: When using mounted volumes with different ownership (e.g., in integration tests),
+    # composer may fail to write composer.lock. This is expected and we handle it gracefully.
     set +e  # Temporarily disable exit on error
     composer_output=$(composer install --no-interaction 2>&1)
     composer_exit=$?

@@ -122,3 +122,15 @@ jobs:
       - name: Run docker build tests
         run: |
           bash tests/docker-build-test.sh
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [delete-previous-runs]
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run integration tests
+        run: |
+          bash tests/integration-test.sh
