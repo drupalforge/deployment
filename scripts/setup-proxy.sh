@@ -93,6 +93,14 @@ configure_apache_proxy() {
     cp "$handler_source" "$handler_dest"
     chmod 644 "$handler_dest"
     chown www-data:www-data "$handler_dest" 2>/dev/null || true
+    
+    # Create symlink in web root so Apache can serve it
+    local handler_symlink="${web_root}/drupalforge-proxy-handler.php"
+    if [ ! -e "$handler_symlink" ]; then
+      ln -s "$handler_dest" "$handler_symlink" 2>/dev/null || \
+        sudo -n ln -s "$handler_dest" "$handler_symlink" 2>/dev/null || \
+        log "Warning: Could not create symlink at $handler_symlink"
+    fi
   else
     error "Proxy handler source not found at $handler_source"
     return 1
