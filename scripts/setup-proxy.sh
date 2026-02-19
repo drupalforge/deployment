@@ -135,11 +135,19 @@ configure_apache_proxy() {
     
     # Find the end of the mod_rewrite section and insert before it
     if grep -q "RewriteEngine On" "$apache_conf"; then
-      # Insert rules after RewriteBase (need sudo to write to /etc/apache2)
-      if sudo -n sed -i "/RewriteBase \//a\\$(echo -e "$rewrite_rules")" "$apache_conf" 2>/dev/null; then
+      # Create a temporary file with the rules properly formatted
+      local temp_file=$(mktemp)
+      local temp_output=$(mktemp)
+      echo -e "$rewrite_rules" > "$temp_file"
+      
+      # Use sudo to insert the content after "RewriteEngine On"
+      # Read the original file, insert rules after the match, write to temp, then move back
+      if sudo -n sh -c "awk '/RewriteEngine On/{print; while(getline < \"$temp_file\") print; next} 1' \"$apache_conf\" > \"$temp_output\" && cat \"$temp_output\" > \"$apache_conf\"" 2>/dev/null; then
         log "Rewrite rules added to configuration"
+        rm -f "$temp_file" "$temp_output"
       else
         log "Warning: Could not write to $apache_conf (permission denied)"
+        rm -f "$temp_file" "$temp_output"
         return 1
       fi
     else
