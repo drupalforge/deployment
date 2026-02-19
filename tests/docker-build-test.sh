@@ -45,6 +45,7 @@ for version in "${PHP_VERSIONS[@]}"; do
     echo -e "${YELLOW}Building PHP ${version} image...${NC}"
     
     if docker build \
+        --platform linux/amd64 \
         --build-arg PHP_VERSION="$version" \
         -t "$tag" \
         -f "$PROJECT_ROOT/Dockerfile" \
