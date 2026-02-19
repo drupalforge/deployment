@@ -108,13 +108,7 @@ services:
       - ./fixtures/app:/var/www/html
     ports:
       - "80:80"
-    networks:
-      - test-network
 
 volumes:
   minio_data:
   mysql_data:
-
-networks:
-  test-network:
-    driver: bridge
