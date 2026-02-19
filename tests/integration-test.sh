@@ -119,89 +119,89 @@ passed=0
 # Test 1: Database import
 if run_test "Database import (users table exists)" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T mysql mysql -uroot -proot_password -Ddrupaldb -e 'SELECT COUNT(*) FROM users' | grep -q '[0-9]'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 2: Database connectivity from application
 if run_test "App can connect to database" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Database connected'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 3: Application is reachable
 if run_test "Application is reachable" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Deployment Test Application'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 4: Bootstrap ran (git repo initialized)
 if run_test "Bootstrap initialized git" \
     "test -d '$SCRIPT_DIR/fixtures/app/.git'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 5: Composer.json exists
 if run_test "composer.json present" \
     "test -f '$SCRIPT_DIR/fixtures/app/composer.json'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 6: File proxy - request missing file from origin
 if run_test "File proxy setup (rewrite rules)" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment grep -q 'RewriteRule.*proxy-handler' /etc/apache2/conf-available/drupalforge-proxy.conf"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 7: PHP handler is accessible
 if run_test "PHP proxy handler deployed" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment test -f /var/www/drupalforge-proxy-handler.php"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 8: Origin server is reachable
 if run_test "Origin server is reachable" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://origin-server:8000/ | grep -q '<!DOCTYPE'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 9: Request a file through proxy (it should be downloaded from origin)
 if run_test "File proxy downloads from origin" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 10: Downloaded file persists locally
 if run_test "Proxied file saved to disk" \
     "test -f '$SCRIPT_DIR/fixtures/app/web/sites/default/files/test-file.txt'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 # Test 11: S3 bucket was used
 if run_test "S3 (MinIO) connectivity tested" \
     "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T minio mc ls minio/test-deployments | grep -q 'test-db.sql'"; then
-    ((passed++))
+    ((passed=passed+1))
 else
-    ((failed++))
+    ((failed=failed+1))
 fi
 
 echo ""
