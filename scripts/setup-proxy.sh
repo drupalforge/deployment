@@ -135,9 +135,13 @@ configure_apache_proxy() {
     
     # Find the end of the mod_rewrite section and insert before it
     if grep -q "RewriteEngine On" "$apache_conf"; then
-      # Insert rules after RewriteBase
-      sed -i "/RewriteBase \//a\\$(echo -e "$rewrite_rules")" "$apache_conf"
-      log "Rewrite rules added to configuration"
+      # Insert rules after RewriteBase (need sudo to write to /etc/apache2)
+      if sudo -n sed -i "/RewriteBase \//a\\$(echo -e "$rewrite_rules")" "$apache_conf" 2>/dev/null; then
+        log "Rewrite rules added to configuration"
+      else
+        log "Warning: Could not write to $apache_conf (permission denied)"
+        return 1
+      fi
     else
       log "Warning: RewriteEngine configuration not found, rewrite rules not added"
       return 1
@@ -148,14 +152,14 @@ configure_apache_proxy() {
   fi
   
   # Enable mod_rewrite
-  if a2enmod rewrite 2>/dev/null; then
+  if sudo -n a2enmod rewrite 2>/dev/null; then
     log "mod_rewrite enabled"
   else
     log "mod_rewrite already enabled or failed to enable"
   fi
   
   # Test Apache configuration
-  if apache2ctl configtest 2>/dev/null | grep -q "Syntax OK"; then
+  if sudo -n apache2ctl configtest 2>/dev/null | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
     return 0
   else

@@ -95,11 +95,24 @@ for version in "${PHP_VERSIONS[@]}"; do
                 # Get container logs for verification
                 logs=$(docker logs "test-cmd-${version}" 2>&1)
                 
-                # Verify Apache or code-server started
-                if echo "$logs" | grep -qE "Apache.*configured|code-server.*HTTP server listening"; then
-                    echo -e "${GREEN}  ✓ Apache/code-server started${NC}"
+                # Check if Apache is running (more reliable than log grep)
+                if docker exec "test-cmd-${version}" pgrep -x apache2 >/dev/null 2>&1; then
+                    echo -e "${GREEN}  ✓ Apache is running${NC}"
+                elif echo "$logs" | grep -q "Apache.*configured"; then
+                    echo -e "${GREEN}  ✓ Apache started (from logs)${NC}"
                 else
-                    echo -e "${YELLOW}  ⚠ Apache/code-server startup not detected${NC}"
+                    echo -e "${RED}  ✗ Apache is not running${NC}"
+                    BUILD_FAILED=1
+                fi
+                
+                # Check for code-server only if enabled
+                codes_enabled=$(docker exec "test-cmd-${version}" printenv CODES_ENABLE 2>/dev/null || echo "no")
+                if [ "$codes_enabled" = "yes" ]; then
+                    if echo "$logs" | grep -q "code-server.*HTTP server listening"; then
+                        echo -e "${GREEN}  ✓ code-server started (CODES_ENABLE=yes)${NC}"
+                    else
+                        echo -e "${YELLOW}  ⚠ code-server not detected but CODES_ENABLE=yes${NC}"
+                    fi
                 fi
             else
                 echo -e "${RED}  ✗ Container exited (should be running)${NC}"
