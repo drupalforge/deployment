@@ -63,10 +63,10 @@ fi
 log "Deployment initialization complete, executing main command..."
 
 # Execute the provided command (from CMD or docker run override)
-# If we're root and have a target user, switch to that user
+# If we're root and have a target user, switch to that user using sudo
 if [ "$(id -u)" -eq 0 ] && [ -n "${USER:-}" ]; then
   log "Switching to user ${USER} and executing: $*"
-  exec gosu "${USER}" "$@"
+  exec sudo -u "${USER}" -E "$@"
 else
   exec "$@"
 fi

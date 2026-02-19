@@ -8,11 +8,10 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 # Switch to root for system-level operations
 USER root
 
-# Install AWS CLI for S3 database import functionality and gosu for user switching
+# Install AWS CLI for S3 database import functionality
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         awscli \
-        gosu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
