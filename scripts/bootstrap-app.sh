@@ -35,6 +35,8 @@ main() {
   # Initialize and update Git submodules recursively
   if [ -d ".git" ]; then
     log "Initializing Git submodules..."
+    # Add current directory as safe directory to avoid dubious ownership errors
+    git config --global --add safe.directory "$(pwd)" || true
     if git submodule update --init --recursive; then
       log "Git submodules initialized successfully"
     else
@@ -55,12 +57,24 @@ main() {
       return 1
     fi
     
-    # Run composer install
-    if composer install --no-interaction; then
+    # Run composer install (allow lock file write failures for mounted volumes)
+    set +e  # Temporarily disable exit on error
+    composer_output=$(composer install --no-interaction 2>&1)
+    composer_exit=$?
+    set -e  # Re-enable exit on error
+    
+    if [ $composer_exit -eq 0 ]; then
       log "Composer dependencies installed successfully"
     else
-      error "Failed to install composer dependencies"
-      return 1
+      # Check if the failure was just because of lock file permissions
+      if echo "$composer_output" | grep -iq "composer.lock.*permission"; then
+        log "Composer install completed but could not write lock file (permission denied)"
+        log "This is expected when using mounted volumes with different owners"
+      else
+        error "Failed to install composer dependencies"
+        echo "$composer_output" >&2
+        return 1
+      fi
     fi
   else
     log "No composer.json found, skipping composer install"

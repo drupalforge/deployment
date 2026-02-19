@@ -63,7 +63,7 @@ services:
     working_dir: /files
     command: python -m http.server 8000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 5s
       timeout: 3s
       retries: 5
