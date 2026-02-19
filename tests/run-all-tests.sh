@@ -19,7 +19,7 @@ TESTS_FAILED=0
 TESTS_PASSED=0
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite        ║${NC}"
+echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite         ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
