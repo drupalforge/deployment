@@ -45,7 +45,8 @@ validate_env() {
 # Check if database already has tables
 database_exists() {
   local table_count
-  table_count=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl \
+  # Use --skip-ssl-verify-server-cert to maintain encryption while accepting self-signed certificates
+  table_count=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl-verify-server-cert \
     -se "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';" 2>/dev/null || echo "0")
   
   if [ "$table_count" -gt 0 ]; then
@@ -81,10 +82,11 @@ import_from_s3() {
   log "Database downloaded, importing to MySQL..."
   
   # Determine if file is gzipped
+  # Use --skip-ssl-verify-server-cert to maintain encryption while accepting self-signed certificates
   if [[ "$S3_DATABASE_PATH" == *.gz ]]; then
-    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl
+    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl-verify-server-cert
   else
-    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl < "$temp_dump"
+    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" --skip-ssl-verify-server-cert < "$temp_dump"
   fi
   
   if [ $? -eq 0 ]; then
@@ -112,7 +114,8 @@ main() {
   local attempt=0
   
   while [ $attempt -lt $max_attempts ]; do
-    if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl -e "SELECT 1" &>/dev/null; then
+    # Use --skip-ssl-verify-server-cert to maintain encryption while accepting self-signed certificates
+    if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" --skip-ssl-verify-server-cert -e "SELECT 1" &>/dev/null; then
       log "Database is ready"
       break
     fi
