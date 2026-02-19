@@ -38,7 +38,6 @@ services:
     image: mysql:8.0
     ports:
       - "3306:3306"
-    command: --ssl=0
     environment:
       MYSQL_DATABASE: drupaldb
       MYSQL_USER: drupal

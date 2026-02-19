@@ -15,11 +15,6 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure MariaDB client to not require SSL
-# This ensures compatibility with MySQL servers that have SSL disabled
-RUN echo "[client]" > /etc/mysql/conf.d/no-ssl.cnf && \
-    echo "ssl=0" >> /etc/mysql/conf.d/no-ssl.cnf
-
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
