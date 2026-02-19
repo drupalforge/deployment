@@ -75,6 +75,8 @@ services:
       dockerfile: Dockerfile
       args:
         PHP_VERSION: 8.3
+      platforms:
+        - linux/amd64
     depends_on:
       mysql:
         condition: service_healthy

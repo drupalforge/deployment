@@ -124,7 +124,6 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
           build-args: |
             PHP_VERSION=8.2
           push: false
@@ -135,7 +134,6 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
           build-args: |
             PHP_VERSION=8.3
           push: false
