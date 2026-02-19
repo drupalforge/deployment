@@ -141,8 +141,9 @@ configure_apache_proxy() {
       echo -e "$rewrite_rules" > "$temp_file"
       
       # Use sudo to insert the content after "RewriteEngine On"
-      # Read the original file, insert rules after the match, write to temp, then move back
-      if sudo -n sh -c "awk '/RewriteEngine On/{print; while(getline < \"$temp_file\") print; next} 1' \"$apache_conf\" > \"$temp_output\" && cat \"$temp_output\" > \"$apache_conf\"" 2>/dev/null; then
+      # Read the original file, insert rules after the match, write to temp, then use tee to write back
+      if awk '/RewriteEngine On/{print; while(getline < "'"$temp_file"'") print; next} 1' "$apache_conf" > "$temp_output" 2>/dev/null && \
+         sudo -n tee "$apache_conf" < "$temp_output" >/dev/null 2>&1; then
         log "Rewrite rules added to configuration"
         rm -f "$temp_file" "$temp_output"
       else
@@ -167,8 +168,16 @@ configure_apache_proxy() {
   fi
   
   # Test Apache configuration
-  if sudo -n apache2ctl configtest 2>/dev/null | grep -q "Syntax OK"; then
+  if sudo -n apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
+    
+    # Reload Apache to apply the new configuration
+    if sudo -n apache2ctl graceful 2>/dev/null; then
+      log "Apache reloaded successfully"
+    else
+      log "Warning: Could not reload Apache (may require manual reload)"
+    fi
+    
     return 0
   else
     error "Apache configuration has errors"
