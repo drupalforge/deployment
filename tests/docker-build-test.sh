@@ -92,13 +92,8 @@ for version in "${PHP_VERSIONS[@]}"; do
             if docker ps --filter "name=test-cmd-${version}" --format '{{.Names}}' | grep -q "test-cmd-${version}"; then
                 echo -e "${GREEN}  ✓ Container runs with default CMD${NC}"
                 
-                # Verify CMD execution is logged
+                # Get container logs for verification
                 logs=$(docker logs "test-cmd-${version}" 2>&1)
-                if echo "$logs" | grep -q "Executing base image CMD"; then
-                    echo -e "${GREEN}  ✓ CMD execution logged${NC}"
-                else
-                    echo -e "${YELLOW}  ⚠ CMD execution message not in logs${NC}"
-                fi
                 
                 # Verify Apache or code-server started
                 if echo "$logs" | grep -qE "Apache.*configured|code-server.*HTTP server listening"; then

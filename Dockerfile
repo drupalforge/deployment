@@ -32,11 +32,14 @@ RUN a2enmod proxy && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
 
+# Switch back to non-root user for runtime
+# Use USER environment variable from base image
+USER ${USER}
+
 # Make BASE_CMD available as environment variable
 ENV BASE_CMD="${BASE_CMD}"
 
 # Use ENTRYPOINT to ensure deployment setup always runs
-# Entrypoint runs as root to handle permissions, then switches to USER
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
 # Set CMD from base image (passed as build arg)
