@@ -1,2 +1,2 @@
 # Ignore the app directory (contains test fixtures)
-app/
+/tests/fixtures/app/
