@@ -53,10 +53,9 @@ if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
 fi
 
 # Create and fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
-if [ -n "$ORIGIN_URL" ]; then
+if [ -n "$ORIGIN_URL" ] && [ -n "$FILE_PROXY_PATHS" ]; then
   current_user=$(id -un)
-  local_proxy_paths="${FILE_PROXY_PATHS:-/sites/default/files}"
-  IFS=',' read -ra _proxy_paths <<< "$local_proxy_paths"
+  IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
   for _path in "${_proxy_paths[@]}"; do
     _path=$(echo "$_path" | xargs)
     [[ "$_path" != /* ]] && _path="/$_path"
