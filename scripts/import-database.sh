@@ -40,6 +40,14 @@ validate_env() {
   # Set AWS_REGION default
   AWS_REGION="${AWS_REGION:-us-east-1}"
   export AWS_REGION
+
+  # AWS CLI primarily reads AWS_DEFAULT_REGION; keep both set for compatibility.
+  AWS_DEFAULT_REGION="$AWS_REGION"
+  export AWS_DEFAULT_REGION
+
+  # Avoid metadata service lookups in containers that can cause long startup delays.
+  AWS_EC2_METADATA_DISABLED="true"
+  export AWS_EC2_METADATA_DISABLED
 }
 
 # Check if database already has tables

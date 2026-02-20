@@ -179,7 +179,7 @@ If you ran `bash unit-test.sh` locally, you only ran the **unit tests** (syntax 
 **Solution**: Test Docker builds locally before pushing:
 ```bash
 # Option 1: Manual build (faster, tests just compilation)
-docker build --build-arg PHP_VERSION=8.3 -t test:latest .
+docker build --build-arg PHP_VERSION=8.3 -t test-df-deployment:8.3 .
 
 # Option 2: Integration test (slower, tests compilation + functionality)
 cd tests && bash integration-test.sh
@@ -195,7 +195,7 @@ This can happen due to:
 
 **Solution**: Use `--no-cache` flag to ensure clean build:
 ```bash
-docker build --no-cache --build-arg PHP_VERSION=8.3 -t test:latest .
+docker build --no-cache --build-arg PHP_VERSION=8.3 -t test-df-deployment:8.3 .
 ```
 
 ### "Integration tests fail to start"

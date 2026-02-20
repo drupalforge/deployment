@@ -16,11 +16,12 @@ TEST_DIR="$SCRIPT_DIR"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo "================================"
-echo "Drupal Forge Deployment Tests"
-echo "================================"
+echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
+echo -e "${BLUE}================================${NC}"
 echo ""
 
 # Track test results
@@ -52,11 +53,20 @@ for test_file in "$TEST_DIR"/test-*.sh; do
 done
 
 # Summary
-echo "================================"
-echo "Test Summary"
-echo "================================"
-echo "Suites passed: $((passed_suites))"
-echo "Suites failed: $((failed_tests))"
+echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}Test Summary${NC}"
+echo -e "${BLUE}================================${NC}"
+if [ $passed_suites -eq 0 ]; then
+    echo "Suites passed: $((passed_suites))"
+else
+    echo -e "Suites passed: ${GREEN}$((passed_suites))${NC}"
+fi
+
+if [ $failed_tests -eq 0 ]; then
+    echo "Suites failed: $((failed_tests))"
+else
+    echo -e "Suites failed: ${RED}$((failed_tests))${NC}"
+fi
 echo ""
 
 if [ $failed_tests -eq 0 ]; then

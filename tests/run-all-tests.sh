@@ -36,11 +36,11 @@ run_test_suite() {
     if eval "$test_command"; then
         echo ""
         echo -e "${GREEN}✓ $suite_name PASSED${NC}"
-        ((TESTS_PASSED++))
+        ((TESTS_PASSED+=1))
     else
         echo ""
         echo -e "${RED}✗ $suite_name FAILED${NC}"
-        ((TESTS_FAILED++))
+        ((TESTS_FAILED+=1))
     fi
     echo ""
 }
@@ -59,8 +59,17 @@ echo -e "${BLUE}╔════════════════════�
 echo -e "${BLUE}║                        Test Summary                            ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "Suites passed: ${GREEN}$TESTS_PASSED${NC}"
-echo -e "Suites failed: ${RED}$TESTS_FAILED${NC}"
+if [ $TESTS_PASSED -eq 0 ]; then
+    echo "Suites passed: $TESTS_PASSED"
+else
+    echo -e "Suites passed: ${GREEN}$TESTS_PASSED${NC}"
+fi
+
+if [ $TESTS_FAILED -eq 0 ]; then
+    echo "Suites failed: $TESTS_FAILED"
+else
+    echo -e "Suites failed: ${RED}$TESTS_FAILED${NC}"
+fi
 echo ""
 
 if [ $TESTS_FAILED -eq 0 ]; then

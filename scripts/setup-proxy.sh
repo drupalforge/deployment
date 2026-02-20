@@ -81,26 +81,21 @@ configure_apache_proxy() {
   local web_root="${3:-/var/www/html/web}"
   local apache_conf="/etc/apache2/conf-available/drupalforge-proxy.conf"
   local handler_source="/var/www/drupalforge-proxy-handler.php"
-  local handler_dest="${web_root}/../drupalforge-proxy-handler.php"
   
   log "Configuring Apache proxy with on-demand download"
   log "Files will be served locally if they exist, downloaded to real path if missing"
   log "Origin: $origin_url"
+
+  # Normalize web root (strip trailing slash unless root itself)
+  if [ "$web_root" != "/" ]; then
+    web_root="${web_root%/}"
+  fi
   
-  # Copy proxy handler to web root parent (so it's accessible but not in public files)
+  # Ensure proxy handler exists at static path used by Apache Alias.
   if [ -f "$handler_source" ]; then
-    log "Setting up proxy handler at $handler_dest"
-    cp "$handler_source" "$handler_dest"
-    chmod 644 "$handler_dest"
-    chown www-data:www-data "$handler_dest" 2>/dev/null || true
-    
-    # Create symlink in web root so Apache can serve it
-    local handler_symlink="${web_root}/drupalforge-proxy-handler.php"
-    if [ ! -e "$handler_symlink" ]; then
-      ln -s "$handler_dest" "$handler_symlink" 2>/dev/null || \
-        sudo -n ln -s "$handler_dest" "$handler_symlink" 2>/dev/null || \
-        log "Warning: Could not create symlink at $handler_symlink"
-    fi
+    chmod 644 "$handler_source"
+    chown www-data:www-data "$handler_source" 2>/dev/null || true
+    log "Proxy handler is available at $handler_source"
   else
     error "Proxy handler source not found at $handler_source"
     return 1
@@ -121,24 +116,48 @@ configure_apache_proxy() {
       # Create rewrite rule: if path matches AND file doesn't exist locally AND it's not a directory,
       # then rewrite to proxy handler
       rewrite_rules+="  # Proxy handler: $path\n"
-      rewrite_rules+="  RewriteCond %{REQUEST_URI} ^${path}\n"
+      rewrite_rules+="  RewriteCond %{REQUEST_URI} ^${path}(/|$)\n"
       rewrite_rules+="  RewriteCond %{REQUEST_FILENAME} !-f\n"
       rewrite_rules+="  RewriteCond %{REQUEST_FILENAME} !-d\n"
       rewrite_rules+="  RewriteRule ^${path}(/.*)?$ /drupalforge-proxy-handler.php [QSA,L]\n"
+      rewrite_rules+="  RewriteRule ^${path#/}(/.*)?$ /drupalforge-proxy-handler.php [QSA,L]\n"
       rewrite_rules+="  \n"
     done
   else
     # Default to /sites/default/files if not specified
     log "No FILE_PROXY_PATHS specified, using default: /sites/default/files"
     rewrite_rules+="  # Proxy handler: /sites/default/files\n"
-    rewrite_rules+="  RewriteCond %{REQUEST_URI} ^/sites/default/files\n"
+    rewrite_rules+="  RewriteCond %{REQUEST_URI} ^/sites/default/files(/|$)\n"
     rewrite_rules+="  RewriteCond %{REQUEST_FILENAME} !-f\n"
     rewrite_rules+="  RewriteCond %{REQUEST_FILENAME} !-d\n"
     rewrite_rules+="  RewriteRule ^/sites/default/files(/.*)?$ /drupalforge-proxy-handler.php [QSA,L]\n"
+    rewrite_rules+="  RewriteRule ^sites/default/files(/.*)?$ /drupalforge-proxy-handler.php [QSA,L]\n"
   fi
   
   # Append rewrite rules to existing configuration
   if [ -f "$apache_conf" ]; then
+    # Ensure the Apache Directory scope matches WEB_ROOT (or default).
+    local temp_scope
+    temp_scope=$(mktemp)
+    if awk -v dir="$web_root" '
+      BEGIN { updated=0 }
+      /^<Directory / && updated==0 {
+        print "<Directory \"" dir "\">"
+        updated=1
+        next
+      }
+      { print }
+      END { if (updated==0) exit 1 }
+    ' "$apache_conf" > "$temp_scope" 2>/dev/null && \
+      sudo -n tee "$apache_conf" < "$temp_scope" >/dev/null 2>&1; then
+      log "Apache Directory scope set to WEB_ROOT: $web_root"
+    else
+      rm -f "$temp_scope"
+      log "Warning: Could not update Apache Directory scope in $apache_conf"
+      return 1
+    fi
+    rm -f "$temp_scope"
+
     log "Appending rewrite rules to existing configuration at $apache_conf"
     
     # Find the end of the mod_rewrite section and insert before it
@@ -179,11 +198,16 @@ configure_apache_proxy() {
   if sudo -n apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
     
-    # Reload Apache to apply the new configuration
-    if sudo -n apache2ctl graceful 2>/dev/null; then
-      log "Apache reloaded successfully"
+    # Reload only if Apache is already running.
+    # In container startup flow, Apache starts after this script via CMD.
+    if pgrep -x apache2 >/dev/null 2>&1; then
+      if sudo -n apache2ctl graceful 2>/dev/null; then
+        log "Apache reloaded successfully"
+      else
+        log "Warning: Could not reload Apache (may require manual reload)"
+      fi
     else
-      log "Warning: Could not reload Apache (may require manual reload)"
+      log "Apache not running yet; reload skipped"
     fi
     
     return 0

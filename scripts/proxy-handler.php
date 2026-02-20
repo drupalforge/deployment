@@ -41,16 +41,33 @@ if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_p
     $download_path = $matches[1] . '/' . $matches[2];
 }
 
-// Security check: ensure target is within web root
+// Security check: ensure target is within web root.
+// For first-time proxy requests, target directories may not exist yet, so resolve
+// the nearest existing parent path and validate that parent against web root.
 $real_web_root = realpath($web_root);
-$real_target = realpath(dirname($target_path));
-if ($real_target === false || strpos($real_target, $real_web_root) !== 0) {
+if ($real_web_root === false) {
+    http_response_code(500);
+    die("Web root path is invalid\n");
+}
+
+$target_dir = dirname($target_path);
+$probe_dir = $target_dir;
+$real_target_parent = false;
+while ($probe_dir !== '/' && $probe_dir !== '' && $probe_dir !== '.') {
+    $resolved = realpath($probe_dir);
+    if ($resolved !== false) {
+        $real_target_parent = $resolved;
+        break;
+    }
+    $probe_dir = dirname($probe_dir);
+}
+
+if ($real_target_parent === false || strpos($real_target_parent, $real_web_root) !== 0) {
     http_response_code(400);
     die("Target path outside web root\n");
 }
 
 // Create parent directory if needed
-$target_dir = dirname($target_path);
 if (!is_dir($target_dir)) {
     if (!mkdir($target_dir, 0755, true)) {
         http_response_code(500);

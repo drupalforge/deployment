@@ -16,7 +16,7 @@ NC='\033[0m'
 
 # Test configuration
 PHP_VERSIONS=("8.2" "8.3")
-TEST_TAG_PREFIX="drupalforge-deployment-test"
+TEST_TAG_PREFIX="test-df-deployment"
 BUILD_FAILED=0
 
 echo -e "${BLUE}Testing Docker builds...${NC}"
@@ -41,6 +41,7 @@ trap cleanup_images EXIT
 # Test builds for each PHP version
 for version in "${PHP_VERSIONS[@]}"; do
     tag="${TEST_TAG_PREFIX}:${version}"
+    run_container_name="${TEST_TAG_PREFIX}-${version}"
     
     echo -e "${YELLOW}Building PHP ${version} image...${NC}"
     
@@ -85,46 +86,79 @@ for version in "${PHP_VERSIONS[@]}"; do
         
         # Test CMD execution: container runs with default CMD
         echo -e "${YELLOW}  Testing CMD execution...${NC}"
-        if docker run -d --name "test-cmd-${version}" "$tag" >/dev/null 2>&1; then
+        docker rm -f "$run_container_name" >/dev/null 2>&1 || true
+        if docker run -d --name "$run_container_name" "$tag" >/dev/null 2>&1; then
             sleep 8  # Wait for container to initialize
             
             # Check if container is still running
-            if docker ps --filter "name=test-cmd-${version}" --format '{{.Names}}' | grep -q "test-cmd-${version}"; then
+            if docker ps --filter "name=${run_container_name}" --format '{{.Names}}' | grep -q "$run_container_name"; then
                 echo -e "${GREEN}  ✓ Container runs with default CMD${NC}"
                 
-                # Get container logs for verification
-                logs=$(docker logs "test-cmd-${version}" 2>&1)
-                
-                # Check if Apache is running (more reliable than log grep)
-                if docker exec "test-cmd-${version}" pgrep -x apache2 >/dev/null 2>&1; then
+                # Check if Apache is running. Allow extra startup time and match common process names.
+                apache_running=0
+                for _ in {1..6}; do
+                    if docker exec "$run_container_name" pgrep -af "apache2|httpd" >/dev/null 2>&1; then
+                        apache_running=1
+                        break
+                    fi
+                    sleep 3
+                done
+
+                if [ "$apache_running" -eq 1 ]; then
                     echo -e "${GREEN}  ✓ Apache is running${NC}"
-                elif echo "$logs" | grep -q "Apache.*configured"; then
-                    echo -e "${GREEN}  ✓ Apache started (from logs)${NC}"
                 else
+                    logs=$(docker logs "$run_container_name" 2>&1)
                     echo -e "${RED}  ✗ Apache is not running${NC}"
+                    if [ -n "$logs" ]; then
+                        echo "$logs" | tail -20
+                    fi
                     BUILD_FAILED=1
                 fi
                 
+                # code-server is expected to run behind Apache in this image.
+                # Keep this as a hard dependency so we don't report code-server healthy
+                # while Apache detection failed.
                 # Check for code-server only if enabled
-                codes_enabled=$(docker exec "test-cmd-${version}" printenv CODES_ENABLE 2>/dev/null || echo "no")
-                if [ "$codes_enabled" = "yes" ]; then
-                    code_server_running=0
-                    # Prefer process check; logs can appear later and on separate lines.
-                    if docker exec "test-cmd-${version}" pgrep -af code-server >/dev/null 2>&1; then
-                        code_server_running=1
-                    else
-                        # Give logs a bit more time to show startup.
-                        sleep 12
-                        logs=$(docker logs "test-cmd-${version}" 2>&1)
-                        if echo "$logs" | grep -q "HTTP server listening"; then
-                            code_server_running=1
-                        fi
+                codes_enabled=$(docker exec "$run_container_name" printenv CODES_ENABLE 2>/dev/null | tr '[:upper:]' '[:lower:]')
+                if [ "$codes_enabled" = "yes" ] || [ "$codes_enabled" = "true" ] || [ "$codes_enabled" = "1" ]; then
+                    if [ "$apache_running" -ne 1 ]; then
+                        echo -e "${RED}  ✗ code-server dependency check failed: Apache must be running when CODES_ENABLE=yes${NC}"
+                        BUILD_FAILED=1
                     fi
+
+                    code_server_running=0
+                    # Retry and accept either process detection or an open HTTP listener on 8080.
+                    for _ in {1..10}; do
+                        if docker exec "$run_container_name" pgrep -af "code-server|coder-server|node.*code-server" >/dev/null 2>&1; then
+                            code_server_running=1
+                            break
+                        fi
+
+                        if docker exec "$run_container_name" sh -c '
+                            if command -v curl >/dev/null 2>&1; then
+                                curl -sS --max-time 2 -o /dev/null http://127.0.0.1:8080/
+                            elif command -v wget >/dev/null 2>&1; then
+                                wget -q -T 2 -O /dev/null http://127.0.0.1:8080/
+                            else
+                                exit 1
+                            fi
+                        ' >/dev/null 2>&1; then
+                            code_server_running=1
+                            break
+                        fi
+
+                        sleep 3
+                    done
 
                     if [ "$code_server_running" -eq 1 ]; then
                         echo -e "${GREEN}  ✓ code-server started (CODES_ENABLE=yes)${NC}"
                     else
-                        echo -e "${YELLOW}  ⚠ code-server not detected but CODES_ENABLE=yes${NC}"
+                        echo -e "${RED}  ✗ code-server not detected (CODES_ENABLE=yes)${NC}"
+                        logs=$(docker logs "$run_container_name" 2>&1)
+                        if [ -n "$logs" ]; then
+                            echo "$logs" | tail -20
+                        fi
+                        BUILD_FAILED=1
                     fi
                 fi
             else
@@ -133,7 +167,7 @@ for version in "${PHP_VERSIONS[@]}"; do
             fi
             
             # Cleanup container
-            docker rm -f "test-cmd-${version}" >/dev/null 2>&1
+            docker rm -f "$run_container_name" >/dev/null 2>&1
         else
             echo -e "${RED}  ✗ Failed to start container${NC}"
             BUILD_FAILED=1

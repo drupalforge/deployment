@@ -1,5 +1,2 @@
-# Test application
-/vendor/
-/node_modules/
-.env
-.env.local
+# Ignore all untracked files in this fixture app.
+*

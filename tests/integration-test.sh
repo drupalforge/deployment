@@ -6,6 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEST_COMPOSE_PROJECT="test-df-deployment"
 
 # Colors for output
 RED='\033[0;31m'
@@ -14,9 +15,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}==================================${NC}"
 echo -e "${BLUE}Integration Test: Deployment Image${NC}"
-echo -e "${BLUE}================================${NC}"
+echo -e "${BLUE}==================================${NC}"
 echo ""
 
 # Function to run a test
@@ -41,16 +42,24 @@ cleanup() {
     cd "$SCRIPT_DIR"
     
     # Stop and remove containers, networks, volumes
-    $DOCKER_COMPOSE -f docker-compose.test.yml down -v 2>/dev/null || true
+    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v 2>/dev/null || true
     
     # Clean up test images
     echo "Removing test images..."
-    $DOCKER_COMPOSE -f docker-compose.test.yml rm -f 2>/dev/null || true
+    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml rm -f 2>/dev/null || true
     
     # Remove dangling images created during test
-    local test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "deployment.*deployment" || true)
+    local test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "^test-df-deployment" || true)
     if [ -n "$test_images" ]; then
         echo "$test_images" | xargs -r docker rmi 2>/dev/null || true
+    fi
+
+    # Remove generated files written through bind-mounted fixtures/app volume
+    # Use git clean to purge ignored artifacts while preserving tracked fixture files.
+    if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "$PROJECT_ROOT" clean -dfX -- "$SCRIPT_DIR/fixtures/app" >/dev/null 2>&1 || true
+    else
+        rm -rf "$SCRIPT_DIR/fixtures/app/web/sites" 2>/dev/null || true
     fi
     
     echo -e "${GREEN}✓ Cleanup complete${NC}"
@@ -90,18 +99,19 @@ echo ""
 # Start services
 echo -e "${YELLOW}Starting test environment...${NC}"
 cd "$SCRIPT_DIR"
-$DOCKER_COMPOSE -f docker-compose.test.yml up -d --build
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d --build
 
 # Wait for services to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php >/dev/null 2>&1; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Deployment container ready${NC}"
         break
     fi
     if [ $i -eq 60 ]; then
         echo -e "${RED}✗ Timeout waiting for deployment container${NC}"
-        $DOCKER_COMPOSE -f docker-compose.test.yml logs deployment
+        $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment
         exit 1
     fi
     echo -n "."
@@ -118,7 +128,7 @@ passed=0
 
 # Test 1: Database import
 if run_test "Database import (users table exists)" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T mysql mysql -uroot -proot_password -Ddrupaldb -e 'SELECT COUNT(*) FROM users' | grep -q '[0-9]'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T mysql mysql -uroot -proot_password -Ddrupaldb -e 'SELECT COUNT(*) FROM users' | grep -q '[0-9]'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -126,7 +136,7 @@ fi
 
 # Test 2: Database connectivity from application
 if run_test "App can connect to database" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Database connected'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Database connected'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -134,7 +144,7 @@ fi
 
 # Test 3: Application is reachable
 if run_test "Application is reachable" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Deployment Test Application'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Deployment Test Application'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -158,7 +168,7 @@ fi
 
 # Test 6: File proxy - request missing file from origin
 if run_test "File proxy setup (rewrite rules)" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment grep -q 'RewriteRule.*proxy-handler' /etc/apache2/conf-available/drupalforge-proxy.conf"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment grep -q 'RewriteRule.*proxy-handler' /etc/apache2/conf-available/drupalforge-proxy.conf"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -166,7 +176,7 @@ fi
 
 # Test 7: PHP handler is accessible
 if run_test "PHP proxy handler deployed" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment test -f /var/www/drupalforge-proxy-handler.php"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /var/www/drupalforge-proxy-handler.php"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -174,7 +184,7 @@ fi
 
 # Test 8: Origin server is reachable
 if run_test "Origin server is reachable" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://origin-server:8000/ | grep -q '<!DOCTYPE'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://origin-server:8000/ | grep -q '<!DOCTYPE'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -182,7 +192,7 @@ fi
 
 # Test 9: Request a file through proxy (it should be downloaded from origin)
 if run_test "File proxy downloads from origin" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T deployment curl -s http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -198,7 +208,7 @@ fi
 
 # Test 11: S3 bucket was used
 if run_test "S3 (MinIO) connectivity tested" \
-    "$DOCKER_COMPOSE -f docker-compose.test.yml exec -T minio mc ls minio/test-deployments | grep -q 'test-db.sql'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'aws s3 ls --endpoint-url=\"\$AWS_S3_ENDPOINT\" s3://\$S3_BUCKET/' | grep -q 'test-db.sql'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -208,8 +218,17 @@ echo ""
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}Test Summary${NC}"
 echo -e "${BLUE}================================${NC}"
-echo -e "Passed: ${GREEN}$passed${NC}"
-echo -e "Failed: ${RED}$failed${NC}"
+if [ $passed -eq 0 ]; then
+    echo "Passed: $passed"
+else
+    echo -e "Passed: ${GREEN}$passed${NC}"
+fi
+
+if [ $failed -eq 0 ]; then
+    echo "Failed: $failed"
+else
+    echo -e "Failed: ${RED}$failed${NC}"
+fi
 echo ""
 
 if [ $failed -eq 0 ]; then
