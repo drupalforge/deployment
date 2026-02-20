@@ -18,6 +18,7 @@ log "Starting Drupal Forge deployment initialization"
 
 # Fix file ownership if APP_ROOT is mounted and we have sudo access
 APP_ROOT="${APP_ROOT:-/var/www/html}"
+WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
 if [ -d "$APP_ROOT" ]; then
   # Check if we can use sudo to fix ownership (for mounted volumes with wrong ownership)
   if sudo -n chown --version &>/dev/null; then
@@ -26,8 +27,17 @@ if [ -d "$APP_ROOT" ]; then
     current_user=$(id -un)
     owner=$(stat -c '%U' "$APP_ROOT" 2>/dev/null || echo "$current_user")
     if [ "$owner" != "$current_user" ]; then
-      sudo chown -R "$current_user:$current_user" "$APP_ROOT" 2>/dev/null || true
+      sudo chown -R "$current_user:www-data" "$APP_ROOT" 2>/dev/null || true
       log "Ownership fixed for mounted volume"
+    else
+      # Ensure group is www-data even if owner is correct
+      sudo chown -R ":www-data" "$APP_ROOT" 2>/dev/null || true
+    fi
+    
+    # Ensure web root is group-writable so Apache (www-data) can create files
+    if [ -d "$WEB_ROOT" ]; then
+      sudo chmod -R g+w "$WEB_ROOT" 2>/dev/null || true
+      log "Web root permissions updated for Apache write access"
     fi
   fi
 fi

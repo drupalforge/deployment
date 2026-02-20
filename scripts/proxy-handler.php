@@ -68,11 +68,14 @@ if ($real_target_parent === false || strpos($real_target_parent, $real_web_root)
 }
 
 // Create parent directory if needed
+// Use 0775 permissions (group writable) so Apache (www-data) can write files
 if (!is_dir($target_dir)) {
-    if (!mkdir($target_dir, 0755, true)) {
+    if (!mkdir($target_dir, 0775, true)) {
         http_response_code(500);
         die("Failed to create directory: $target_dir\n");
     }
+    // Ensure directory is group-writable for Apache
+    @chmod($target_dir, 0775);
 }
 
 // Build origin URL (remove trailing slash from origin, add leading slash to requested path)
@@ -104,11 +107,14 @@ if ($http_code >= 400) {
     die("Origin returned HTTP $http_code\n");
 }
 
-// Write file to disk
+// Write file to disk with group-writable permissions
 if (file_put_contents($target_path, $file_content) === false) {
     http_response_code(500);
     die("Failed to write file to $target_path\n");
 }
+
+// Ensure file is group-readable for Apache
+@chmod($target_path, 0664);
 
 // Set permissions
 chmod($target_path, 0644);
