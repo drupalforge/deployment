@@ -125,6 +125,14 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 | `USE_STAGE_FILE_PROXY` | Force Stage File Proxy or Apache proxy (`yes`/`no`, optional auto-detect) | `yes` |
 | `WEB_ROOT` | Web root path (optional, default: `/var/www/html/web`) | `/var/www/html/web` |
 
+### Bootstrap Configuration
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `COMPOSER_INSTALL_RETRIES` | Number of `composer install` attempts during bootstrap (optional, default: `3`) | `5` |
+| `COMPOSER_RETRY_DELAY` | Delay in seconds between composer retries (optional, default: `5`) | `2` |
+| `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
+
 ### Conditional File Serving with On-Demand Download
 
 When using Apache reverse proxy (fallback when Stage File Proxy not available), requests are handled intelligently based on file existence:

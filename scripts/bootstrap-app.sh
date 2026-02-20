@@ -20,6 +20,8 @@ error() {
 # Main execution
 main() {
   local app_root="${APP_ROOT:-.}"
+  local composer_install_retries="${COMPOSER_INSTALL_RETRIES:-3}"
+  local composer_retry_delay="${COMPOSER_RETRY_DELAY:-5}"
   
   log "Starting application bootstrap"
   
@@ -57,27 +59,54 @@ main() {
       return 1
     fi
     
-    # Run composer install (allow lock file write failures for mounted volumes)
-    # Note: When using mounted volumes with different ownership (e.g., in integration tests),
-    # composer may fail to write composer.lock. This is expected and we handle it gracefully.
-    set +e  # Temporarily disable exit on error
-    composer_output=$(composer install --no-interaction 2>&1)
-    composer_exit=$?
-    set -e  # Re-enable exit on error
-    
-    if [ $composer_exit -eq 0 ]; then
-      log "Composer dependencies installed successfully"
-    else
-      # Check if the failure was just because of lock file permissions
-      if echo "$composer_output" | grep -iq "composer.lock.*permission"; then
+    # Validate retry settings
+    if ! [[ "$composer_install_retries" =~ ^[0-9]+$ ]] || [ "$composer_install_retries" -lt 1 ]; then
+      error "COMPOSER_INSTALL_RETRIES must be a positive integer (got: $composer_install_retries)"
+      return 1
+    fi
+
+    if ! [[ "$composer_retry_delay" =~ ^[0-9]+$ ]]; then
+      error "COMPOSER_RETRY_DELAY must be a non-negative integer (got: $composer_retry_delay)"
+      return 1
+    fi
+
+    local attempt=1
+    local composer_output=""
+    local composer_exit=1
+
+    while [ "$attempt" -le "$composer_install_retries" ]; do
+      log "Running composer install (attempt $attempt/$composer_install_retries)..."
+
+      set +e  # Temporarily disable exit on error
+      composer_output=$(composer install --no-interaction 2>&1)
+      composer_exit=$?
+      set -e  # Re-enable exit on error
+
+      if [ "$composer_exit" -eq 0 ]; then
+        log "Composer dependencies installed successfully"
+        break
+      fi
+
+      # Handle lock file write issues for mounted volumes only when install artifacts exist.
+      if echo "$composer_output" | grep -iq "composer.lock.*permission" && [ -f "vendor/autoload.php" ]; then
         log "Composer install completed but could not write lock file (permission denied)"
-        log "This is expected when using mounted volumes with different owners"
+        log "Dependencies are present; continuing startup"
+        break
+      fi
+
+      if [ "$attempt" -lt "$composer_install_retries" ]; then
+        log "Composer install failed on attempt $attempt. Retrying in ${composer_retry_delay}s..."
+        if [ "$composer_retry_delay" -gt 0 ]; then
+          sleep "$composer_retry_delay"
+        fi
       else
-        error "Failed to install composer dependencies"
+        error "Failed to install composer dependencies after $composer_install_retries attempt(s)"
         echo "$composer_output" >&2
         return 1
       fi
-    fi
+
+      attempt=$((attempt + 1))
+    done
   else
     log "No composer.json found, skipping composer install"
   fi

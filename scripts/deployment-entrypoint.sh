@@ -16,6 +16,8 @@ log() {
 
 log "Starting Drupal Forge deployment initialization"
 
+BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
+
 # Fix file ownership if APP_ROOT is mounted and we have sudo access
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
@@ -38,7 +40,11 @@ log "Bootstrapping application (submodules, composer)..."
 if /usr/local/bin/bootstrap-app; then
   log "Application bootstrap completed"
 else
-  log "Application bootstrap failed or skipped"
+  if [ "$BOOTSTRAP_REQUIRED" = "yes" ] || [ "$BOOTSTRAP_REQUIRED" = "true" ] || [ "$BOOTSTRAP_REQUIRED" = "1" ]; then
+    log "Application bootstrap failed and BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; exiting"
+    exit 1
+  fi
+  log "Application bootstrap failed but BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; continuing"
 fi
 
 # Run database import if S3 credentials are provided

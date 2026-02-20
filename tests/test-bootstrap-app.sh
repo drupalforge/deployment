@@ -49,7 +49,76 @@ test_composer_detection() {
     echo -e "${GREEN}✓ Composer detection logic works${NC}"
 }
 
-# Test 3: Script is executable
+# Test 3: Composer install retries and succeeds
+test_composer_retry_success() {
+    local test_repo="$TEMP_DIR/test-composer-retry"
+    local fake_bin="$TEMP_DIR/fake-bin-retry"
+    local state_file="$TEMP_DIR/composer-retry-state"
+    mkdir -p "$test_repo" "$fake_bin"
+
+    echo '{"name": "test/app"}' > "$test_repo/composer.json"
+
+    cat > "$fake_bin/composer" <<EOF
+#!/bin/bash
+state_file="$state_file"
+count=0
+if [ -f "\$state_file" ]; then
+  count=\$(cat "\$state_file")
+fi
+count=\$((count + 1))
+echo "\$count" > "\$state_file"
+if [ "\$count" -lt 2 ]; then
+  echo "Simulated composer failure" >&2
+  exit 1
+fi
+mkdir -p vendor
+touch vendor/autoload.php
+echo "Simulated composer success"
+exit 0
+EOF
+    chmod +x "$fake_bin/composer"
+
+    local output
+    output=$(PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_RETRIES=2 COMPOSER_RETRY_DELAY=0 bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1)
+
+    if echo "$output" | grep -q "Retrying" && echo "$output" | grep -q "installed successfully"; then
+        echo -e "${GREEN}✓ Composer retry logic works${NC}"
+    else
+        echo -e "${RED}✗ Composer retry logic failed${NC}"
+        echo "$output"
+        exit 1
+    fi
+}
+
+# Test 4: Lock permission message requires installed dependencies
+test_composer_lock_permission_without_vendor_fails() {
+    local test_repo="$TEMP_DIR/test-composer-lock-perm"
+    local fake_bin="$TEMP_DIR/fake-bin-lock-perm"
+    mkdir -p "$test_repo" "$fake_bin"
+
+    echo '{"name": "test/app"}' > "$test_repo/composer.json"
+
+    cat > "$fake_bin/composer" <<'EOF'
+#!/bin/bash
+echo "Cannot create composer.lock: Permission denied" >&2
+exit 1
+EOF
+    chmod +x "$fake_bin/composer"
+
+    set +e
+    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_RETRIES=1 COMPOSER_RETRY_DELAY=0 bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    local status=$?
+    set -e
+
+    if [ "$status" -ne 0 ]; then
+        echo -e "${GREEN}✓ Lock permission without vendor correctly fails${NC}"
+    else
+        echo -e "${RED}✗ Lock permission without vendor should fail${NC}"
+        exit 1
+    fi
+}
+
+# Test 5: Script is executable
 test_script_executable() {
     if [ -x "$SCRIPT_DIR/scripts/bootstrap-app.sh" ]; then
         echo -e "${GREEN}✓ bootstrap-app.sh is executable${NC}"
@@ -59,7 +128,7 @@ test_script_executable() {
     fi
 }
 
-# Test 4: Script has error handling
+# Test 6: Script has error handling
 test_error_handling() {
     if grep -q "set -e" "$SCRIPT_DIR/scripts/bootstrap-app.sh"; then
         echo -e "${GREEN}✓ Script has error handling (set -e)${NC}"
@@ -72,5 +141,7 @@ test_error_handling() {
 test_script_executable
 test_error_handling
 test_composer_detection
+test_composer_retry_success
+test_composer_lock_permission_without_vendor_fails
 
 echo -e "${GREEN}✓ Bootstrap app tests passed${NC}"
