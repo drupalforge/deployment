@@ -44,6 +44,14 @@ cleanup() {
     # Stop and remove containers, networks, volumes
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v 2>/dev/null || true
     
+    # Restore fixture ownership to the current (host) user so git clean can remove generated files
+    docker run --rm \
+      -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+      --user root \
+      --entrypoint "" \
+      test-df-deployment:8.3 \
+      chown -R "$(id -u):$(id -g)" /var/www/html 2>/dev/null || true
+
     # Clean up test images
     echo "Removing test images..."
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml rm -f 2>/dev/null || true
@@ -106,7 +114,21 @@ HOST_GID=$(id -g)
 echo -e "${YELLOW}Starting test environment...${NC}"
 cd "$SCRIPT_DIR"
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d --build
+
+# Build image first so we can use it to set fixture ownership
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
+
+# Ensure fixture app directory is owned by the container user (www=uid 1000)
+# so that Composer can create the vendor/ directory during bootstrap
+docker run --rm \
+  -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+  --user root \
+  --entrypoint "" \
+  test-df-deployment:8.3 \
+  chown -R www:www /var/www/html
+echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
+
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d
 
 # Wait for services to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
