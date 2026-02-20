@@ -43,6 +43,39 @@ While `--skip-ssl-verify-server-cert` maintains encryption (better than `--skip-
 
 ---
 
+## File Permissions and User Namespace Differences
+
+### Why file proxy tests pass locally but fail in CI
+
+**The Issue:**
+File proxy tests require Apache (running as `www-data` UID 33) to write files to directories that may be owned by different users depending on the environment.
+
+**Local Environment (VSCode/Developer Machine):**
+- Developer's UID is often 1000 (same as container's `www` user)
+- When you mount `./fixtures/app:/var/www/html`, files created on host are owned by UID 1000
+- Container's deployment-entrypoint fixes ownership to `www:www` (1000:1000)
+- Files end up owned by `www:www-data` with group-writable permissions
+- Apache (www-data) CAN write because it's in the www-data group
+
+**CI Environment (GitHub Actions):**
+- GitHub Actions runner UID is 1001 (not 1000)
+- When tests mount `./fixtures/app:/var/www/html`, files are owned by 1001:1001
+- Container's deployment-entrypoint changes ownership to `www:www` (1000:1000)
+- **Without the fix:** Files owned `www:www` with 755 permissions - Apache (www-data) CANNOT write
+- **With the fix:** deployment-entrypoint sets group to www-data and adds g+w permissions - Apache CAN write
+
+**The Fix (commit 4bfa704):**
+```bash
+# deployment-entrypoint.sh
+sudo chown -R ":www-data" "$APP_ROOT"  # Set group to www-data
+sudo chmod -R g+w "$WEB_ROOT"  # Make group-writable
+```
+
+**Why you didn't see this locally:**
+Your local UID (probably 1000) matches the container's `www` user UID, so the ownership was already compatible. In CI, the runner UID (1001) doesn't match, exposing the permission issue.
+
+---
+
 ## Platform Specifications
 
 ### Remove platform specification from tests when base image supports ARM64
