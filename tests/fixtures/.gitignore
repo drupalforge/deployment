@@ -1,0 +1,2 @@
+# Ignore the app directory (contains test fixtures)
+app/
