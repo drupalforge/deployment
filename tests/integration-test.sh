@@ -104,12 +104,6 @@ fi
 echo -e "${GREEN}✓ Test app initialized${NC}"
 echo ""
 
-# Export host UID/GID so the container runs as the same user that owns the mounted files
-export HOST_UID
-export HOST_GID
-HOST_UID=$(id -u)
-HOST_GID=$(id -g)
-
 # Start services
 echo -e "${YELLOW}Starting test environment...${NC}"
 cd "$SCRIPT_DIR"

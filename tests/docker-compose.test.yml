@@ -84,10 +84,6 @@ services:
       origin-server:
         condition: service_healthy
     environment:
-      # Run Apache as the host user so proxy-downloaded files are writable by the host runner
-      APACHE_RUN_USER: ${HOST_UID:-1000}
-      APACHE_RUN_GROUP: ${HOST_GID:-1000}
-
       # Database configuration
       DB_HOST: mysql
       DB_PORT: 3306
