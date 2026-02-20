@@ -86,11 +86,11 @@ echo ""
 echo -e "${YELLOW}Initializing test app...${NC}"
 if [ ! -d "$SCRIPT_DIR/fixtures/app/.git" ]; then
     cd "$SCRIPT_DIR/fixtures/app"
-    git init . >/dev/null 2>&1 || true
-    git config user.email "test@example.com" || true
-    git config user.name "Test User" || true
-    git add . >/dev/null 2>&1 || true
-    git commit -m "Initial commit" >/dev/null 2>&1 || true
+    git init . >/dev/null 2>&1
+    git config user.email "test@example.com"
+    git config user.name "Test User"
+    git add . >/dev/null 2>&1
+    git commit -m "Initial commit" >/dev/null 2>&1
     cd "$SCRIPT_DIR"
 fi
 echo -e "${GREEN}✓ Test app initialized${NC}"

@@ -1,2 +1,9 @@
-# Ignore all untracked files in this fixture app.
-*
+# Ignore build artifacts and dependencies
+/vendor/
+/node_modules/
+/.git/
+
+# Allow fixture files to be committed
+!composer.json
+!composer.lock
+!web/
