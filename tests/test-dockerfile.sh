@@ -4,21 +4,28 @@
 # NOTE: These are SYNTAX/PATTERN tests that check the Dockerfile text.
 # They do NOT build Docker images. Actual builds happen in CI's docker-build job.
 # To test actual Docker builds locally, run:
-#   docker build --build-arg PHP_VERSION=8.3 -t test:latest .
+#   docker build --build-arg PHP_VERSION=8.3 -t test-df-deployment:8.3 .
 #
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
 
-echo "Testing Dockerfile..."
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}Testing Dockerfile...${NC}"
 
 # Test 1: Dockerfile exists
 test_dockerfile_exists() {
     if [ -f "$DOCKERFILE" ]; then
-        echo "✓ Dockerfile exists"
+        echo -e "${GREEN}✓ Dockerfile exists${NC}"
     else
-        echo "✗ Dockerfile not found"
+        echo -e "${RED}✗ Dockerfile not found${NC}"
         exit 1
     fi
 }
@@ -26,9 +33,9 @@ test_dockerfile_exists() {
 # Test 2: Extends devpanel/php base
 test_base_image() {
     if grep -q "FROM devpanel/php" "$DOCKERFILE"; then
-        echo "✓ Extends devpanel/php base image"
+        echo -e "${GREEN}✓ Extends devpanel/php base image${NC}"
     else
-        echo "✗ Doesn't extend devpanel/php"
+        echo -e "${RED}✗ Doesn't extend devpanel/php${NC}"
         exit 1
     fi
 }
@@ -36,9 +43,9 @@ test_base_image() {
 # Test 3: PHP version argument
 test_php_version_arg() {
     if grep -q "ARG PHP_VERSION" "$DOCKERFILE"; then
-        echo "✓ Supports PHP_VERSION build argument"
+        echo -e "${GREEN}✓ Supports PHP_VERSION build argument${NC}"
     else
-        echo "✗ Missing PHP_VERSION argument"
+        echo -e "${RED}✗ Missing PHP_VERSION argument${NC}"
         exit 1
     fi
 }
@@ -48,9 +55,9 @@ test_script_copies() {
     local scripts=("bootstrap-app" "import-database" "setup-proxy" "deployment-entrypoint")
     for script in "${scripts[@]}"; do
         if grep -q "COPY.*$script" "$DOCKERFILE"; then
-            echo "✓ Copies $script"
+            echo -e "${GREEN}✓ Copies $script${NC}"
         else
-            echo "✗ Missing $script copy"
+            echo -e "${RED}✗ Missing $script copy${NC}"
             exit 1
         fi
     done
@@ -59,9 +66,9 @@ test_script_copies() {
 # Test 5: Copies PHP handler
 test_php_handler_copy() {
     if grep -q "COPY.*proxy-handler.php" "$DOCKERFILE"; then
-        echo "✓ Copies PHP proxy handler"
+        echo -e "${GREEN}✓ Copies PHP proxy handler${NC}"
     else
-        echo "✗ Missing proxy-handler.php copy"
+        echo -e "${RED}✗ Missing proxy-handler.php copy${NC}"
         exit 1
     fi
 }
@@ -69,9 +76,9 @@ test_php_handler_copy() {
 # Test 6: Copies Apache config
 test_apache_config_copy() {
     if grep -q "COPY.*apache-proxy.conf" "$DOCKERFILE"; then
-        echo "✓ Copies Apache proxy config"
+        echo -e "${GREEN}✓ Copies Apache proxy config${NC}"
     else
-        echo "✗ Missing apache-proxy.conf copy"
+        echo -e "${RED}✗ Missing apache-proxy.conf copy${NC}"
         exit 1
     fi
 }
@@ -82,9 +89,9 @@ test_scripts_copied() {
     # which are preserved when copied to the image via COPY command
     local scripts_dir="$SCRIPT_DIR/scripts"
     if [ -x "$scripts_dir/bootstrap-app.sh" ] && [ -x "$scripts_dir/deployment-entrypoint.sh" ]; then
-        echo "✓ Scripts have execute permissions in source"
+        echo -e "${GREEN}✓ Scripts have execute permissions in source${NC}"
     else
-        echo "✗ Scripts missing execute permissions in source"
+        echo -e "${RED}✗ Scripts missing execute permissions in source${NC}"
         exit 1
     fi
 }
@@ -94,9 +101,9 @@ test_apache_modules() {
     local modules=("rewrite" "proxy" "proxy_http")
     for module in "${modules[@]}"; do
         if grep -q "a2enmod.*$module" "$DOCKERFILE"; then
-            echo "✓ Enables mod_$module"
+            echo -e "${GREEN}✓ Enables mod_$module${NC}"
         else
-            echo "✗ Doesn't enable mod_$module"
+            echo -e "${RED}✗ Doesn't enable mod_$module${NC}"
             exit 1
         fi
     done
@@ -105,9 +112,9 @@ test_apache_modules() {
 # Test 9: Sets ENTRYPOINT
 test_entrypoint() {
     if grep -q "ENTRYPOINT.*deployment-entrypoint" "$DOCKERFILE"; then
-        echo "✓ Sets deployment entrypoint"
+        echo -e "${GREEN}✓ Sets deployment entrypoint${NC}"
     else
-        echo "✗ Missing ENTRYPOINT"
+        echo -e "${RED}✗ Missing ENTRYPOINT${NC}"
         exit 1
     fi
 }
@@ -115,9 +122,9 @@ test_entrypoint() {
 # Test 10: Has labels
 test_labels() {
     if grep -q "LABEL.*org.opencontainers.image" "$DOCKERFILE"; then
-        echo "✓ Has OCI labels"
+        echo -e "${GREEN}✓ Has OCI labels${NC}"
     else
-        echo "⊘ Missing OCI labels"
+        echo -e "${YELLOW}⊘ Missing OCI labels${NC}"
     fi
 }
 
@@ -133,4 +140,4 @@ test_apache_modules
 test_entrypoint
 test_labels
 
-echo "✓ Dockerfile tests passed"
+echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

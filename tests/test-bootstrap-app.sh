@@ -6,7 +6,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
-echo "Testing bootstrap-app.sh..."
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}Testing bootstrap-app.sh...${NC}"
 
 # Test 1: Git submodule initialization (mock)
 test_git_submodules() {
@@ -22,9 +29,9 @@ test_git_submodules() {
     # Run bootstrap with git installed
     if command -v git &> /dev/null; then
         bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1 | grep -q "Git submodules" || true
-        echo "✓ Git submodule detection works"
+        echo -e "${GREEN}✓ Git submodule detection works${NC}"
     else
-        echo "⊘ Git not found in PATH (skipping submodule test)"
+        echo -e "${YELLOW}⊘ Git not found in PATH (skipping submodule test)${NC}"
     fi
 }
 
@@ -39,15 +46,15 @@ test_composer_detection() {
     
     # This will try to run composer install but that's expected
     bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1 | grep -q "Composer" || true
-    echo "✓ Composer detection logic works"
+    echo -e "${GREEN}✓ Composer detection logic works${NC}"
 }
 
 # Test 3: Script is executable
 test_script_executable() {
     if [ -x "$SCRIPT_DIR/scripts/bootstrap-app.sh" ]; then
-        echo "✓ bootstrap-app.sh is executable"
+        echo -e "${GREEN}✓ bootstrap-app.sh is executable${NC}"
     else
-        echo "✗ bootstrap-app.sh is not executable"
+        echo -e "${RED}✗ bootstrap-app.sh is not executable${NC}"
         exit 1
     fi
 }
@@ -55,9 +62,9 @@ test_script_executable() {
 # Test 4: Script has error handling
 test_error_handling() {
     if grep -q "set -e" "$SCRIPT_DIR/scripts/bootstrap-app.sh"; then
-        echo "✓ Script has error handling (set -e)"
+        echo -e "${GREEN}✓ Script has error handling (set -e)${NC}"
     else
-        echo "⊘ Script missing 'set -e'"
+        echo -e "${YELLOW}⊘ Script missing 'set -e'${NC}"
     fi
 }
 
@@ -66,4 +73,4 @@ test_script_executable
 test_error_handling
 test_composer_detection
 
-echo "✓ Bootstrap app tests passed"
+echo -e "${GREEN}✓ Bootstrap app tests passed${NC}"

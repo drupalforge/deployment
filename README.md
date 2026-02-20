@@ -100,6 +100,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
    - Allows users to add/modify files locally that are served directly
    - Works for any paths specified by `FILE_PROXY_PATHS`
    - Useful for sites without Stage File Proxy module
+   - Rewrite rules must run in the configured web root directory context (`<Directory "${WEB_ROOT}">`) so proxy routing applies to vhost-served requests
 
 ## Environment Variables
 
@@ -134,7 +135,7 @@ When using Apache reverse proxy (fallback when Stage File Proxy not available), 
    - **If it exists:** Serves it directly from disk
    - **If it doesn't exist:** Routes to PHP handler for download
 3. Handler downloads file from origin to its real path
-4. File is now stored at the expected location (e.g., `/var/www/html/web/sites/default/files/image.jpg`)
+4. File is now stored at the expected location under `WEB_ROOT` (e.g., `${WEB_ROOT}/sites/default/files/image.jpg`)
 5. File is served to the user
 6. Subsequent requests for the same file:
    - **Always served from disk** (file now exists locally)

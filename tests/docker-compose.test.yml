@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MinIO S3-compatible object storage
   minio:
@@ -48,10 +46,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot_password --silent"]
+      start_period: 30s
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 24
 
   # Test origin server (simple web server with test files)
   origin-server:
@@ -63,13 +62,15 @@ services:
     working_dir: /files
     command: python -m http.server 8000
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 5s
       timeout: 3s
       retries: 5
 
   # Deployment container - runs the full initialization
   deployment:
+    platform: linux/amd64
+    image: test-df-deployment:8.3
     build:
       context: ..
       dockerfile: Dockerfile
@@ -83,6 +84,11 @@ services:
       origin-server:
         condition: service_healthy
     environment:
+      # Apache less secure mode for testing - run Apache as www user
+      # This eliminates UID mismatches between container user and Apache
+      APACHE_RUN_USER: www
+      APACHE_RUN_GROUP: www
+
       # Database configuration
       DB_HOST: mysql
       DB_PORT: 3306
@@ -108,13 +114,7 @@ services:
       - ./fixtures/app:/var/www/html
     ports:
       - "80:80"
-    networks:
-      - test-network
 
 volumes:
   minio_data:
   mysql_data:
-
-networks:
-  test-network:
-    driver: bridge

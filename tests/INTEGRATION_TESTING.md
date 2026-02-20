@@ -135,7 +135,19 @@ AWS_S3_ENDPOINT=http://minio:9000
 ORIGIN_URL=http://origin-server:8000
 FILE_PROXY_PATHS=/sites/default/files
 WEB_ROOT=/var/www/html/web
+APACHE_RUN_USER=www
+APACHE_RUN_GROUP=www
 ```
+
+### Apache Less Secure Mode (Test Environment Only)
+
+The test environment sets `APACHE_RUN_USER=www` and `APACHE_RUN_GROUP=www` to run Apache as the container user (UID 1000) instead of the default `www-data` (UID 33). This eliminates file permission mismatches in tests:
+
+- **Container user**: `www` (UID 1000)
+- **Apache user**: `www` (UID 1000) ← same as container
+- **Result**: No permission issues when Apache writes files
+
+This is called "less secure mode" because Apache runs with the same privileges as the application user. While appropriate for testing, production deployments should use the default `www-data` user for better security isolation.
 
 ## Adding More Tests
 

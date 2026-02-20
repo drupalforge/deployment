@@ -1,10 +1,11 @@
 #!/bin/bash
 # Deployment Entrypoint
 # This script runs deployment setup tasks before executing the main command:
-# 1. Bootstrap application (Git submodules, composer install)
-# 2. Import database from S3 (if configured)
-# 3. Configure file proxy (if configured)
-# 4. Execute the provided command (defaults to Apache startup)
+# 1. Fix file ownership for mounted volumes (using sudo if needed)
+# 2. Bootstrap application (Git submodules, composer install)
+# 3. Import database from S3 (if configured)
+# 4. Configure file proxy (if configured)
+# 5. Execute the provided command (defaults to Apache startup)
 
 set -e
 
@@ -14,6 +15,23 @@ log() {
 }
 
 log "Starting Drupal Forge deployment initialization"
+
+# Fix file ownership if APP_ROOT is mounted and we have sudo access
+APP_ROOT="${APP_ROOT:-/var/www/html}"
+WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
+if [ -d "$APP_ROOT" ]; then
+  # Check if we can use sudo to fix ownership (for mounted volumes with wrong ownership)
+  if sudo -n chown --version &>/dev/null; then
+    log "Fixing ownership of $APP_ROOT (if needed)..."
+    # Only change ownership if we're not already the owner
+    current_user=$(id -un)
+    owner=$(stat -c '%U' "$APP_ROOT" 2>/dev/null || echo "$current_user")
+    if [ "$owner" != "$current_user" ]; then
+      sudo chown -R "$current_user:$current_user" "$APP_ROOT" 2>/dev/null || true
+      log "Ownership fixed for mounted volume"
+    fi
+  fi
+fi
 
 # Bootstrap application code
 log "Bootstrapping application (submodules, composer)..."

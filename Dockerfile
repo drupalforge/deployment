@@ -8,6 +8,13 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 # Switch to root for system-level operations
 USER root
 
+# Install AWS CLI for S3 database import functionality
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        awscli \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
