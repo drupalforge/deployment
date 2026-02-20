@@ -61,7 +61,9 @@ if [ -n "$ORIGIN_URL" ] && [ -n "$FILE_PROXY_PATHS" ]; then
     [[ "$_path" != /* ]] && _path="/$_path"
     full_path="${WEB_ROOT}${_path}"
     if [ ! -d "$full_path" ]; then
-      sudo install -d -o "$current_user" -g "$current_user" -m 755 "$full_path"
+      if ! mkdir -p "$full_path" 2>/dev/null; then
+        sudo install -d -o "$current_user" -g "$current_user" -m 755 "$full_path"
+      fi
       log "Created proxy path directory: $full_path"
     elif sudo -n chown --version &>/dev/null; then
       owner=$(stat -c '%U' "$full_path" 2>/dev/null || echo "$current_user")

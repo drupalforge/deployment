@@ -32,6 +32,10 @@ RUN a2enmod proxy && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
 
+# Create a stub in APP_ROOT so the startup wait loop does not block
+# when no volume is mounted (e.g. during image build/smoke tests)
+RUN mkdir -p /var/www/html && touch /var/www/html/.drupalforge
+
 # Switch back to non-root user for runtime
 # Use USER environment variable from base image
 USER ${USER}

@@ -83,8 +83,10 @@ services:
         condition: service_completed_successfully
       origin-server:
         condition: service_healthy
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
-      # Run Apache as the host user to avoid UID mismatches with the bind-mounted app volume
+      # Run Apache and the entrypoint as the host user so the container can write
+      # to the bind-mounted volume (which is owned by the host runner UID/GID)
       APACHE_RUN_USER: ${HOST_UID:-1000}
       APACHE_RUN_GROUP: ${HOST_GID:-1000}
 
