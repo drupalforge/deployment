@@ -129,8 +129,6 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `COMPOSER_INSTALL_RETRIES` | Number of `composer install` attempts during bootstrap (optional, default: `3`) | `5` |
-| `COMPOSER_RETRY_DELAY` | Delay in seconds between composer retries (optional, default: `5`) | `2` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
 
 ### Conditional File Serving with On-Demand Download
@@ -384,6 +382,31 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 See `.github/workflows/tests.yml` for details.
 
 ## Troubleshooting
+
+### Viewing Logs
+
+Container logs include all deployment initialization output. The entrypoint logs its own script path, the command it is about to execute, and detailed output from each step (bootstrap, database import, proxy setup).
+
+```bash
+# Follow live logs while the container starts
+docker logs -f <container-name>
+
+# View all logs since container start
+docker logs <container>
+```
+
+The first lines of the logs always include the entrypoint path and startup command:
+
+```
+[DEPLOYMENT] Entrypoint: /usr/local/bin/deployment-entrypoint
+[DEPLOYMENT] Deployment initialization complete, executing: sudo -E /bin/bash /scripts/apache-start.sh
+```
+
+To inspect the entrypoint and command without running the container:
+
+```bash
+docker inspect --format '{{.Config.Entrypoint}} {{.Config.Cmd}}' <container>
+```
 
 ### Database Import Fails
 

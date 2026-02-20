@@ -15,6 +15,7 @@ log() {
 }
 
 log "Starting Drupal Forge deployment initialization"
+log "Entrypoint: $0"
 
 BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
 
@@ -71,7 +72,7 @@ else
   log "File proxy not configured (ORIGIN_URL not set)"
 fi
 
-log "Deployment initialization complete, executing main command..."
+log "Deployment initialization complete, executing: $*"
 
 # Execute the provided command (from CMD or docker run override)
 exec "$@"
