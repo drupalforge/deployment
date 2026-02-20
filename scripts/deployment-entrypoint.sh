@@ -22,9 +22,35 @@ log "Starting Drupal Forge deployment initialization"
 log "Entrypoint: $0"
 
 BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
+APP_ROOT_TIMEOUT="${APP_ROOT_TIMEOUT:-300}"
+if ! [[ "$APP_ROOT_TIMEOUT" =~ ^[0-9]+$ ]]; then
+  log "Warning: APP_ROOT_TIMEOUT must be a non-negative integer (got: $APP_ROOT_TIMEOUT); using default 300"
+  APP_ROOT_TIMEOUT=300
+fi
 
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
+
+# Wait for APP_ROOT to be non-empty before proceeding.
+# DevPanel clones the repository into APP_ROOT after the container starts,
+# so the directory may be empty on first boot until the clone completes.
+if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
+  elapsed=0
+  while [ -z "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; do
+    if [ "$elapsed" -eq 0 ]; then
+      log "Waiting for APP_ROOT to be populated: $APP_ROOT (timeout: ${APP_ROOT_TIMEOUT}s)"
+    fi
+    if [ "$elapsed" -ge "$APP_ROOT_TIMEOUT" ]; then
+      log "Warning: APP_ROOT is still empty after ${APP_ROOT_TIMEOUT}s; continuing anyway"
+      break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  if [ -n "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; then
+    log "APP_ROOT is ready: $APP_ROOT"
+  fi
+fi
 
 # Create and fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
 if [ -n "$ORIGIN_URL" ]; then

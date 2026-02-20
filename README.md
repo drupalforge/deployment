@@ -129,6 +129,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 
 | Variable | Description | Example |
 |----------|-------------|---------|
+| `APP_ROOT_TIMEOUT` | Seconds to wait for `APP_ROOT` to be populated before proceeding (optional, default: `300`; set to `0` to disable) | `300` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
 
 ### Conditional File Serving with On-Demand Download
