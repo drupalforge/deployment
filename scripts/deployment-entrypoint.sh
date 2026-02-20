@@ -54,7 +54,8 @@ fi
 
 # Create and fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
 if [ -n "$ORIGIN_URL" ] && [ -n "$FILE_PROXY_PATHS" ]; then
-  current_user=$(id -un)
+  current_uid=$(id -u)
+  current_gid=$(id -g)
   IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
   for _path in "${_proxy_paths[@]}"; do
     _path=$(echo "$_path" | xargs)
@@ -62,13 +63,13 @@ if [ -n "$ORIGIN_URL" ] && [ -n "$FILE_PROXY_PATHS" ]; then
     full_path="${WEB_ROOT}${_path}"
     if [ ! -d "$full_path" ]; then
       if ! mkdir -p "$full_path" 2>/dev/null; then
-        sudo install -d -o "$current_user" -g "$current_user" -m 755 "$full_path"
+        sudo install -d -o "$current_uid" -g "$current_gid" -m 755 "$full_path"
       fi
       log "Created proxy path directory: $full_path"
     elif sudo -n chown --version &>/dev/null; then
-      owner=$(stat -c '%U' "$full_path" 2>/dev/null || echo "$current_user")
-      if [ "$owner" != "$current_user" ]; then
-        sudo chown -R "$current_user:$current_user" "$full_path" 2>/dev/null || true
+      owner_uid=$(stat -c '%u' "$full_path" 2>/dev/null || echo "$current_uid")
+      if [ "$owner_uid" != "$current_uid" ]; then
+        sudo chown -R "$current_uid:$current_gid" "$full_path" 2>/dev/null || true
         log "Ownership fixed for proxy path: $full_path"
       fi
     fi
