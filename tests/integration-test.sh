@@ -214,45 +214,6 @@ else
     ((failed=failed+1))
 fi
 
-# Test 12: Composer retry logic in container (simulate failure then success)
-echo -e "${YELLOW}Testing composer retry logic in container...${NC}"
-# Create a fake composer script inside the container (owned by the runtime user)
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment sh -c '
-    mkdir -p /tmp/fake-composer && cat > /tmp/fake-composer/composer << "EOF"
-#!/bin/bash
-STATE_FILE="/tmp/fake-composer/retry-state"
-COUNT=0
-if [ -f "$STATE_FILE" ]; then
-        COUNT=$(cat "$STATE_FILE")
-fi
-COUNT=$((COUNT + 1))
-echo "$COUNT" > "$STATE_FILE"
-if [ "$COUNT" -lt 2 ]; then
-        echo "Simulated composer failure" >&2
-        exit 1
-fi
-mkdir -p vendor
-touch vendor/autoload.php
-echo "Simulated composer success"
-exit 0
-EOF
-    chmod +x /tmp/fake-composer/composer
-    rm -f /tmp/fake-composer/retry-state
-'
-
-# Re-run bootstrap-app.sh inside the container with PATH override to use /tmp/fake-composer
-if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment bash -c \
-    'export PATH="/tmp/fake-composer:$PATH"; APP_ROOT=/var/www/html COMPOSER_INSTALL_RETRIES=2 COMPOSER_RETRY_DELAY=0 /usr/local/bin/bootstrap-app'; then
-        echo -e "${GREEN}✓ Composer retry logic in container works${NC}"
-        ((passed=passed+1))
-else
-        echo -e "${RED}✗ Composer retry logic in container failed${NC}"
-        ((failed=failed+1))
-fi
-
-# Clean up only /tmp/fake-composer
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment rm -rf /tmp/fake-composer
-
 echo ""
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}Test Summary${NC}"

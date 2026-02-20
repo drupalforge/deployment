@@ -62,8 +62,12 @@ if [ -n "$ORIGIN_URL" ]; then
     [[ "$_path" != /* ]] && _path="/$_path"
     full_path="${WEB_ROOT}${_path}"
     if [ ! -d "$full_path" ]; then
-      mkdir -p "$full_path"
-      log "Created proxy path directory: $full_path"
+      if sudo -n mkdir -p "$full_path" 2>/dev/null; then
+        log "Created proxy path directory: $full_path"
+      else
+        mkdir -p "$full_path"
+        log "Created proxy path directory: $full_path"
+      fi
     fi
     if sudo -n chown --version &>/dev/null; then
       owner=$(stat -c '%U' "$full_path" 2>/dev/null || echo "$current_user")
