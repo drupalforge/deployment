@@ -32,12 +32,6 @@ RUN a2enmod proxy && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
 
-# Configure Apache to run as the container user (www) instead of www-data
-# This "less secure" mode simplifies file permissions in dev/test environments
-# by eliminating UID mismatches between container user and Apache
-ENV APACHE_RUN_USER=www
-ENV APACHE_RUN_GROUP=www
-
 # Switch back to non-root user for runtime
 # Use USER environment variable from base image
 USER ${USER}

@@ -84,6 +84,11 @@ services:
       origin-server:
         condition: service_healthy
     environment:
+      # Apache less secure mode for testing - run Apache as www user
+      # This eliminates UID mismatches between container user and Apache
+      APACHE_RUN_USER: www
+      APACHE_RUN_GROUP: www
+      
       # Database configuration
       DB_HOST: mysql
       DB_PORT: 3306
