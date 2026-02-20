@@ -94,9 +94,13 @@ if [ ! -d "$SCRIPT_DIR/fixtures/app/.git" ]; then
     cd "$SCRIPT_DIR"
 fi
 echo -e "${GREEN}✓ Test app initialized${NC}"
-# Ensure app directory is writable by the container user (may differ from CI runner UID)
-chmod -R a+w "$SCRIPT_DIR/fixtures/app"
 echo ""
+
+# Export host UID/GID so the container runs as the same user that owns the mounted files
+export HOST_UID
+export HOST_GID
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
 
 # Start services
 echo -e "${YELLOW}Starting test environment...${NC}"
