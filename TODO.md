@@ -74,6 +74,42 @@ sudo chmod -R g+w "$WEB_ROOT"  # Make group-writable
 **Why you didn't see this locally:**
 Your local UID (probably 1000) matches the container's `www` user UID, so the ownership was already compatible. In CI, the runner UID (1001) doesn't match, exposing the permission issue.
 
+**Update (commits e863fe1, d1ab83c):**
+Replaced the complex group ownership workaround with base image's "less secure mode" - but only for testing.
+
+---
+
+## Apache Less Secure Mode (Test Environment Only)
+
+### Configuration
+
+Integration tests use the base image's "less secure mode" to simplify file permissions by configuring Apache to run as the container user (`www`) instead of the default `www-data` user.
+
+**Configuration** (in `tests/docker-compose.test.yml`):
+```yaml
+environment:
+  APACHE_RUN_USER: www
+  APACHE_RUN_GROUP: www
+```
+
+**Why this works:**
+- Container runs as `www` user (UID 1000)
+- Apache runs as `www` user (UID 1000) 
+- Same user = no permission mismatches
+- Files use standard 0755/0644 permissions
+
+**Why only for testing:**
+- Running Apache as the application user gives it more privileges than necessary
+- Production deployments should use separate, less-privileged Apache user (www-data)
+- This is appropriate for dev/test but not production
+
+### Production Deployments
+
+For production, the Dockerfile does NOT set APACHE_RUN_USER/APACHE_RUN_GROUP, so Apache runs as `www-data` (the base image default). You would need to either:
+1. Ensure files are owned by `www-data` group with group-writable permissions, OR
+2. Run the entrypoint as root to fix ownership before switching to application user, OR
+3. Use named volumes instead of bind mounts
+
 ---
 
 ## Platform Specifications
