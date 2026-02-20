@@ -397,7 +397,7 @@ docker logs -f <container>
 docker logs <container>
 ```
 
-**From inside the container** (e.g. via a web terminal or `docker exec`):
+**From inside the container** (e.g. via a web terminal):
 
 ```bash
 cat /tmp/drupalforge-deployment.log

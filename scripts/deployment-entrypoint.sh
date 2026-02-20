@@ -26,8 +26,8 @@ BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
 
-# Fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
-if [ -n "$ORIGIN_URL" ] && sudo -n chown --version &>/dev/null; then
+# Create and fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
+if [ -n "$ORIGIN_URL" ]; then
   current_user=$(id -un)
   local_proxy_paths="${FILE_PROXY_PATHS:-/sites/default/files}"
   IFS=',' read -ra _proxy_paths <<< "$local_proxy_paths"
@@ -35,7 +35,11 @@ if [ -n "$ORIGIN_URL" ] && sudo -n chown --version &>/dev/null; then
     _path=$(echo "$_path" | xargs)
     [[ "$_path" != /* ]] && _path="/$_path"
     full_path="${WEB_ROOT}${_path}"
-    if [ -d "$full_path" ]; then
+    if [ ! -d "$full_path" ]; then
+      mkdir -p "$full_path"
+      log "Created proxy path directory: $full_path"
+    fi
+    if sudo -n chown --version &>/dev/null; then
       owner=$(stat -c '%U' "$full_path" 2>/dev/null || echo "$current_user")
       if [ "$owner" != "$current_user" ]; then
         sudo chown -R "$current_user:$current_user" "$full_path" 2>/dev/null || true
