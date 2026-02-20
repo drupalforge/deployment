@@ -6,14 +6,20 @@
 
 set -e
 
+LOG_FILE="/tmp/drupalforge-deployment.log"
+
 # Function to log messages
 log() {
-  echo "[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
+  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
+  echo "$msg"
+  echo "$msg" >> "$LOG_FILE"
 }
 
 # Function to log errors
 error() {
-  echo "[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*" >&2
+  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*"
+  echo "$msg" >&2
+  echo "$msg" >> "$LOG_FILE"
   return 1
 }
 

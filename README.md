@@ -385,24 +385,32 @@ See `.github/workflows/tests.yml` for details.
 
 ### Viewing Logs
 
-Container logs include all deployment initialization output. The entrypoint logs its own script path, the command it is about to execute, and detailed output from each step (bootstrap, database import, proxy setup).
+All deployment initialization output is written both to stdout (visible via `docker logs`) and to `/tmp/drupalforge-deployment.log` inside the container.
+
+**From outside the container** (requires Docker access):
 
 ```bash
 # Follow live logs while the container starts
-docker logs -f <container-name>
+docker logs -f <container>
 
 # View all logs since container start
 docker logs <container>
 ```
 
-The first lines of the logs always include the entrypoint path and startup command:
+**From inside the container** (e.g. via a web terminal or `docker exec`):
+
+```bash
+cat /tmp/drupalforge-deployment.log
+```
+
+The first lines always include the entrypoint path and startup command:
 
 ```
 [DEPLOYMENT] Entrypoint: /usr/local/bin/deployment-entrypoint
 [DEPLOYMENT] Deployment initialization complete, executing: sudo -E /bin/bash /scripts/apache-start.sh
 ```
 
-To inspect the entrypoint and command without running the container:
+To inspect the entrypoint and command without reading logs:
 
 ```bash
 docker inspect --format '{{.Config.Entrypoint}} {{.Config.Cmd}}' <container>

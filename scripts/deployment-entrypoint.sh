@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deployment Entrypoint
 # This script runs deployment setup tasks before executing the main command:
-# 1. Fix file ownership for mounted volumes (using sudo if needed)
+# 1. Fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
 # 2. Bootstrap application (Git submodules, composer install)
 # 3. Import database from S3 (if configured)
 # 4. Configure file proxy (if configured)
@@ -9,9 +9,13 @@
 
 set -e
 
+LOG_FILE="/tmp/drupalforge-deployment.log"
+
 # Function to log messages
 log() {
-  echo "[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
+  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
+  echo "$msg"
+  echo "$msg" >> "$LOG_FILE"
 }
 
 log "Starting Drupal Forge deployment initialization"
@@ -19,21 +23,26 @@ log "Entrypoint: $0"
 
 BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
 
-# Fix file ownership if APP_ROOT is mounted and we have sudo access
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
-if [ -d "$APP_ROOT" ]; then
-  # Check if we can use sudo to fix ownership (for mounted volumes with wrong ownership)
-  if sudo -n chown --version &>/dev/null; then
-    log "Fixing ownership of $APP_ROOT (if needed)..."
-    # Only change ownership if we're not already the owner
-    current_user=$(id -un)
-    owner=$(stat -c '%U' "$APP_ROOT" 2>/dev/null || echo "$current_user")
-    if [ "$owner" != "$current_user" ]; then
-      sudo chown -R "$current_user:$current_user" "$APP_ROOT" 2>/dev/null || true
-      log "Ownership fixed for mounted volume"
+
+# Fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
+if [ -n "$ORIGIN_URL" ] && sudo -n chown --version &>/dev/null; then
+  current_user=$(id -un)
+  local_proxy_paths="${FILE_PROXY_PATHS:-/sites/default/files}"
+  IFS=',' read -ra _proxy_paths <<< "$local_proxy_paths"
+  for _path in "${_proxy_paths[@]}"; do
+    _path=$(echo "$_path" | xargs)
+    [[ "$_path" != /* ]] && _path="/$_path"
+    full_path="${WEB_ROOT}${_path}"
+    if [ -d "$full_path" ]; then
+      owner=$(stat -c '%U' "$full_path" 2>/dev/null || echo "$current_user")
+      if [ "$owner" != "$current_user" ]; then
+        sudo chown -R "$current_user:$current_user" "$full_path" 2>/dev/null || true
+        log "Ownership fixed for proxy path: $full_path"
+      fi
     fi
-  fi
+  done
 fi
 
 # Bootstrap application code
