@@ -49,43 +49,35 @@ test_composer_detection() {
     echo -e "${GREEN}✓ Composer detection logic works${NC}"
 }
 
-# Test 3: Composer install retries and succeeds
-test_composer_retry_success() {
-    local test_repo="$TEMP_DIR/test-composer-retry"
-    local fake_bin="$TEMP_DIR/fake-bin-retry"
-    local state_file="$TEMP_DIR/composer-retry-state"
+# Test 3: Composer install failure causes script to fail
+test_composer_install_failure() {
+    local test_repo="$TEMP_DIR/test-composer-fail"
+    local fake_bin="$TEMP_DIR/fake-bin-fail"
     mkdir -p "$test_repo" "$fake_bin"
 
     echo '{"name": "test/app"}' > "$test_repo/composer.json"
 
-    cat > "$fake_bin/composer" <<EOF
+    # Quoted heredoc ('EOF') prevents shell variable expansion in the fake script
+    cat > "$fake_bin/composer" <<'EOF'
 #!/bin/bash
-state_file="$state_file"
-count=0
-if [ -f "\$state_file" ]; then
-  count=\$(cat "\$state_file")
+if [[ "$*" == *"--version"* ]]; then
+  echo "Composer version 2.x"
+  exit 0
 fi
-count=\$((count + 1))
-echo "\$count" > "\$state_file"
-if [ "\$count" -lt 2 ]; then
-  echo "Simulated composer failure" >&2
-  exit 1
-fi
-mkdir -p vendor
-touch vendor/autoload.php
-echo "Simulated composer success"
-exit 0
+echo "Simulated composer failure" >&2
+exit 1
 EOF
     chmod +x "$fake_bin/composer"
 
-    local output
-    output=$(PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_RETRIES=2 COMPOSER_RETRY_DELAY=0 bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1)
+    set +e
+    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    local status=$?
+    set -e
 
-    if echo "$output" | grep -q "Retrying" && echo "$output" | grep -q "installed successfully"; then
-        echo -e "${GREEN}✓ Composer retry logic works${NC}"
+    if [ "$status" -ne 0 ]; then
+        echo -e "${GREEN}✓ Composer install failure causes script to fail${NC}"
     else
-        echo -e "${RED}✗ Composer retry logic failed${NC}"
-        echo "$output"
+        echo -e "${RED}✗ Composer install failure should cause script to fail${NC}"
         exit 1
     fi
 }
@@ -100,13 +92,17 @@ test_composer_lock_permission_without_vendor_fails() {
 
     cat > "$fake_bin/composer" <<'EOF'
 #!/bin/bash
+if [[ "$*" == *"--version"* ]]; then
+  echo "Composer version 2.x"
+  exit 0
+fi
 echo "Cannot create composer.lock: Permission denied" >&2
 exit 1
 EOF
     chmod +x "$fake_bin/composer"
 
     set +e
-    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_RETRIES=1 COMPOSER_RETRY_DELAY=0 bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
     local status=$?
     set -e
 
@@ -141,7 +137,7 @@ test_error_handling() {
 test_script_executable
 test_error_handling
 test_composer_detection
-test_composer_retry_success
+test_composer_install_failure
 test_composer_lock_permission_without_vendor_fails
 
 echo -e "${GREEN}✓ Bootstrap app tests passed${NC}"
