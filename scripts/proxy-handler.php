@@ -68,9 +68,8 @@ if ($real_target_parent === false || strpos($real_target_parent, $real_web_root)
 }
 
 // Create parent directory if needed
-// Use 0775 permissions (group writable) so Apache (www-data) can write files
 if (!is_dir($target_dir)) {
-    if (!mkdir($target_dir, 0775, true)) {
+    if (!mkdir($target_dir, 0755, true)) {
         http_response_code(500);
         die("Failed to create directory: $target_dir\n");
     }
@@ -107,19 +106,14 @@ if ($http_code >= 400) {
     die("Origin returned HTTP $http_code\n");
 }
 
-// Write file to disk with group-writable permissions
+// Write file to disk
 if (file_put_contents($target_path, $file_content) === false) {
     http_response_code(500);
     die("Failed to write file to $target_path\n");
 }
 
-// Ensure file is group-readable for Apache
-@chmod($target_path, 0664);
-
-// Set permissions
+// Set standard file permissions
 chmod($target_path, 0644);
-@chown($target_path, 'www-data');
-@chgrp($target_path, 'www-data');
 
 // Serve the file
 if (file_exists($target_path) && is_file($target_path)) {
