@@ -53,8 +53,14 @@ if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
 fi
 
 # Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
-# Defaults APACHE_RUN_USER/GROUP to www-data (Apache's default) so ownership is
-# always correct even if those variables are not explicitly configured.
+# Get APACHE_RUN_USER/GROUP: prefer environment variables, then fall back to
+# the defaults in /etc/apache2/envvars (www-data on standard Debian/Ubuntu Apache).
+if [ -z "${APACHE_RUN_USER:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_USER=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
+fi
+if [ -z "${APACHE_RUN_GROUP:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_GROUP=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
+fi
 FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
 _apache_user="${APACHE_RUN_USER:-www-data}"
 _apache_group="${APACHE_RUN_GROUP:-www-data}"
