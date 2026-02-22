@@ -27,15 +27,17 @@ echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
 
-# Launch all test suites in parallel first so that non-sudo tests start
-# running immediately, before (and during) the sudo credential probe below.
-# A flag file (SUDO_STATUS_FILE) is written once the probe completes so that
-# sudo-requiring tests can wait for the final result instead of racing.
+# Create temp dir for test output, exit codes, and the sudo status file.
+# Write "pending" now — tests start immediately and will poll this file
+# before using sudo; the probe below writes the final value when it finishes.
 TMPDIR_TESTS=$(mktemp -d)
 SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
 echo "pending" > "$SUDO_STATUS_FILE"
 export SUDO_STATUS_FILE
 
+# Launch all test suites in parallel NOW (before the probe) so non-sudo tests
+# run immediately while we wait for the password.  All output is buffered so
+# nothing is printed until after the probe completes.
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
@@ -49,21 +51,21 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     ( bash "$test_file" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
+total_tests="${#TEST_NAMES[@]}"
 
-# Probe for sudo credentials now that non-sudo tests are already running.
-# Skip the probe if a parent script (e.g. run-all-tests.sh) already ran it.
+# Probe for sudo credentials.  Skip if a parent script already ran the probe.
+# The countdown loop also shows live test progress so the user knows work is
+# happening while they wait for the password.
 if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
-    elif [ -t 0 ]; then
-        total_tests="${#TEST_NAMES[@]}"
+    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-        # Show a countdown + live test progress on the terminal while waiting.
         ( for i in $(seq 29 -1 1); do
               sleep 1
-              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l)
+              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
               printf "\r  (%2d sec remaining) [%d/%d tests done] " "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
           done
           printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
@@ -74,7 +76,7 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         fi
         kill "$COUNTDOWN_PID" 2>/dev/null || true
         wait "$COUNTDOWN_PID" 2>/dev/null || true
-        printf "\r%-60s\r" "" 2>/dev/null || true
+        printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
@@ -86,13 +88,40 @@ export SUDO_AVAILABLE SUDO_PROBED=1
 # Signal any tests that are polling the flag file.
 echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
 
-# Wait for each suite, then print its buffered output in order
+# Show a simple live status line while the remaining tests finish.
+# (Only when stdout is a terminal — skipped when called from run-all-tests.sh
+# with output redirected to a buffer file.)
+if is_interactive_terminal; then
+    ( while true; do
+          done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
+          printf "\r  Running tests... [%d/%d done] " "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+          [ "$done_count" -ge "$total_tests" ] && break
+          sleep 0.5
+      done
+      printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
+    ) &
+    STATUS_PID=$!
+fi
+
+# Wait for ALL tests to finish, then stop the status line before printing.
+for i in "${!TEST_NAMES[@]}"; do
+    wait "${PIDS[$i]}" || true
+done
+
+if [ -n "${STATUS_PID:-}" ]; then
+    kill "$STATUS_PID" 2>/dev/null || true
+    wait "$STATUS_PID" 2>/dev/null || true
+    printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
+fi
+
+# Print each suite's buffered output in order.
+# (All PIDs were already joined in the wait loop above; we're just reading
+# the files they left behind.)
 failed_tests=0
 passed_suites=0
 
 for i in "${!TEST_NAMES[@]}"; do
     test_name="${TEST_NAMES[$i]}"
-    wait "${PIDS[$i]}"
     echo -e "${YELLOW}Running $test_name...${NC}"
     cat "${OUT_FILES[$i]}"
     exit_code=$(cat "$TMPDIR_TESTS/exit-${test_name}.txt" 2>/dev/null || echo 1)

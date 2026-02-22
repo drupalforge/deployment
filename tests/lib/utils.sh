@@ -13,3 +13,10 @@ _timeout() {
         "$@"
     fi
 }
+
+# Returns 0 (true) when the terminal supports in-place status-line updates.
+# Disabled in CI environments (e.g. GitHub Actions) where \r does not
+# overwrite a line but instead produces a separate log entry per write.
+is_interactive_terminal() {
+    [ -t 1 ] && [ -z "${CI:-}" ]
+}

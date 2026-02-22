@@ -116,9 +116,8 @@ test_app_root_timeout_warning() {
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
-    # This test requires sudo. When run via unit-test.sh the test launcher and
-    # the sudo probe run concurrently; wait for the probe's flag file so we use
-    # the definitive result instead of racing against it.
+    # This test requires sudo. Tests start before the probe in unit-test.sh,
+    # so poll the status file until the probe writes its result (or 35 s max).
     if [ -n "${SUDO_STATUS_FILE:-}" ]; then
         local waited=0
         while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$waited" -lt 350 ]; do
