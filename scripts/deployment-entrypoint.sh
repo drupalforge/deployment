@@ -2,9 +2,10 @@
 # Deployment Entrypoint
 # This script runs deployment setup tasks before executing the main command:
 # 1. Bootstrap application (Git submodules, composer install)
-# 2. Import database from S3 (if configured)
-# 3. Configure file proxy (if configured)
-# 4. Execute the provided command (defaults to Apache startup)
+# 2. Create FILE_PROXY_PATHS directories with correct ownership (always required by Drupal)
+# 3. Import database from S3 (if configured)
+# 4. Configure file proxy (if configured)
+# 5. Execute the provided command (defaults to Apache startup)
 
 set -e
 
@@ -62,6 +63,34 @@ else
   fi
   log "Application bootstrap failed but BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; continuing"
 fi
+
+# Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
+# Drupal requires these paths to exist with correct permissions regardless of
+# whether file proxying is configured.
+# Get APACHE_RUN_USER/GROUP: prefer environment variables, then fall back to
+# the defaults in /etc/apache2/envvars (www-data on standard Debian/Ubuntu Apache).
+if [ -z "${APACHE_RUN_USER:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_USER=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
+fi
+if [ -z "${APACHE_RUN_GROUP:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_GROUP=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
+fi
+FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
+_apache_user="${APACHE_RUN_USER:-www-data}"
+_apache_group="${APACHE_RUN_GROUP:-www-data}"
+IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
+for _path in "${_proxy_paths[@]}"; do
+  _path=$(echo "$_path" | xargs)
+  [[ "$_path" != /* ]] && _path="/$_path"
+  full_path="${WEB_ROOT}${_path}"
+  if [ ! -d "$full_path" ]; then
+    sudo install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path" 2>/dev/null || \
+      mkdir -p "$full_path"
+    log "Created proxy path directory: $full_path"
+  fi
+  sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
+  log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
+done
 
 # Run database import if S3 credentials are provided
 if [ -n "$S3_BUCKET" ] && [ -n "$S3_DATABASE_PATH" ]; then
