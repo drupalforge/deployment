@@ -86,8 +86,10 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         kill "$COUNTDOWN_PID" 2>/dev/null || true
         wait "$COUNTDOWN_PID" 2>/dev/null || true
         rm -f "$COUNTDOWN_STOP_FILE"
-        # Erase the countdown line then move to a clean line for subsequent output.
-        printf "\033[A\r\033[2K\n" > /dev/tty 2>/dev/null || true
+        # sudo always writes "Password:" in this branch (sudo -n failed to get here).
+        # After the user interacts, cursor is 2 lines below the countdown line.
+        # Go up 2 and erase to end of screen to remove countdown + password lines.
+        printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
