@@ -19,34 +19,25 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# shellcheck source=lib/utils.sh
+source "$SCRIPT_DIR/lib/utils.sh"
+
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
 
-# Probe for sudo credentials before launching parallel tests.
-# sudo writes its password prompt to /dev/tty, which would bypass the per-test
-# output redirect and appear on the terminal with no context mid-run.
-# By asking once here, we either cache credentials for all tests that need them
-# or confirm that sudo is unavailable so those tests can be skipped cleanly.
-SUDO_AVAILABLE=0
-if sudo -n true 2>/dev/null; then
-    SUDO_AVAILABLE=1
-elif [ -t 0 ]; then
-    echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-    echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-    if timeout 30 sudo -v 2>/dev/null; then
-        SUDO_AVAILABLE=1
-    else
-        echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-    fi
-    echo ""
-fi
-export SUDO_AVAILABLE
-
-# Launch all test suites in parallel, buffering each suite's output to a temp
-# file so lines from concurrent suites don't interleave on the terminal.
+# Create temp dir for test output, exit codes, and the sudo status file.
+# Write "pending" now — tests start immediately and will poll this file
+# before using sudo; the probe below writes the final value when it finishes.
 TMPDIR_TESTS=$(mktemp -d)
+SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
+echo "pending" > "$SUDO_STATUS_FILE"
+export SUDO_STATUS_FILE
+
+# Launch all test suites in parallel NOW (before the probe) so non-sudo tests
+# run immediately while we wait for the password.  All output is buffered so
+# nothing is printed until after the probe completes.
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
@@ -57,17 +48,74 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     out_file="$TMPDIR_TESTS/output-${test_name}.txt"
     TEST_NAMES+=("$test_name")
     OUT_FILES+=("$out_file")
-    ( bash "$test_file" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
+    ( bash_exit=0
+      bash "$test_file" > "$out_file" 2>&1 || bash_exit=$?
+      echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
+total_tests="${#TEST_NAMES[@]}"
 
-# Wait for each suite, then print its buffered output in order
+# Probe for sudo credentials.  Skip if a parent script already ran the probe.
+# The countdown loop also shows live test progress so the user knows work is
+# happening while they wait for the password.
+if [ "${SUDO_PROBED:-}" != "1" ]; then
+    SUDO_AVAILABLE=0
+    if sudo -n true 2>/dev/null; then
+        SUDO_AVAILABLE=1
+        echo -e "${GREEN}✓ sudo credentials available${NC}"
+        echo ""
+    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
+        done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
+        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
+        # Print one countdown line, then each tick uses ANSI save/restore cursor
+        # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
+        # returns to exactly where sudo left it (after "Password: ").
+        # A stop-flag file prevents one extra tick from firing after the user
+        # presses Enter (which shifts the cursor and would overwrite the password line).
+        COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
+        printf "  (30 sec remaining) [%d/%d tests done]\n" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+        ( for i in $(seq 30 -1 1); do
+              sleep 1
+              [ -f "$COUNTDOWN_STOP_FILE" ] && break
+              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
+              printf "\033[s\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[u" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+          done
+        ) &
+        COUNTDOWN_PID=$!
+        if _timeout 30 sudo -v; then
+            SUDO_AVAILABLE=1
+        fi
+        touch "$COUNTDOWN_STOP_FILE"
+        kill "$COUNTDOWN_PID" 2>/dev/null || true
+        wait "$COUNTDOWN_PID" 2>/dev/null || true
+        rm -f "$COUNTDOWN_STOP_FILE"
+        # sudo always writes "Password:" in this branch (sudo -n failed to get here).
+        # After the user interacts, cursor is 2 lines below the countdown line.
+        # Go up 2 and erase to end of screen to remove countdown + password lines.
+        printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
+        if [ "$SUDO_AVAILABLE" = "0" ]; then
+            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+        fi
+        echo ""
+    fi
+fi
+export SUDO_AVAILABLE SUDO_PROBED=1
+
+# Signal any tests that are polling the flag file.
+echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
+
+# Wait for ALL tests to finish before printing results.
+for i in "${!TEST_NAMES[@]}"; do
+    wait "${PIDS[$i]}" || true
+done
+
+# Print each suite's buffered output in order.
 failed_tests=0
 passed_suites=0
 
 for i in "${!TEST_NAMES[@]}"; do
     test_name="${TEST_NAMES[$i]}"
-    wait "${PIDS[$i]}"
     echo -e "${YELLOW}Running $test_name...${NC}"
     cat "${OUT_FILES[$i]}"
     exit_code=$(cat "$TMPDIR_TESTS/exit-${test_name}.txt" 2>/dev/null || echo 1)

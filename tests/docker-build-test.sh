@@ -27,6 +27,9 @@ cleanup_images() {
     echo -e "${YELLOW}Cleaning up test images...${NC}"
     for version in "${PHP_VERSIONS[@]}"; do
         local tag="${TEST_TAG_PREFIX}:${version}"
+        local container="${TEST_TAG_PREFIX}-${version}"
+        # Remove any lingering container (e.g. if docker rm -f inside test_version failed)
+        docker rm -f "$container" 2>/dev/null || true
         if docker images -q "$tag" 2>/dev/null | grep -q .; then
             echo "  Removing image: $tag"
             docker rmi "$tag" 2>/dev/null || true
