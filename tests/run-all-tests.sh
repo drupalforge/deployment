@@ -31,31 +31,34 @@ echo ""
 # Unit tests need sudo for some tests. By probing here with a clear message
 # and a countdown, credentials are cached before the tests that need them.
 SUDO_AVAILABLE=0
+TMPDIR_SUITES=$(mktemp -d)
 if sudo -n true 2>/dev/null; then
     SUDO_AVAILABLE=1
 elif [ -t 0 ] && [ -z "${CI:-}" ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
+    COUNTDOWN_STOP_FILE="$TMPDIR_SUITES/countdown-stop"
     printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
     ( for i in $(seq 30 -1 1); do
           sleep 1
-          printf "\033[A\r  (%2d sec remaining)\033[B" "$i" > /dev/tty 2>/dev/null || true
+          [ -f "$COUNTDOWN_STOP_FILE" ] && break
+          printf "\033[s\033[A\r  (%2d sec remaining)\033[u" "$i" > /dev/tty 2>/dev/null || true
       done
     ) &
     COUNTDOWN_PID=$!
     if _timeout 30 sudo -v; then
         SUDO_AVAILABLE=1
     fi
+    touch "$COUNTDOWN_STOP_FILE"
     kill "$COUNTDOWN_PID" 2>/dev/null || true
     wait "$COUNTDOWN_PID" 2>/dev/null || true
+    printf "\033[A\r\033[2K\n" > /dev/tty 2>/dev/null || true
     if [ "$SUDO_AVAILABLE" = "0" ]; then
         echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
     fi
     echo ""
 fi
 export SUDO_AVAILABLE SUDO_PROBED=1
-
-TMPDIR_SUITES=$(mktemp -d)
 
 # Run all suites in the background with output buffered; show a live status
 # line so the user knows work is progressing without mixing output with prompts.

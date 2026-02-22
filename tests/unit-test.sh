@@ -64,22 +64,30 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
-        # Print one countdown line, then each tick uses ANSI cursor-up to overwrite
-        # it in place, then cursor-down to restore position so "Password:" always
-        # appears on the line below the countdown and is never overwritten.
+        # Print one countdown line, then each tick uses ANSI save/restore cursor
+        # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
+        # returns to exactly where sudo left it (after "Password: ").
+        # A stop-flag file prevents one extra tick from firing after the user
+        # presses Enter (which shifts the cursor and would overwrite the password line).
+        COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
         printf "  (30 sec remaining) [%d/%d tests done]\n" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
         ( for i in $(seq 30 -1 1); do
               sleep 1
+              [ -f "$COUNTDOWN_STOP_FILE" ] && break
               done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-              printf "\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[B" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+              printf "\033[s\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[u" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
           done
         ) &
         COUNTDOWN_PID=$!
         if _timeout 30 sudo -v; then
             SUDO_AVAILABLE=1
         fi
+        touch "$COUNTDOWN_STOP_FILE"
         kill "$COUNTDOWN_PID" 2>/dev/null || true
         wait "$COUNTDOWN_PID" 2>/dev/null || true
+        rm -f "$COUNTDOWN_STOP_FILE"
+        # Erase the countdown line then move to a clean line for subsequent output.
+        printf "\033[A\r\033[2K\n" > /dev/tty 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
