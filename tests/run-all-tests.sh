@@ -47,8 +47,8 @@ elif [ -t 0 ]; then
     if _timeout 30 sudo -v; then
         SUDO_AVAILABLE=1
     fi
-    kill "$COUNTDOWN_PID" 2>/dev/null
-    wait "$COUNTDOWN_PID" 2>/dev/null
+    kill "$COUNTDOWN_PID" 2>/dev/null || true
+    wait "$COUNTDOWN_PID" 2>/dev/null || true
     printf "\r%-40s\r" "" 2>/dev/null || true
     if [ "$SUDO_AVAILABLE" = "0" ]; then
         echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
