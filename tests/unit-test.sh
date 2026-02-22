@@ -64,9 +64,18 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
+        ( for i in $(seq 29 -1 1); do
+              sleep 1
+              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
+              printf "  (%2d sec remaining) [%d/%d tests done]\n" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+          done
+        ) &
+        COUNTDOWN_PID=$!
         if _timeout 30 sudo -v; then
             SUDO_AVAILABLE=1
         fi
+        kill "$COUNTDOWN_PID" 2>/dev/null || true
+        wait "$COUNTDOWN_PID" 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
@@ -78,35 +87,12 @@ export SUDO_AVAILABLE SUDO_PROBED=1
 # Signal any tests that are polling the flag file.
 echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
 
-# Show a simple live status line while the remaining tests finish.
-# (Only when stdout is a terminal — skipped when called from run-all-tests.sh
-# with output redirected to a buffer file.)
-if is_interactive_terminal; then
-    ( while true; do
-          done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-          printf "\r  Running tests... [%d/%d done] " "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
-          [ "$done_count" -ge "$total_tests" ] && break
-          sleep 0.5
-      done
-      printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
-    ) &
-    STATUS_PID=$!
-fi
-
-# Wait for ALL tests to finish, then stop the status line before printing.
+# Wait for ALL tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
     wait "${PIDS[$i]}" || true
 done
 
-if [ -n "${STATUS_PID:-}" ]; then
-    kill "$STATUS_PID" 2>/dev/null || true
-    wait "$STATUS_PID" 2>/dev/null || true
-    printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
-fi
-
 # Print each suite's buffered output in order.
-# (All PIDs were already joined in the wait loop above; we're just reading
-# the files they left behind.)
 failed_tests=0
 passed_suites=0
 

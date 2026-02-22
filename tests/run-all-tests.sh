@@ -36,9 +36,17 @@ if sudo -n true 2>/dev/null; then
 elif [ -t 0 ] && [ -z "${CI:-}" ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
+    ( for i in $(seq 29 -1 1); do
+          sleep 1
+          printf "  (%2d sec remaining)\n" "$i" > /dev/tty 2>/dev/null || true
+      done
+    ) &
+    COUNTDOWN_PID=$!
     if _timeout 30 sudo -v; then
         SUDO_AVAILABLE=1
     fi
+    kill "$COUNTDOWN_PID" 2>/dev/null || true
+    wait "$COUNTDOWN_PID" 2>/dev/null || true
     if [ "$SUDO_AVAILABLE" = "0" ]; then
         echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
     fi

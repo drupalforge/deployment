@@ -61,6 +61,10 @@ test_app_root_wait_present() {
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
 
     # With timeout=0 the script should proceed immediately without waiting.
     # We pass a no-op command so exec succeeds without starting Apache.
@@ -86,6 +90,10 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
 
     local start end elapsed
     start=$(date +%s)
@@ -108,6 +116,10 @@ test_app_root_ready_immediately() {
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
     mkdir -p "$app_root"
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
 
     local output
     set +e
@@ -129,7 +141,7 @@ test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${SUDO_AVAILABLE:-0}" != "1" ] && ! sudo -n true 2>/dev/null; then
+    if ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
