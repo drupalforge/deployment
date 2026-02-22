@@ -52,19 +52,21 @@ done
 
 # Probe for sudo credentials now that non-sudo tests are already running.
 # Skip the probe if a parent script (e.g. run-all-tests.sh) already ran it.
-if [ "${SUDO_AVAILABLE:-}" != "1" ]; then
+if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
     elif [ -t 0 ]; then
+        total_tests="${#TEST_NAMES[@]}"
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-        # Show a countdown on the terminal while waiting for the password.
+        # Show a countdown + live test progress on the terminal while waiting.
         ( for i in $(seq 29 -1 1); do
               sleep 1
-              printf "\r  (%2d seconds remaining) " "$i" > /dev/tty 2>/dev/null || true
+              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l)
+              printf "\r  (%2d sec remaining) [%d/%d tests done] " "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
           done
-          printf "\r%-40s\r" "" > /dev/tty 2>/dev/null || true
+          printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
         ) &
         COUNTDOWN_PID=$!
         if _timeout 30 sudo -v; then
@@ -72,14 +74,14 @@ if [ "${SUDO_AVAILABLE:-}" != "1" ]; then
         fi
         kill "$COUNTDOWN_PID" 2>/dev/null || true
         wait "$COUNTDOWN_PID" 2>/dev/null || true
-        printf "\r%-40s\r" "" 2>/dev/null || true
+        printf "\r%-60s\r" "" 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
         echo ""
     fi
 fi
-export SUDO_AVAILABLE
+export SUDO_AVAILABLE SUDO_PROBED=1
 
 # Signal any tests that are polling the flag file.
 echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"

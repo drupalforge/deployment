@@ -55,14 +55,14 @@ elif [ -t 0 ]; then
     fi
     echo ""
 fi
-export SUDO_AVAILABLE
+export SUDO_AVAILABLE SUDO_PROBED=1
 
 TMPDIR_SUITES=$(mktemp -d)
 
-# Run unit tests in the background WITHOUT output redirection so their output
-# streams directly to the terminal as tests complete.
+# Run unit tests in the background, buffering their output so it does not
+# appear until after the results header is printed below.
 echo -e "${YELLOW}Starting: Unit Tests${NC}"
-( cd "$SCRIPT_DIR" && bash unit-test.sh
+( cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1
   echo $? > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
 UNIT_TESTS_PID=$!
 
@@ -111,12 +111,7 @@ print_suite() {
     echo ""
 }
 
-# Unit tests already streamed to the terminal above — just record the result.
-if [ "$unit_exit" -eq 0 ]; then
-    ((TESTS_PASSED+=1))
-else
-    ((TESTS_FAILED+=1))
-fi
+print_suite "Unit Tests"          "$TMPDIR_SUITES/unit-tests.txt"          "$unit_exit"
 print_suite "Docker Build Tests"  "$TMPDIR_SUITES/docker-build-tests.txt"  "$docker_build_exit"
 print_suite "Integration Tests"   "$TMPDIR_SUITES/integration-tests.txt"   "$integration_exit"
 
