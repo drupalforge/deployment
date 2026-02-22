@@ -116,8 +116,10 @@ test_app_root_timeout_warning() {
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
-    # This test requires passwordless sudo; skip gracefully if not available
-    if ! sudo -n true 2>/dev/null; then
+    # This test requires sudo; skip gracefully if credentials are not available.
+    # When run via unit-test.sh, SUDO_AVAILABLE is set by the upfront probe.
+    # When run standalone, fall back to a non-interactive sudo check.
+    if [ "${SUDO_AVAILABLE:-0}" != "1" ] && ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
