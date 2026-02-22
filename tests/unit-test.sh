@@ -24,33 +24,44 @@ echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
 
-# Track test results
+# Launch all test suites in parallel, buffering each suite's output to a temp
+# file so lines from concurrent suites don't interleave on the terminal.
+TMPDIR_TESTS=$(mktemp -d)
+declare -a PIDS=()
+declare -a TEST_NAMES=()
+declare -a OUT_FILES=()
+
+for test_file in "$TEST_DIR"/test-*.sh; do
+    [ -f "$test_file" ] || continue
+    test_name=$(basename "$test_file" .sh)
+    out_file="$TMPDIR_TESTS/output-${test_name}.txt"
+    TEST_NAMES+=("$test_name")
+    OUT_FILES+=("$out_file")
+    ( bash "$test_file" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
+    PIDS+=($!)
+done
+
+# Wait for each suite, then print its buffered output in order
 failed_tests=0
 passed_suites=0
 
-# Function to run a test suite
-run_test_suite() {
-    local test_file="$1"
-    local test_name=$(basename "$test_file" .sh)
-    
+for i in "${!TEST_NAMES[@]}"; do
+    test_name="${TEST_NAMES[$i]}"
+    wait "${PIDS[$i]}"
     echo -e "${YELLOW}Running $test_name...${NC}"
-    if bash "$test_file"; then
+    cat "${OUT_FILES[$i]}"
+    exit_code=$(cat "$TMPDIR_TESTS/exit-${test_name}.txt" 2>/dev/null || echo 1)
+    if [ "$exit_code" -eq 0 ]; then
         echo -e "${GREEN}✓ $test_name passed${NC}"
         passed_suites=$((passed_suites + 1))
-        echo ""
     else
         echo -e "${RED}✗ $test_name failed${NC}"
         failed_tests=$((failed_tests + 1))
-        echo ""
     fi
-}
-
-# Find and run all unit test files (test-*.sh pattern)
-for test_file in "$TEST_DIR"/test-*.sh; do
-    if [ -f "$test_file" ]; then
-        run_test_suite "$test_file"
-    fi
+    echo ""
 done
+
+rm -rf "$TMPDIR_TESTS"
 
 # Summary
 echo -e "${BLUE}================================${NC}"
