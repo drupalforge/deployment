@@ -24,32 +24,15 @@ echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
 
-# Probe for sudo credentials before launching parallel tests.
-# sudo writes its password prompt to /dev/tty, which would bypass the per-test
-# output redirect and appear on the terminal with no context mid-run.
-# By asking once here, we either cache credentials for all tests that need them
-# or confirm that sudo is unavailable so those tests can be skipped cleanly.
-# Skip the probe if a parent script (e.g. run-all-tests.sh) already set it.
-if [ "${SUDO_AVAILABLE:-}" != "1" ]; then
-    SUDO_AVAILABLE=0
-    if sudo -n true 2>/dev/null; then
-        SUDO_AVAILABLE=1
-    elif [ -t 0 ]; then
-        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-        if timeout 30 sudo -v 2>/dev/null; then
-            SUDO_AVAILABLE=1
-        else
-            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-        fi
-        echo ""
-    fi
-fi
-export SUDO_AVAILABLE
-
-# Launch all test suites in parallel, buffering each suite's output to a temp
-# file so lines from concurrent suites don't interleave on the terminal.
+# Launch all test suites in parallel first so that non-sudo tests start
+# running immediately, before (and during) the sudo credential probe below.
+# A flag file (SUDO_STATUS_FILE) is written once the probe completes so that
+# sudo-requiring tests can wait for the final result instead of racing.
 TMPDIR_TESTS=$(mktemp -d)
+SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
+echo "pending" > "$SUDO_STATUS_FILE"
+export SUDO_STATUS_FILE
+
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
@@ -63,6 +46,40 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     ( bash "$test_file" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
+
+# Probe for sudo credentials now that non-sudo tests are already running.
+# Skip the probe if a parent script (e.g. run-all-tests.sh) already ran it.
+if [ "${SUDO_AVAILABLE:-}" != "1" ]; then
+    SUDO_AVAILABLE=0
+    if sudo -n true 2>/dev/null; then
+        SUDO_AVAILABLE=1
+    elif [ -t 0 ]; then
+        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+        echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
+        # Show a countdown on the terminal while waiting for the password.
+        ( for i in $(seq 29 -1 1); do
+              sleep 1
+              printf "\r  (%2d seconds remaining) " "$i" > /dev/tty 2>/dev/null || true
+          done
+          printf "\r%-40s\r" "" > /dev/tty 2>/dev/null || true
+        ) &
+        COUNTDOWN_PID=$!
+        if timeout 30 sudo -v; then
+            SUDO_AVAILABLE=1
+        fi
+        kill "$COUNTDOWN_PID" 2>/dev/null
+        wait "$COUNTDOWN_PID" 2>/dev/null
+        printf "\r%-40s\r" "" 2>/dev/null || true
+        if [ "$SUDO_AVAILABLE" = "0" ]; then
+            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+        fi
+        echo ""
+    fi
+fi
+export SUDO_AVAILABLE
+
+# Signal any tests that are polling the flag file.
+echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
 
 # Wait for each suite, then print its buffered output in order
 failed_tests=0

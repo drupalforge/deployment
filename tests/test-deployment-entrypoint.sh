@@ -116,9 +116,16 @@ test_app_root_timeout_warning() {
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
-    # This test requires sudo; skip gracefully if credentials are not available.
-    # When run via unit-test.sh, SUDO_AVAILABLE is set by the upfront probe.
-    # When run standalone, fall back to a non-interactive sudo check.
+    # This test requires sudo. When run via unit-test.sh the test launcher and
+    # the sudo probe run concurrently; wait for the probe's flag file so we use
+    # the definitive result instead of racing against it.
+    if [ -n "${SUDO_STATUS_FILE:-}" ]; then
+        local waited=0
+        while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$waited" -lt 350 ]; do
+            sleep 0.1
+            waited=$((waited + 1))
+        done
+    fi
     if [ "${SUDO_AVAILABLE:-0}" != "1" ] && ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0

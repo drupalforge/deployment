@@ -24,19 +24,30 @@ echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite      
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Probe for sudo credentials before launching parallel tasks.
-# Unit tests (run in background with output redirected) need sudo for some
-# tests.  Prompting here gives the user context and caches credentials so
-# unit-test.sh can skip its own prompt when running in the background.
+# Probe for sudo credentials before launching tests.
+# Unit tests need sudo for some tests. By probing here with a clear message
+# and a countdown, credentials are cached before the tests that need them.
 SUDO_AVAILABLE=0
 if sudo -n true 2>/dev/null; then
     SUDO_AVAILABLE=1
 elif [ -t 0 ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-    if timeout 30 sudo -v 2>/dev/null; then
+    # Show a countdown on the terminal while waiting for the password.
+    ( for i in $(seq 29 -1 1); do
+          sleep 1
+          printf "\r  (%2d seconds remaining) " "$i" > /dev/tty 2>/dev/null || true
+      done
+      printf "\r%-40s\r" "" > /dev/tty 2>/dev/null || true
+    ) &
+    COUNTDOWN_PID=$!
+    if timeout 30 sudo -v; then
         SUDO_AVAILABLE=1
-    else
+    fi
+    kill "$COUNTDOWN_PID" 2>/dev/null
+    wait "$COUNTDOWN_PID" 2>/dev/null
+    printf "\r%-40s\r" "" 2>/dev/null || true
+    if [ "$SUDO_AVAILABLE" = "0" ]; then
         echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
     fi
     echo ""
@@ -45,13 +56,15 @@ export SUDO_AVAILABLE
 
 TMPDIR_SUITES=$(mktemp -d)
 
-# Run unit tests in the background while Docker-based tests run in parallel
-echo -e "${YELLOW}Starting: Unit Tests (background)${NC}"
-( cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1
+# Run unit tests in the background WITHOUT output redirection so their output
+# streams directly to the terminal as tests complete.
+echo -e "${YELLOW}Starting: Unit Tests${NC}"
+( cd "$SCRIPT_DIR" && bash unit-test.sh
   echo $? > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
 UNIT_TESTS_PID=$!
 
-# Run Docker build tests then integration tests sequentially (shared image tag)
+# Run Docker build tests then integration tests sequentially (shared image tag),
+# buffering their output so it does not interleave with unit test output above.
 echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
 ( cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1
   echo $? > "$TMPDIR_SUITES/exit-docker-build-tests.txt" ) &
@@ -95,7 +108,12 @@ print_suite() {
     echo ""
 }
 
-print_suite "Unit Tests"          "$TMPDIR_SUITES/unit-tests.txt"          "$unit_exit"
+# Unit tests already streamed to the terminal above — just record the result.
+if [ "$unit_exit" -eq 0 ]; then
+    ((TESTS_PASSED+=1))
+else
+    ((TESTS_FAILED+=1))
+fi
 print_suite "Docker Build Tests"  "$TMPDIR_SUITES/docker-build-tests.txt"  "$docker_build_exit"
 print_suite "Integration Tests"   "$TMPDIR_SUITES/integration-tests.txt"   "$integration_exit"
 
