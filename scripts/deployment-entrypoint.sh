@@ -34,9 +34,14 @@ WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
 # Wait for APP_ROOT to be non-empty before proceeding.
 # DevPanel clones the repository into APP_ROOT after the container starts,
 # so the directory may be empty on first boot until the clone completes.
+# Root-owned entries (e.g. lost+found created by the mounted volume filesystem)
+# are ignored when determining whether APP_ROOT has been populated.
+_app_root_non_root_contents() {
+  find "$APP_ROOT" -maxdepth 1 -mindepth 1 ! -user root 2>/dev/null
+}
 if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
   elapsed=0
-  while [ -z "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; do
+  while [ -z "$(_app_root_non_root_contents)" ]; do
     if [ "$elapsed" -eq 0 ]; then
       log "Waiting for APP_ROOT to be populated: $APP_ROOT (timeout: ${APP_ROOT_TIMEOUT}s)"
     fi
@@ -47,7 +52,7 @@ if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
     sleep 5
     elapsed=$((elapsed + 5))
   done
-  if [ -n "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; then
+  if [ -n "$(_app_root_non_root_contents)" ]; then
     log "APP_ROOT is ready: $APP_ROOT"
   fi
 fi
