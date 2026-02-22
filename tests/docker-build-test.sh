@@ -16,13 +16,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Test configuration
-# Optional: pass one or more PHP versions as arguments to test only those versions.
-# Example: bash docker-build-test.sh 8.3
-# Default: test all supported versions.
 PHP_VERSIONS=("8.2" "8.3")
-if [ $# -gt 0 ]; then
-    PHP_VERSIONS=("$@")
-fi
 TEST_TAG_PREFIX="test-df-deployment"
 
 echo -e "${BLUE}Testing Docker builds...${NC}"
