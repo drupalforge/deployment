@@ -99,7 +99,8 @@ echo -e "${YELLOW}Starting: Unit Tests${NC}"
   echo "$bash_exit" > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
 UNIT_TESTS_PID=$!
 
-# Docker build tests then integration tests run sequentially (shared image tag).
+# Docker build tests run in parallel with unit tests, but integration tests
+# wait for Docker build to finish (both use the same test-df-deployment:8.3 image tag).
 echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
 ( bash_exit=0
   cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1 || bash_exit=$?
