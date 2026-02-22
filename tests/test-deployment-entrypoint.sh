@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap "sudo rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
 
 # Colors for output
 RED='\033[0;31m'

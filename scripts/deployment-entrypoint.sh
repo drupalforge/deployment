@@ -53,29 +53,23 @@ if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
 fi
 
 # Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
-# Run unconditionally when APACHE_RUN_USER/GROUP are set so ownership is correct
-# even if ORIGIN_URL is not configured.
+# Defaults APACHE_RUN_USER/GROUP to www-data (Apache's default) so ownership is
+# always correct even if those variables are not explicitly configured.
 FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
-_apache_user="${APACHE_RUN_USER:-}"
-_apache_group="${APACHE_RUN_GROUP:-}"
+_apache_user="${APACHE_RUN_USER:-www-data}"
+_apache_group="${APACHE_RUN_GROUP:-www-data}"
 IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
 for _path in "${_proxy_paths[@]}"; do
   _path=$(echo "$_path" | xargs)
   [[ "$_path" != /* ]] && _path="/$_path"
   full_path="${WEB_ROOT}${_path}"
   if [ ! -d "$full_path" ]; then
-    if [ -n "$_apache_user" ] && [ -n "$_apache_group" ]; then
-      sudo install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path" 2>/dev/null || \
-        mkdir -p "$full_path"
-    else
-      mkdir -p "$full_path" 2>/dev/null || sudo install -d -m 0755 "$full_path"
-    fi
+    sudo install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path" 2>/dev/null || \
+      mkdir -p "$full_path"
     log "Created proxy path directory: $full_path"
   fi
-  if [ -n "$_apache_user" ] && [ -n "$_apache_group" ]; then
-    sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
-    log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
-  fi
+  sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
+  log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
 done
 
 # Bootstrap application code

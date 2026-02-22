@@ -114,23 +114,21 @@ services:
     ports:
       - "80:80"
 
-  # Deployment container (Apache default www-data user) - tests proxy path chown - tests proxy path chown
-  deployment-apache:
+  # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
+  # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path
+  # so both containers can create/chown their own proxy directories without interfering with each other
+  deployment-secure:
     platform: linux/amd64
     image: test-df-deployment:8.3
     depends_on:
       origin-server:
         condition: service_healthy
     environment:
-      # Run Apache as its default www-data user to verify proxy path chown logic
-      APACHE_RUN_USER: www-data
-      APACHE_RUN_GROUP: www-data
-
       # Skip bootstrap and database import for this scenario
       BOOTSTRAP_REQUIRED: "no"
       APP_ROOT_TIMEOUT: "0"
 
-      # File proxy with a unique path to avoid collision with the main deployment test
+      # File proxy with a distinct path since both containers mount the same volume
       ORIGIN_URL: http://origin-server:8000
       FILE_PROXY_PATHS: /sites/www-data-test-files
       WEB_ROOT: /var/www/html/web

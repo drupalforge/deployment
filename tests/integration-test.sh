@@ -124,7 +124,7 @@ echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
 
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d
 
-# Wait for main deployment container to be ready
+# Wait for regular deployment container to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
 for i in {1..60}; do
     if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php >/dev/null 2>&1; then
@@ -141,15 +141,15 @@ for i in {1..60}; do
 done
 echo ""
 
-# Wait for Apache (www-data) deployment container to be ready
+# Wait for secure deployment container to be ready
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-apache curl -s http://localhost/index.php >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Apache deployment container ready${NC}"
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/index.php >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Secure deployment container ready${NC}"
         break
     fi
     if [ $i -eq 60 ]; then
-        echo -e "${RED}✗ Timeout waiting for Apache deployment container${NC}"
-        $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment-apache
+        echo -e "${RED}✗ Timeout waiting for secure deployment container${NC}"
+        $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment-secure
         exit 1
     fi
     echo -n "."
@@ -252,17 +252,17 @@ else
     ((failed=failed+1))
 fi
 
-# Test 12: Apache (www-data) - proxy path directory is owned by www-data
-if run_test "Apache (www-data): proxy path owned by www-data" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-apache stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
+# Test 12: Secure (www-data default) - proxy path directory is owned by www-data
+if run_test "Secure (Apache www-data default): proxy path owned by www-data" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 13: Apache (www-data) - Apache can write proxy-downloaded files as www-data
-if run_test "Apache (www-data): file proxy downloads from origin" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-apache curl -s http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
+# Test 13: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
+if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
