@@ -34,6 +34,8 @@ SUDO_AVAILABLE=0
 TMPDIR_SUITES=$(mktemp -d)
 if sudo -n true 2>/dev/null; then
     SUDO_AVAILABLE=1
+    echo -e "${GREEN}✓ sudo credentials available${NC}"
+    echo ""
 elif [ -t 0 ] && [ -z "${CI:-}" ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
@@ -63,57 +65,7 @@ elif [ -t 0 ] && [ -z "${CI:-}" ]; then
 fi
 export SUDO_AVAILABLE SUDO_PROBED=1
 
-# Run all suites in the background with output buffered; show a live status
-# line so the user knows work is progressing without mixing output with prompts.
-echo -e "${YELLOW}Starting: Unit Tests${NC}"
-( cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1
-  echo $? > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
-UNIT_TESTS_PID=$!
-
-# Run Docker build tests then integration tests sequentially (shared image tag).
-echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
-( cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1
-  echo $? > "$TMPDIR_SUITES/exit-docker-build-tests.txt" ) &
-DOCKER_BUILD_PID=$!
-
-echo -e "${YELLOW}Starting: Integration Tests (queued behind Docker Build)${NC}"
-
-# Show a live "X/3 suites done" line while waiting for everything to finish.
-if is_interactive_terminal; then
-    ( while true; do
-          done=0
-          [ -f "$TMPDIR_SUITES/exit-unit-tests.txt" ]         && done=$((done+1))
-          [ -f "$TMPDIR_SUITES/exit-docker-build-tests.txt" ] && done=$((done+1))
-          [ -f "$TMPDIR_SUITES/exit-integration-tests.txt" ]  && done=$((done+1))
-          printf "\r  Waiting for test suites... [%d/3 done] " "$done" > /dev/tty 2>/dev/null || true
-          [ "$done" -ge 3 ] && break
-          sleep 0.5
-      done
-      printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
-    ) &
-    STATUS_PID=$!
-fi
-
-wait "$DOCKER_BUILD_PID" || true
-docker_build_exit=$(cat "$TMPDIR_SUITES/exit-docker-build-tests.txt" 2>/dev/null || echo 1)
-
-( cd "$SCRIPT_DIR" && bash integration-test.sh > "$TMPDIR_SUITES/integration-tests.txt" 2>&1
-  echo $? > "$TMPDIR_SUITES/exit-integration-tests.txt" ) &
-INTEGRATION_PID=$!
-wait "$INTEGRATION_PID" || true
-integration_exit=$(cat "$TMPDIR_SUITES/exit-integration-tests.txt" 2>/dev/null || echo 1)
-
-# Now wait for unit tests to finish (likely already done)
-wait "$UNIT_TESTS_PID" || true
-unit_exit=$(cat "$TMPDIR_SUITES/exit-unit-tests.txt" 2>/dev/null || echo 1)
-
-if [ -n "${STATUS_PID:-}" ]; then
-    kill "$STATUS_PID" 2>/dev/null || true
-    wait "$STATUS_PID" 2>/dev/null || true
-    printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
-fi
-
-# Print results for each suite in a consistent order
+# Print results for a suite immediately when it completes.
 TESTS_FAILED=0
 TESTS_PASSED=0
 
@@ -138,9 +90,45 @@ print_suite() {
     echo ""
 }
 
-print_suite "Unit Tests"          "$TMPDIR_SUITES/unit-tests.txt"          "$unit_exit"
-print_suite "Docker Build Tests"  "$TMPDIR_SUITES/docker-build-tests.txt"  "$docker_build_exit"
-print_suite "Integration Tests"   "$TMPDIR_SUITES/integration-tests.txt"   "$integration_exit"
+# Unit tests run concurrently with Docker-based tests.
+# Use "bash_exit=0; cmd || bash_exit=$?" so the exit file is always written
+# even when set -e is active in the subshell and the command fails.
+echo -e "${YELLOW}Starting: Unit Tests${NC}"
+( bash_exit=0
+  cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1 || bash_exit=$?
+  echo "$bash_exit" > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
+UNIT_TESTS_PID=$!
+
+# Docker build tests then integration tests run sequentially (shared image tag).
+echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
+( bash_exit=0
+  cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1 || bash_exit=$?
+  echo "$bash_exit" > "$TMPDIR_SUITES/exit-docker-build-tests.txt" ) &
+DOCKER_BUILD_PID=$!
+
+echo ""
+
+# Print results as each suite completes.
+# Unit tests are fast (~seconds); wait for them first so their output appears early.
+wait "$UNIT_TESTS_PID" || true
+unit_exit=$(cat "$TMPDIR_SUITES/exit-unit-tests.txt" 2>/dev/null || echo 1)
+print_suite "Unit Tests" "$TMPDIR_SUITES/unit-tests.txt" "$unit_exit"
+
+# Wait for Docker build tests (minutes); print immediately when done.
+wait "$DOCKER_BUILD_PID" || true
+docker_build_exit=$(cat "$TMPDIR_SUITES/exit-docker-build-tests.txt" 2>/dev/null || echo 1)
+print_suite "Docker Build Tests" "$TMPDIR_SUITES/docker-build-tests.txt" "$docker_build_exit"
+
+# Run integration tests after Docker build (shared image tag); print when done.
+echo -e "${YELLOW}Starting: Integration Tests${NC}"
+echo ""
+( bash_exit=0
+  cd "$SCRIPT_DIR" && bash integration-test.sh > "$TMPDIR_SUITES/integration-tests.txt" 2>&1 || bash_exit=$?
+  echo "$bash_exit" > "$TMPDIR_SUITES/exit-integration-tests.txt" ) &
+INTEGRATION_PID=$!
+wait "$INTEGRATION_PID" || true
+integration_exit=$(cat "$TMPDIR_SUITES/exit-integration-tests.txt" 2>/dev/null || echo 1)
+print_suite "Integration Tests" "$TMPDIR_SUITES/integration-tests.txt" "$integration_exit"
 
 rm -rf "$TMPDIR_SUITES"
 

@@ -48,7 +48,9 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     out_file="$TMPDIR_TESTS/output-${test_name}.txt"
     TEST_NAMES+=("$test_name")
     OUT_FILES+=("$out_file")
-    ( bash "$test_file" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
+    ( bash_exit=0
+      bash "$test_file" > "$out_file" 2>&1 || bash_exit=$?
+      echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
 total_tests="${#TEST_NAMES[@]}"
@@ -60,6 +62,8 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
+        echo -e "${GREEN}✓ sudo credentials available${NC}"
+        echo ""
     elif [ -t 0 ] && [ -z "${CI:-}" ]; then
         done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"

@@ -138,3 +138,13 @@ services:
 volumes:
   minio_data:
   mysql_data:
+
+# Use a fixed subnet to avoid Docker exhausting its default address pool
+# (which causes "failed to set up container networking" warnings on busy systems).
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.254.0.0/24
+          gateway: 10.254.0.1
