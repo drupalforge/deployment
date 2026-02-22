@@ -84,6 +84,10 @@ services:
       origin-server:
         condition: service_healthy
     environment:
+      # Run Apache as the same user that owns the app volume so it can write proxy-downloaded files
+      APACHE_RUN_USER: www
+      APACHE_RUN_GROUP: www
+
       # Database configuration
       DB_HOST: mysql
       DB_PORT: 3306

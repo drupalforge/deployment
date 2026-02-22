@@ -63,13 +63,10 @@ if [ -n "$ORIGIN_URL" ] && [ -n "$FILE_PROXY_PATHS" ]; then
     full_path="${WEB_ROOT}${_path}"
     if [ ! -d "$full_path" ]; then
       if ! mkdir -p "$full_path" 2>/dev/null; then
-        sudo install -d -o "$current_uid" -g "$current_gid" -m 0777 "$full_path"
-      else
-        chmod 0777 "$full_path"
+        sudo install -d -o "$current_uid" -g "$current_gid" -m 0755 "$full_path"
       fi
       log "Created proxy path directory: $full_path"
     else
-      chmod 0777 "$full_path" 2>/dev/null || sudo chmod 0777 "$full_path" 2>/dev/null || true
       if sudo -n chown --version &>/dev/null; then
         owner_uid=$(stat -c '%u' "$full_path" 2>/dev/null || echo "$current_uid")
         if [ "$owner_uid" != "$current_uid" ]; then
