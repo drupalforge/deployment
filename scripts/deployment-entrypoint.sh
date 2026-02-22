@@ -1,8 +1,8 @@
 #!/bin/bash
 # Deployment Entrypoint
 # This script runs deployment setup tasks before executing the main command:
-# 1. Fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
-# 2. Bootstrap application (Git submodules, composer install)
+# 1. Bootstrap application (Git submodules, composer install)
+# 2. Create FILE_PROXY_PATHS directories with correct ownership (always required by Drupal)
 # 3. Import database from S3 (if configured)
 # 4. Configure file proxy (if configured)
 # 5. Execute the provided command (defaults to Apache startup)
@@ -52,7 +52,21 @@ if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
   fi
 fi
 
+# Bootstrap application code
+log "Bootstrapping application (submodules, composer)..."
+if /usr/local/bin/bootstrap-app; then
+  log "Application bootstrap completed"
+else
+  if [ "$BOOTSTRAP_REQUIRED" = "yes" ] || [ "$BOOTSTRAP_REQUIRED" = "true" ] || [ "$BOOTSTRAP_REQUIRED" = "1" ]; then
+    log "Application bootstrap failed and BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; exiting"
+    exit 1
+  fi
+  log "Application bootstrap failed but BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; continuing"
+fi
+
 # Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
+# Drupal requires these paths to exist with correct permissions regardless of
+# whether file proxying is configured.
 # Get APACHE_RUN_USER/GROUP: prefer environment variables, then fall back to
 # the defaults in /etc/apache2/envvars (www-data on standard Debian/Ubuntu Apache).
 if [ -z "${APACHE_RUN_USER:-}" ] && [ -f /etc/apache2/envvars ]; then
@@ -77,18 +91,6 @@ for _path in "${_proxy_paths[@]}"; do
   sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
   log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
 done
-
-# Bootstrap application code
-log "Bootstrapping application (submodules, composer)..."
-if /usr/local/bin/bootstrap-app; then
-  log "Application bootstrap completed"
-else
-  if [ "$BOOTSTRAP_REQUIRED" = "yes" ] || [ "$BOOTSTRAP_REQUIRED" = "true" ] || [ "$BOOTSTRAP_REQUIRED" = "1" ]; then
-    log "Application bootstrap failed and BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; exiting"
-    exit 1
-  fi
-  log "Application bootstrap failed but BOOTSTRAP_REQUIRED=$BOOTSTRAP_REQUIRED; continuing"
-fi
 
 # Run database import if S3 credentials are provided
 if [ -n "$S3_BUCKET" ] && [ -n "$S3_DATABASE_PATH" ]; then

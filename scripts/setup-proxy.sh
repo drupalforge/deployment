@@ -235,7 +235,7 @@ main() {
   
   # Normalize origin URL (remove trailing slash)
   origin_url="${origin_url%/}"
-  
+
   # Auto-detect Stage File Proxy if not explicitly set
   if [ -z "$use_stage_file_proxy" ]; then
     if has_stage_file_proxy "$app_root"; then

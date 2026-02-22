@@ -112,6 +112,17 @@ test_app_root_timeout_warning() {
     fi
 }
 
+# Test 7: Proxy path directories are created unconditionally after bootstrap
+test_proxy_path_directory_creation() {
+    if grep -q "install -d\|mkdir -p" "$ENTRYPOINT" && \
+       grep -q "chown" "$ENTRYPOINT"; then
+        echo -e "${GREEN}✓ Entrypoint creates and sets ownership of proxy path directories${NC}"
+    else
+        echo -e "${RED}✗ Entrypoint missing proxy path directory creation${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -119,5 +130,6 @@ test_app_root_wait_present
 test_app_root_wait_skipped_at_zero
 test_app_root_ready_immediately
 test_app_root_timeout_warning
+test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"
