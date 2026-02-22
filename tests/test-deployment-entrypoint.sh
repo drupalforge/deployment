@@ -16,10 +16,9 @@ NC='\033[0m'
 
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
 
-# Several tests run the entrypoint which calls "sudo install" and "sudo chown"
-# without -n.  If launched in parallel from unit-test.sh, the sudo probe may
-# still be running; wait here (up to 35 s) so credentials are cached before
-# any test invokes the entrypoint.
+# Several tests run the entrypoint which calls "sudo install" and "sudo chown".
+# If launched in parallel from unit-test.sh, the sudo probe may still be running;
+# wait here (up to 35 s) so credentials are cached before any test invokes the entrypoint.
 if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     _sudo_wait=0
     while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$_sudo_wait" -lt 350 ]; do
@@ -28,14 +27,14 @@ if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     done
 fi
 
-# Read the probe result written by unit-test.sh or run-all-tests.sh.
-# Using the probe result (rather than re-running sudo -n true) ensures consistent
-# skip decisions regardless of per-tty credential scoping (e.g. macOS tty_tickets).
-_sudo_avail="${SUDO_AVAILABLE:-0}"
-if [ -n "${SUDO_STATUS_FILE:-}" ]; then
-    _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
-    [ "$_sf_val" = "1" ] && _sudo_avail=1
-fi
+# Helper: check whether passwordless sudo actually works in *this* process context.
+# On macOS the default tty_tickets policy scopes credential caching per-TTY, so
+# a successful "sudo -v" in the parent does not guarantee "sudo -n" works in a
+# background subprocess.  Always probe at the call site instead of relying on the
+# inherited SUDO_AVAILABLE flag.
+_sudo_available() {
+    sudo -n true 2>/dev/null
+}
 
 # Test 1: Script is executable
 test_script_executable() {
@@ -70,7 +69,7 @@ test_app_root_wait_present() {
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if ! _sudo_available; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -99,7 +98,7 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if ! _sudo_available; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -125,7 +124,7 @@ test_app_root_ready_immediately() {
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if ! _sudo_available; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -150,7 +149,7 @@ test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if ! _sudo_available; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
