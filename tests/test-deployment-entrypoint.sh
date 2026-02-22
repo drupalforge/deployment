@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
-trap "sudo rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
+trap "sudo -n rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -116,9 +116,14 @@ test_app_root_timeout_warning() {
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
+    # This test requires passwordless sudo; skip gracefully if not available
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
     # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
-    sudo mkdir -p "$app_root/lost+found"
-    sudo chown root:root "$app_root/lost+found"
+    sudo -n mkdir -p "$app_root/lost+found"
+    sudo -n chown root:root "$app_root/lost+found"
 
     local output
     set +e
