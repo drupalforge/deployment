@@ -29,18 +29,21 @@ echo ""
 # output redirect and appear on the terminal with no context mid-run.
 # By asking once here, we either cache credentials for all tests that need them
 # or confirm that sudo is unavailable so those tests can be skipped cleanly.
-SUDO_AVAILABLE=0
-if sudo -n true 2>/dev/null; then
-    SUDO_AVAILABLE=1
-elif [ -t 0 ]; then
-    echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-    echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-    if timeout 30 sudo -v 2>/dev/null; then
+# Skip the probe if a parent script (e.g. run-all-tests.sh) already set it.
+if [ "${SUDO_AVAILABLE:-}" != "1" ]; then
+    SUDO_AVAILABLE=0
+    if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
-    else
-        echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+    elif [ -t 0 ]; then
+        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+        echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
+        if timeout 30 sudo -v 2>/dev/null; then
+            SUDO_AVAILABLE=1
+        else
+            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+        fi
+        echo ""
     fi
-    echo ""
 fi
 export SUDO_AVAILABLE
 

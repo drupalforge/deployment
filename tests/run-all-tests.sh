@@ -24,6 +24,25 @@ echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite      
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
+# Probe for sudo credentials before launching parallel tasks.
+# Unit tests (run in background with output redirected) need sudo for some
+# tests.  Prompting here gives the user context and caches credentials so
+# unit-test.sh can skip its own prompt when running in the background.
+SUDO_AVAILABLE=0
+if sudo -n true 2>/dev/null; then
+    SUDO_AVAILABLE=1
+elif [ -t 0 ]; then
+    echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+    echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
+    if timeout 30 sudo -v 2>/dev/null; then
+        SUDO_AVAILABLE=1
+    else
+        echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+    fi
+    echo ""
+fi
+export SUDO_AVAILABLE
+
 TMPDIR_SUITES=$(mktemp -d)
 
 # Run unit tests in the background while Docker-based tests run in parallel
