@@ -36,9 +36,10 @@ if sudo -n true 2>/dev/null; then
 elif [ -t 0 ] && [ -z "${CI:-}" ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
-    ( for i in $(seq 29 -1 1); do
+    printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
+    ( for i in $(seq 30 -1 1); do
           sleep 1
-          printf "  (%2d sec remaining)\n" "$i" > /dev/tty 2>/dev/null || true
+          printf "\033[A\r  (%2d sec remaining)\033[B" "$i" > /dev/tty 2>/dev/null || true
       done
     ) &
     COUNTDOWN_PID=$!

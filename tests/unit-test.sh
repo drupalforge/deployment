@@ -64,10 +64,14 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
-        ( for i in $(seq 29 -1 1); do
+        # Print one countdown line, then each tick uses ANSI cursor-up to overwrite
+        # it in place, then cursor-down to restore position so "Password:" always
+        # appears on the line below the countdown and is never overwritten.
+        printf "  (30 sec remaining) [%d/%d tests done]\n" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+        ( for i in $(seq 30 -1 1); do
               sleep 1
               done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-              printf "  (%2d sec remaining) [%d/%d tests done]\n" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+              printf "\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[B" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
           done
         ) &
         COUNTDOWN_PID=$!
