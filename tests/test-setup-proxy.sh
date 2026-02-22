@@ -91,6 +91,17 @@ test_default_paths() {
     fi
 }
 
+# Test 9: Proxy path directory creation
+test_proxy_path_directory_creation() {
+    if grep -q "install -d\|mkdir -p" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "chown" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Script creates and sets ownership of proxy path directories${NC}"
+    else
+        echo -e "${RED}✗ Script missing proxy path directory creation${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -100,5 +111,6 @@ test_rewrite_rules
 test_handler_setup
 test_env_variables
 test_default_paths
+test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"

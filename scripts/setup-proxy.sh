@@ -235,7 +235,35 @@ main() {
   
   # Normalize origin URL (remove trailing slash)
   origin_url="${origin_url%/}"
-  
+
+  # Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
+  # Get APACHE_RUN_USER/GROUP from environment or fall back to Apache envvars defaults.
+  local _apache_user _apache_group
+  _apache_user="${APACHE_RUN_USER:-}"
+  _apache_group="${APACHE_RUN_GROUP:-}"
+  if [ -z "$_apache_user" ] && [ -f /etc/apache2/envvars ]; then
+    _apache_user=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
+  fi
+  if [ -z "$_apache_group" ] && [ -f /etc/apache2/envvars ]; then
+    _apache_group=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
+  fi
+  _apache_user="${_apache_user:-www-data}"
+  _apache_group="${_apache_group:-www-data}"
+  local _proxy_paths_str="${file_proxy_paths:-/sites/default/files}"
+  IFS=',' read -ra _proxy_paths <<< "$_proxy_paths_str"
+  for _path in "${_proxy_paths[@]}"; do
+    _path=$(echo "$_path" | xargs)
+    [[ "$_path" != /* ]] && _path="/$_path"
+    local full_path="${web_root}${_path}"
+    if [ ! -d "$full_path" ]; then
+      sudo install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path" 2>/dev/null || \
+        mkdir -p "$full_path"
+      log "Created proxy path directory: $full_path"
+    fi
+    sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
+    log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
+  done
+
   # Auto-detect Stage File Proxy if not explicitly set
   if [ -z "$use_stage_file_proxy" ]; then
     if has_stage_file_proxy "$app_root"; then
