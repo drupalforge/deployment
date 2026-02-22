@@ -84,8 +84,7 @@ services:
       origin-server:
         condition: service_healthy
     environment:
-      # Apache less secure mode for testing - run Apache as www user
-      # This eliminates UID mismatches between container user and Apache
+      # Run Apache as the same user that owns the app volume so it can write proxy-downloaded files
       APACHE_RUN_USER: www
       APACHE_RUN_GROUP: www
 
@@ -114,6 +113,27 @@ services:
       - ./fixtures/app:/var/www/html
     ports:
       - "80:80"
+
+  # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
+  # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path
+  # so both containers can create/chown their own proxy directories without interfering with each other
+  deployment-secure:
+    platform: linux/amd64
+    image: test-df-deployment:8.3
+    depends_on:
+      origin-server:
+        condition: service_healthy
+    environment:
+      # Skip bootstrap and database import for this scenario
+      BOOTSTRAP_REQUIRED: "no"
+      APP_ROOT_TIMEOUT: "0"
+
+      # File proxy with a distinct path since both containers mount the same volume
+      ORIGIN_URL: http://origin-server:8000
+      FILE_PROXY_PATHS: /sites/www-data-test-files
+      WEB_ROOT: /var/www/html/web
+    volumes:
+      - ./fixtures/app:/var/www/html
 
 volumes:
   minio_data:

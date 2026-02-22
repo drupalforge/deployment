@@ -1,7 +1,7 @@
 #!/bin/bash
 # Deployment Entrypoint
 # This script runs deployment setup tasks before executing the main command:
-# 1. Fix file ownership for mounted volumes (using sudo if needed)
+# 1. Fix ownership of FILE_PROXY_PATHS for the proxy handler (if ORIGIN_URL is configured)
 # 2. Bootstrap application (Git submodules, composer install)
 # 3. Import database from S3 (if configured)
 # 4. Configure file proxy (if configured)
@@ -9,31 +9,74 @@
 
 set -e
 
+LOG_FILE="/tmp/drupalforge-deployment.log"
+
 # Function to log messages
 log() {
-  echo "[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
+  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
+  echo "$msg"
+  echo "$msg" >> "$LOG_FILE"
 }
 
 log "Starting Drupal Forge deployment initialization"
+log "Entrypoint: $0"
 
 BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
+APP_ROOT_TIMEOUT="${APP_ROOT_TIMEOUT:-300}"
+if ! [[ "$APP_ROOT_TIMEOUT" =~ ^[0-9]+$ ]]; then
+  log "Warning: APP_ROOT_TIMEOUT must be a non-negative integer (got: $APP_ROOT_TIMEOUT); using default 300"
+  APP_ROOT_TIMEOUT=300
+fi
 
-# Fix file ownership if APP_ROOT is mounted and we have sudo access
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
-if [ -d "$APP_ROOT" ]; then
-  # Check if we can use sudo to fix ownership (for mounted volumes with wrong ownership)
-  if sudo -n chown --version &>/dev/null; then
-    log "Fixing ownership of $APP_ROOT (if needed)..."
-    # Only change ownership if we're not already the owner
-    current_user=$(id -un)
-    owner=$(stat -c '%U' "$APP_ROOT" 2>/dev/null || echo "$current_user")
-    if [ "$owner" != "$current_user" ]; then
-      sudo chown -R "$current_user:$current_user" "$APP_ROOT" 2>/dev/null || true
-      log "Ownership fixed for mounted volume"
+
+# Wait for APP_ROOT to be non-empty before proceeding.
+# DevPanel clones the repository into APP_ROOT after the container starts,
+# so the directory may be empty on first boot until the clone completes.
+if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
+  elapsed=0
+  while [ -z "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; do
+    if [ "$elapsed" -eq 0 ]; then
+      log "Waiting for APP_ROOT to be populated: $APP_ROOT (timeout: ${APP_ROOT_TIMEOUT}s)"
     fi
+    if [ "$elapsed" -ge "$APP_ROOT_TIMEOUT" ]; then
+      log "Warning: APP_ROOT is still empty after ${APP_ROOT_TIMEOUT}s; continuing anyway"
+      break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  if [ -n "$(ls -A "$APP_ROOT" 2>/dev/null)" ]; then
+    log "APP_ROOT is ready: $APP_ROOT"
   fi
 fi
+
+# Create FILE_PROXY_PATHS directories and fix ownership for the proxy handler.
+# Get APACHE_RUN_USER/GROUP: prefer environment variables, then fall back to
+# the defaults in /etc/apache2/envvars (www-data on standard Debian/Ubuntu Apache).
+if [ -z "${APACHE_RUN_USER:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_USER=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
+fi
+if [ -z "${APACHE_RUN_GROUP:-}" ] && [ -f /etc/apache2/envvars ]; then
+  APACHE_RUN_GROUP=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
+fi
+FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
+_apache_user="${APACHE_RUN_USER:-www-data}"
+_apache_group="${APACHE_RUN_GROUP:-www-data}"
+IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
+for _path in "${_proxy_paths[@]}"; do
+  _path=$(echo "$_path" | xargs)
+  [[ "$_path" != /* ]] && _path="/$_path"
+  full_path="${WEB_ROOT}${_path}"
+  if [ ! -d "$full_path" ]; then
+    sudo install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path" 2>/dev/null || \
+      mkdir -p "$full_path"
+    log "Created proxy path directory: $full_path"
+  fi
+  sudo chown -R "$_apache_user:$_apache_group" "$full_path" 2>/dev/null || true
+  log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
+done
 
 # Bootstrap application code
 log "Bootstrapping application (submodules, composer)..."
@@ -71,7 +114,7 @@ else
   log "File proxy not configured (ORIGIN_URL not set)"
 fi
 
-log "Deployment initialization complete, executing main command..."
+log "Deployment initialization complete, executing: $*"
 
 # Execute the provided command (from CMD or docker run override)
 exec "$@"

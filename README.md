@@ -129,8 +129,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `COMPOSER_INSTALL_RETRIES` | Number of `composer install` attempts during bootstrap (optional, default: `3`) | `5` |
-| `COMPOSER_RETRY_DELAY` | Delay in seconds between composer retries (optional, default: `5`) | `2` |
+| `APP_ROOT_TIMEOUT` | Seconds to wait for `APP_ROOT` to be populated before proceeding (optional, default: `300`; set to `0` to disable) | `300` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
 
 ### Conditional File Serving with On-Demand Download
@@ -384,6 +383,39 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 See `.github/workflows/tests.yml` for details.
 
 ## Troubleshooting
+
+### Viewing Logs
+
+All deployment initialization output is written both to stdout (visible via `docker logs`) and to `/tmp/drupalforge-deployment.log` inside the container.
+
+**From outside the container** (requires Docker access):
+
+```bash
+# Follow live logs while the container starts
+docker logs -f <container>
+
+# View all logs since container start
+docker logs <container>
+```
+
+**From inside the container** (e.g. via a web terminal):
+
+```bash
+cat /tmp/drupalforge-deployment.log
+```
+
+The first lines always include the entrypoint path and startup command:
+
+```
+[DEPLOYMENT] Entrypoint: /usr/local/bin/deployment-entrypoint
+[DEPLOYMENT] Deployment initialization complete, executing: sudo -E /bin/bash /scripts/apache-start.sh
+```
+
+To inspect the entrypoint and command without reading logs:
+
+```bash
+docker inspect --format '{{.Config.Entrypoint}} {{.Config.Cmd}}' <container>
+```
 
 ### Database Import Fails
 

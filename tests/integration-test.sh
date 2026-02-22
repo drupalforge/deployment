@@ -44,6 +44,14 @@ cleanup() {
     # Stop and remove containers, networks, volumes
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v 2>/dev/null || true
     
+    # Restore fixture ownership to the current (host) user so git clean can remove generated files
+    docker run --rm \
+      -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+      --user root \
+      --entrypoint "" \
+      test-df-deployment:8.3 \
+      chown -R "$(id -u):$(id -g)" /var/www/html 2>/dev/null || true
+
     # Clean up test images
     echo "Removing test images..."
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml rm -f 2>/dev/null || true
@@ -100,9 +108,23 @@ echo ""
 echo -e "${YELLOW}Starting test environment...${NC}"
 cd "$SCRIPT_DIR"
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d --build
 
-# Wait for services to be ready
+# Build image first so we can use it to set fixture ownership
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
+
+# Ensure fixture app directory is owned by the container user (www=uid 1000)
+# so that Composer can create the vendor/ directory during bootstrap
+docker run --rm \
+  -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+  --user root \
+  --entrypoint "" \
+  test-df-deployment:8.3 \
+  chown -R www:www /var/www/html
+echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
+
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d
+
+# Wait for regular deployment container to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
 for i in {1..60}; do
     if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php >/dev/null 2>&1; then
@@ -112,6 +134,22 @@ for i in {1..60}; do
     if [ $i -eq 60 ]; then
         echo -e "${RED}✗ Timeout waiting for deployment container${NC}"
         $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment
+        exit 1
+    fi
+    echo -n "."
+    sleep 1
+done
+echo ""
+
+# Wait for secure deployment container to be ready
+for i in {1..60}; do
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/index.php >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Secure deployment container ready${NC}"
+        break
+    fi
+    if [ $i -eq 60 ]; then
+        echo -e "${RED}✗ Timeout waiting for secure deployment container${NC}"
+        $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment-secure
         exit 1
     fi
     echo -n "."
@@ -214,44 +252,21 @@ else
     ((failed=failed+1))
 fi
 
-# Test 12: Composer retry logic in container (simulate failure then success)
-echo -e "${YELLOW}Testing composer retry logic in container...${NC}"
-# Create a fake composer script inside the container (owned by the runtime user)
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment sh -c '
-    mkdir -p /tmp/fake-composer && cat > /tmp/fake-composer/composer << "EOF"
-#!/bin/bash
-STATE_FILE="/tmp/fake-composer/retry-state"
-COUNT=0
-if [ -f "$STATE_FILE" ]; then
-        COUNT=$(cat "$STATE_FILE")
-fi
-COUNT=$((COUNT + 1))
-echo "$COUNT" > "$STATE_FILE"
-if [ "$COUNT" -lt 2 ]; then
-        echo "Simulated composer failure" >&2
-        exit 1
-fi
-mkdir -p vendor
-touch vendor/autoload.php
-echo "Simulated composer success"
-exit 0
-EOF
-    chmod +x /tmp/fake-composer/composer
-    rm -f /tmp/fake-composer/retry-state
-'
-
-# Re-run bootstrap-app.sh inside the container with PATH override to use /tmp/fake-composer
-if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment bash -c \
-    'export PATH="/tmp/fake-composer:$PATH"; APP_ROOT=/var/www/html COMPOSER_INSTALL_RETRIES=2 COMPOSER_RETRY_DELAY=0 /usr/local/bin/bootstrap-app'; then
-        echo -e "${GREEN}✓ Composer retry logic in container works${NC}"
-        ((passed=passed+1))
+# Test 12: Secure (www-data default) - proxy path directory is owned by www-data
+if run_test "Secure (Apache www-data default): proxy path owned by www-data" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
+    ((passed=passed+1))
 else
-        echo -e "${RED}✗ Composer retry logic in container failed${NC}"
-        ((failed=failed+1))
+    ((failed=failed+1))
 fi
 
-# Clean up only /tmp/fake-composer
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment rm -rf /tmp/fake-composer
+# Test 13: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
+if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
 
 echo ""
 echo -e "${BLUE}================================${NC}"
