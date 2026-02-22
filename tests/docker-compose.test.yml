@@ -114,6 +114,29 @@ services:
     ports:
       - "80:80"
 
+  # Deployment container (Apache default www-data user) - tests proxy path chown - tests proxy path chown
+  deployment-apache:
+    platform: linux/amd64
+    image: test-df-deployment:8.3
+    depends_on:
+      origin-server:
+        condition: service_healthy
+    environment:
+      # Run Apache as its default www-data user to verify proxy path chown logic
+      APACHE_RUN_USER: www-data
+      APACHE_RUN_GROUP: www-data
+
+      # Skip bootstrap and database import for this scenario
+      BOOTSTRAP_REQUIRED: "no"
+      APP_ROOT_TIMEOUT: "0"
+
+      # File proxy with a unique path to avoid collision with the main deployment test
+      ORIGIN_URL: http://origin-server:8000
+      FILE_PROXY_PATHS: /sites/www-data-test-files
+      WEB_ROOT: /var/www/html/web
+    volumes:
+      - ./fixtures/app:/var/www/html
+
 volumes:
   minio_data:
   mysql_data:
