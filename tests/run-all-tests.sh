@@ -19,6 +19,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# shellcheck source=lib/utils.sh
+source "$SCRIPT_DIR/lib/utils.sh"
+
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite         ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
@@ -41,7 +44,7 @@ elif [ -t 0 ]; then
       printf "\r%-40s\r" "" > /dev/tty 2>/dev/null || true
     ) &
     COUNTDOWN_PID=$!
-    if timeout 30 sudo -v; then
+    if _timeout 30 sudo -v; then
         SUDO_AVAILABLE=1
     fi
     kill "$COUNTDOWN_PID" 2>/dev/null
