@@ -32,13 +32,15 @@ RUN a2enmod proxy && \
     a2enmod rewrite && \
     a2enconf drupalforge-proxy || true
 
-# Create $WEB_ROOT (default: /var/www/html/web) so the startup wait loop sees a non-empty APP_ROOT
-# when no volume is mounted (e.g. during image build/smoke tests)
-RUN mkdir -p /var/www/html/web
-
 # Switch back to non-root user for runtime
 # Use USER environment variable from base image
 USER ${USER}
+
+# APP_ROOT (/var/www/html) must be owned by the container user, not root.
+# Chown it and create the default WEB_ROOT in a single step; once we own the
+# parent directory, install -d needs no sudo.
+RUN sudo chown "${USER}:${USER}" /var/www/html && \
+    install -d /var/www/html/web
 
 # Make BASE_CMD available as environment variable
 ENV BASE_CMD="${BASE_CMD}"

@@ -112,7 +112,31 @@ test_app_root_timeout_warning() {
     fi
 }
 
-# Test 7: Proxy path directories are created unconditionally after bootstrap
+# Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
+test_app_root_ignores_root_owned_entries() {
+    local app_root="$TEMP_DIR/root-owned-root"
+    mkdir -p "$app_root"
+    # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
+    sudo mkdir -p "$app_root/lost+found"
+    sudo chown root:root "$app_root/lost+found"
+
+    local output
+    set +e
+    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+        bash "$ENTRYPOINT" true 2>&1)
+    set -e
+
+    # Script should treat the directory as empty (only root-owned content) and log a warning
+    if echo "$output" | grep -q "Warning:"; then
+        echo -e "${GREEN}✓ Root-owned entries (lost+found) are ignored when checking if APP_ROOT is empty${NC}"
+    else
+        echo -e "${RED}✗ Expected timeout warning when APP_ROOT contains only root-owned entries${NC}"
+        echo "$output"
+        exit 1
+    fi
+}
+
+# Test 8: Proxy path directories are created unconditionally after bootstrap
 test_proxy_path_directory_creation() {
     if grep -q "install -d\|mkdir -p" "$ENTRYPOINT" && \
        grep -q "chown" "$ENTRYPOINT"; then
@@ -130,6 +154,7 @@ test_app_root_wait_present
 test_app_root_wait_skipped_at_zero
 test_app_root_ready_immediately
 test_app_root_timeout_warning
+test_app_root_ignores_root_owned_entries
 test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"

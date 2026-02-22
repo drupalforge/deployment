@@ -1,6 +1,7 @@
 #!/bin/bash
 # Docker build tests with automatic cleanup
 # Tests that Docker images build successfully for all supported PHP versions
+# Builds and tests for each PHP version run in parallel.
 
 set -e
 
@@ -17,7 +18,6 @@ NC='\033[0m'
 # Test configuration
 PHP_VERSIONS=("8.2" "8.3")
 TEST_TAG_PREFIX="test-df-deployment"
-BUILD_FAILED=0
 
 echo -e "${BLUE}Testing Docker builds...${NC}"
 echo ""
@@ -38,22 +38,26 @@ cleanup_images() {
 # Ensure cleanup on exit
 trap cleanup_images EXIT
 
-# Test builds for each PHP version
-for version in "${PHP_VERSIONS[@]}"; do
-    tag="${TEST_TAG_PREFIX}:${version}"
-    run_container_name="${TEST_TAG_PREFIX}-${version}"
-    
+# Run all tests for a single PHP version.
+# Output is written to a temp file so parallel runs don't interleave on the terminal.
+# Exits with 0 on success, 1 on any failure.
+test_version() {
+    local version="$1"
+    local tag="${TEST_TAG_PREFIX}:${version}"
+    local run_container_name="${TEST_TAG_PREFIX}-${version}"
+    local failed=0
+
     echo -e "${YELLOW}Building PHP ${version} image...${NC}"
-    
+
     if docker build \
         --platform linux/amd64 \
         --build-arg PHP_VERSION="$version" \
         -t "$tag" \
         -f "$PROJECT_ROOT/Dockerfile" \
         "$PROJECT_ROOT" 2>&1 | grep -E "(ERROR|Successfully|DONE)" | tail -5; then
-        
+
         echo -e "${GREEN}✓ PHP ${version} build successful${NC}"
-        
+
         # Verify the user is set correctly
         echo -e "${YELLOW}  Verifying user configuration...${NC}"
         user_check=$(docker run --rm --entrypoint sh "$tag" -c 'whoami' 2>/dev/null)
@@ -61,9 +65,9 @@ for version in "${PHP_VERSIONS[@]}"; do
             echo -e "${GREEN}  ✓ User is 'www' (correct)${NC}"
         else
             echo -e "${RED}  ✗ User is '$user_check' (expected 'www')${NC}"
-            BUILD_FAILED=1
+            failed=1
         fi
-        
+
         # Verify scripts are executable
         echo -e "${YELLOW}  Verifying script permissions...${NC}"
         script_check=$(docker run --rm --entrypoint sh "$tag" -c 'ls -la /usr/local/bin/deployment-entrypoint | grep "^-rwx"' 2>/dev/null)
@@ -71,9 +75,9 @@ for version in "${PHP_VERSIONS[@]}"; do
             echo -e "${GREEN}  ✓ Scripts have execute permissions${NC}"
         else
             echo -e "${RED}  ✗ Scripts missing execute permissions${NC}"
-            BUILD_FAILED=1
+            failed=1
         fi
-        
+
         # Verify BASE_CMD environment variable is set
         echo -e "${YELLOW}  Verifying BASE_CMD environment...${NC}"
         base_cmd=$(docker inspect "$tag" --format='{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "^BASE_CMD=" | cut -d= -f2-)
@@ -81,19 +85,19 @@ for version in "${PHP_VERSIONS[@]}"; do
             echo -e "${GREEN}  ✓ BASE_CMD is set: ${base_cmd}${NC}"
         else
             echo -e "${RED}  ✗ BASE_CMD environment variable not set${NC}"
-            BUILD_FAILED=1
+            failed=1
         fi
-        
+
         # Test CMD execution: container runs with default CMD
         echo -e "${YELLOW}  Testing CMD execution...${NC}"
         docker rm -f "$run_container_name" >/dev/null 2>&1 || true
         if docker run -d --name "$run_container_name" "$tag" >/dev/null 2>&1; then
             sleep 8  # Wait for container to initialize
-            
+
             # Check if container is still running
             if docker ps --filter "name=${run_container_name}" --format '{{.Names}}' | grep -q "$run_container_name"; then
                 echo -e "${GREEN}  ✓ Container runs with default CMD${NC}"
-                
+
                 # Check if Apache is running. Allow extra startup time and match common process names.
                 apache_running=0
                 for _ in {1..6}; do
@@ -112,9 +116,9 @@ for version in "${PHP_VERSIONS[@]}"; do
                     if [ -n "$logs" ]; then
                         echo "$logs" | tail -20
                     fi
-                    BUILD_FAILED=1
+                    failed=1
                 fi
-                
+
                 # code-server is expected to run behind Apache in this image.
                 # Keep this as a hard dependency so we don't report code-server healthy
                 # while Apache detection failed.
@@ -123,7 +127,7 @@ for version in "${PHP_VERSIONS[@]}"; do
                 if [ "$codes_enabled" = "yes" ] || [ "$codes_enabled" = "true" ] || [ "$codes_enabled" = "1" ]; then
                     if [ "$apache_running" -ne 1 ]; then
                         echo -e "${RED}  ✗ code-server dependency check failed: Apache must be running when CODES_ENABLE=yes${NC}"
-                        BUILD_FAILED=1
+                        failed=1
                     fi
 
                     code_server_running=0
@@ -158,21 +162,21 @@ for version in "${PHP_VERSIONS[@]}"; do
                         if [ -n "$logs" ]; then
                             echo "$logs" | tail -20
                         fi
-                        BUILD_FAILED=1
+                        failed=1
                     fi
                 fi
             else
                 echo -e "${RED}  ✗ Container exited (should be running)${NC}"
-                BUILD_FAILED=1
+                failed=1
             fi
-            
+
             # Cleanup container
             docker rm -f "$run_container_name" >/dev/null 2>&1
         else
             echo -e "${RED}  ✗ Failed to start container${NC}"
-            BUILD_FAILED=1
+            failed=1
         fi
-        
+
         # Test command override
         echo -e "${YELLOW}  Testing command override...${NC}"
         override_output=$(docker run --rm "$tag" echo "Override works" 2>&1)
@@ -180,15 +184,45 @@ for version in "${PHP_VERSIONS[@]}"; do
             echo -e "${GREEN}  ✓ Command override works${NC}"
         else
             echo -e "${RED}  ✗ Command override failed${NC}"
-            BUILD_FAILED=1
+            failed=1
         fi
-        
+
     else
         echo -e "${RED}✗ PHP ${version} build failed${NC}"
+        failed=1
+    fi
+
+    return "$failed"
+}
+
+# Launch all version tests in parallel, buffering each version's output to a
+# temp file so lines from different versions don't interleave on the terminal.
+TMPDIR_TESTS=$(mktemp -d)
+declare -a PIDS=()
+declare -a OUT_FILES=()
+
+for version in "${PHP_VERSIONS[@]}"; do
+    out_file="$TMPDIR_TESTS/output-${version}.txt"
+    OUT_FILES+=("$out_file")
+    ( test_version "$version" > "$out_file" 2>&1; echo $? > "$TMPDIR_TESTS/exit-${version}.txt" ) &
+    PIDS+=($!)
+done
+
+# Wait for all background jobs and collect results
+BUILD_FAILED=0
+for i in "${!PHP_VERSIONS[@]}"; do
+    version="${PHP_VERSIONS[$i]}"
+    wait "${PIDS[$i]}"
+    # Print the buffered output for this version
+    cat "${OUT_FILES[$i]}"
+    echo ""
+    exit_code=$(cat "$TMPDIR_TESTS/exit-${version}.txt" 2>/dev/null || echo 1)
+    if [ "$exit_code" -ne 0 ]; then
         BUILD_FAILED=1
     fi
-    echo ""
 done
+
+rm -rf "$TMPDIR_TESTS"
 
 if [ $BUILD_FAILED -eq 0 ]; then
     echo -e "${GREEN}✓ All Docker builds passed${NC}"

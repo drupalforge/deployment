@@ -1,6 +1,11 @@
 #!/bin/bash
 # Comprehensive test runner - runs all test types
-# This script orchestrates unit tests, Docker builds, and integration tests
+# This script orchestrates unit tests, Docker builds, and integration tests.
+#
+# Parallelism:
+#   - Unit tests run concurrently with the Docker-based test suite.
+#   - Docker build tests and integration tests run sequentially within their
+#     suite because both build/use the same test-df-deployment:8.3 image tag.
 
 set -e
 
@@ -14,45 +19,68 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Track results
-TESTS_FAILED=0
-TESTS_PASSED=0
-
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite         ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Function to run a test suite
-run_test_suite() {
+TMPDIR_SUITES=$(mktemp -d)
+
+# Run unit tests in the background while Docker-based tests run in parallel
+echo -e "${YELLOW}Starting: Unit Tests (background)${NC}"
+( cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1
+  echo $? > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
+UNIT_TESTS_PID=$!
+
+# Run Docker build tests then integration tests sequentially (shared image tag)
+echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
+( cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1
+  echo $? > "$TMPDIR_SUITES/exit-docker-build-tests.txt" ) &
+DOCKER_BUILD_PID=$!
+wait "$DOCKER_BUILD_PID"
+docker_build_exit=$(cat "$TMPDIR_SUITES/exit-docker-build-tests.txt" 2>/dev/null || echo 1)
+
+echo -e "${YELLOW}Starting: Integration Tests${NC}"
+( cd "$SCRIPT_DIR" && bash integration-test.sh > "$TMPDIR_SUITES/integration-tests.txt" 2>&1
+  echo $? > "$TMPDIR_SUITES/exit-integration-tests.txt" ) &
+INTEGRATION_PID=$!
+wait "$INTEGRATION_PID"
+integration_exit=$(cat "$TMPDIR_SUITES/exit-integration-tests.txt" 2>/dev/null || echo 1)
+
+# Now wait for unit tests to finish (likely already done)
+wait "$UNIT_TESTS_PID"
+unit_exit=$(cat "$TMPDIR_SUITES/exit-unit-tests.txt" 2>/dev/null || echo 1)
+
+# Print results for each suite in a consistent order
+TESTS_FAILED=0
+TESTS_PASSED=0
+
+print_suite() {
     local suite_name="$1"
-    local test_command="$2"
-    
+    local out_file="$2"
+    local exit_code="$3"
+
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}Running: $suite_name${NC}"
+    echo -e "${YELLOW}Results: $suite_name${NC}"
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-    
-    if eval "$test_command"; then
-        echo ""
+    cat "$out_file"
+    echo ""
+    if [ "$exit_code" -eq 0 ]; then
         echo -e "${GREEN}✓ $suite_name PASSED${NC}"
         ((TESTS_PASSED+=1))
     else
-        echo ""
         echo -e "${RED}✗ $suite_name FAILED${NC}"
         ((TESTS_FAILED+=1))
     fi
     echo ""
 }
 
-# Run unit tests
-run_test_suite "Unit Tests" "cd '$SCRIPT_DIR' && bash unit-test.sh"
+print_suite "Unit Tests"          "$TMPDIR_SUITES/unit-tests.txt"          "$unit_exit"
+print_suite "Docker Build Tests"  "$TMPDIR_SUITES/docker-build-tests.txt"  "$docker_build_exit"
+print_suite "Integration Tests"   "$TMPDIR_SUITES/integration-tests.txt"   "$integration_exit"
 
-# Run Docker build tests
-run_test_suite "Docker Build Tests" "cd '$SCRIPT_DIR' && bash docker-build-test.sh"
-
-# Run integration tests
-run_test_suite "Integration Tests" "cd '$SCRIPT_DIR' && bash integration-test.sh"
+rm -rf "$TMPDIR_SUITES"
 
 # Summary
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
