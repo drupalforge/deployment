@@ -16,6 +16,18 @@ NC='\033[0m'
 
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
 
+# Several tests run the entrypoint which calls "sudo install" and "sudo chown"
+# without -n.  If launched in parallel from unit-test.sh, the sudo probe may
+# still be running; wait here (up to 35 s) so credentials are cached before
+# any test invokes the entrypoint.
+if [ -n "${SUDO_STATUS_FILE:-}" ]; then
+    _sudo_wait=0
+    while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$_sudo_wait" -lt 350 ]; do
+        sleep 0.1
+        _sudo_wait=$((_sudo_wait + 1))
+    done
+fi
+
 # Test 1: Script is executable
 test_script_executable() {
     if [ -x "$ENTRYPOINT" ]; then
@@ -116,15 +128,7 @@ test_app_root_timeout_warning() {
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
-    # This test requires sudo. Tests start before the probe in unit-test.sh,
-    # so poll the status file until the probe writes its result (or 35 s max).
-    if [ -n "${SUDO_STATUS_FILE:-}" ]; then
-        local waited=0
-        while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$waited" -lt 350 ]; do
-            sleep 0.1
-            waited=$((waited + 1))
-        done
-    fi
+    # This test requires sudo.
     if [ "${SUDO_AVAILABLE:-0}" != "1" ] && ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0

@@ -61,22 +61,12 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
     elif [ -t 0 ] && [ -z "${CI:-}" ]; then
+        done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or wait 30 seconds / press Ctrl-C to skip those tests.${NC}"
-        ( for i in $(seq 29 -1 1); do
-              sleep 1
-              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-              printf "\r  (%2d sec remaining) [%d/%d tests done] " "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
-          done
-          printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
-        ) &
-        COUNTDOWN_PID=$!
+        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
         if _timeout 30 sudo -v; then
             SUDO_AVAILABLE=1
         fi
-        kill "$COUNTDOWN_PID" 2>/dev/null || true
-        wait "$COUNTDOWN_PID" 2>/dev/null || true
-        printf "\r%-60s\r" "" > /dev/tty 2>/dev/null || true
         if [ "$SUDO_AVAILABLE" = "0" ]; then
             echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
         fi
