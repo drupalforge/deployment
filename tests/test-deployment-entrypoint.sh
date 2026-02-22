@@ -114,12 +114,6 @@ test_app_root_timeout_warning() {
 
 # Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
 test_app_root_ignores_root_owned_entries() {
-    # This test requires sudo to create root-owned directories; skip if unavailable
-    if ! sudo -n true 2>/dev/null; then
-        echo -e "${YELLOW}⊘ Skipping root-owned entry test (sudo not available)${NC}"
-        return
-    fi
-
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
