@@ -76,8 +76,6 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
-        echo -e "${GREEN}✓ sudo credentials available${NC}"
-        echo ""
     elif [ -t 0 ] && [ -z "${CI:-}" ]; then
         done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
