@@ -147,8 +147,8 @@ jobs:
         with:
           images: ${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},value=${{ inputs.php_version }}
-            type=raw,value=${{ inputs.php_version }},enable={{is_default_branch}}
+            type=semver,pattern=php-{{version}},value=${{ inputs.php_version }}
+            type=raw,value=php-${{ inputs.php_version }},enable={{is_default_branch}}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
