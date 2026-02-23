@@ -46,6 +46,7 @@ cleanup() {
     
     # Restore fixture ownership to the current (host) user so git clean can remove generated files
     docker run --rm \
+      --platform linux/amd64 \
       -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
       --user root \
       --entrypoint "" \
@@ -115,6 +116,7 @@ $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
 # Ensure fixture app directory is owned by the container user (www=uid 1000)
 # so that Composer can create the vendor/ directory during bootstrap
 docker run --rm \
+  --platform linux/amd64 \
   -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
   --user root \
   --entrypoint "" \
