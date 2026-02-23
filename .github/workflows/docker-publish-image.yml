@@ -96,6 +96,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          pull: true
           build-args: |
             PHP_VERSION=${{ inputs.php_version }}
             BASE_CMD=${{ needs.extract-base-cmd.outputs.base_cmd }}
