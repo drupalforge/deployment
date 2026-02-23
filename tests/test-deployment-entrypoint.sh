@@ -154,31 +154,7 @@ test_app_root_ready_immediately() {
     fi
 }
 
-# Test 6: Timeout warning is logged when APP_ROOT remains empty
-test_app_root_timeout_warning() {
-    local app_root="$TEMP_DIR/empty-root-timeout"
-    mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
-
-    local output
-    set +e
-    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
-        bash "$ENTRYPOINT" true 2>&1)
-    set -e
-
-    if echo "$output" | grep -q "Warning:"; then
-        echo -e "${GREEN}✓ Timeout warning logged when APP_ROOT remains empty${NC}"
-    else
-        echo -e "${RED}✗ Expected timeout warning in output${NC}"
-        echo "$output"
-        exit 1
-    fi
-}
-
-# Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
+# Test 6: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
@@ -207,6 +183,30 @@ test_app_root_ignores_root_owned_entries() {
     fi
 }
 
+# Test 7: Timeout warning is logged when APP_ROOT remains empty
+test_app_root_timeout_warning() {
+    local app_root="$TEMP_DIR/empty-root-timeout"
+    mkdir -p "$app_root"
+    if [ "${_sudo_avail:-0}" != "1" ]; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
+
+    local output
+    set +e
+    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+        bash "$ENTRYPOINT" true 2>&1)
+    set -e
+
+    if echo "$output" | grep -q "Warning:"; then
+        echo -e "${GREEN}✓ Timeout warning logged when APP_ROOT remains empty${NC}"
+    else
+        echo -e "${RED}✗ Expected timeout warning in output${NC}"
+        echo "$output"
+        exit 1
+    fi
+}
+
 # Test 8: Proxy path directories are created unconditionally after bootstrap
 test_proxy_path_directory_creation() {
     if grep -q "install -d\|mkdir -p" "$ENTRYPOINT" && \
@@ -224,8 +224,8 @@ test_error_handling
 test_app_root_wait_present
 test_app_root_wait_skipped_at_zero
 test_app_root_ready_immediately
-test_app_root_timeout_warning
 test_app_root_ignores_root_owned_entries
+test_app_root_timeout_warning
 test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"
