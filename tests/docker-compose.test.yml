@@ -116,7 +116,9 @@ services:
 
   # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
   # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path
-  # so both containers can create/chown their own proxy directories without interfering with each other
+  # so both containers can create/chown their own proxy directories without interfering with each other.
+  # A named volume is used for the proxy path so that chown to www-data works correctly on all
+  # platforms, including macOS where bind-mount ownership changes may not persist reliably.
   deployment-secure:
     platform: linux/amd64
     image: test-df-deployment:8.3
@@ -134,7 +136,9 @@ services:
       WEB_ROOT: /var/www/html/web
     volumes:
       - ./fixtures/app:/var/www/html
+      - secure_proxy_files:/var/www/html/web/sites/www-data-test-files
 
 volumes:
   minio_data:
   mysql_data:
+  secure_proxy_files:
