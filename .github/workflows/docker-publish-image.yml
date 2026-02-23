@@ -102,14 +102,7 @@ jobs:
           build-args: |
             PHP_VERSION=${{ inputs.php_version }}
             BASE_CMD=${{ needs.extract-base-cmd.outputs.base_cmd }}
-          # Using GHA cache instead of registry cache (type=registry,mode=max) due to open BuildKit
-          # issues where COPY layers can serve stale cached data when using a registry backend:
-          #   https://github.com/moby/buildkit/issues/4817 - COPY uses stale cache if file metadata
-          #     (size, mtime) is unchanged even when file content has changed; script updates would
-          #     silently be omitted from newly built images.
-          #   https://github.com/moby/buildkit/issues/2279 - registry --cache-from fails roughly
-          #     50% of the time in multi-platform builds.
-          # See TODO.md "Switch back to registry build cache" for the action item to revert this.
+          # Using GHA cache instead of type=registry due to BuildKit bugs; see TODO.md.
           cache-from: type=gha,scope=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }}
           cache-to: type=gha,scope=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }},mode=max
           outputs: type=image,name=${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
