@@ -68,11 +68,22 @@ export SUDO_AVAILABLE SUDO_PROBED=1
 # Print results for a suite immediately when it completes.
 TESTS_FAILED=0
 TESTS_PASSED=0
+# Tracks how many "Starting:" placeholder lines are on screen so they can be
+# erased and replaced by the results section in interactive terminals.
+PENDING_LINES=0
 
 print_suite() {
     local suite_name="$1"
     local out_file="$2"
     local exit_code="$3"
+
+    # In interactive terminals, erase the "Starting:" placeholder lines printed
+    # before this suite started so results appear in their place.
+    # \033[%dA = cursor up N lines; \033[J = erase from cursor to end of screen.
+    if is_interactive_terminal && [ "${PENDING_LINES:-0}" -gt 0 ]; then
+        printf "\033[%dA\033[J" "$PENDING_LINES"
+        PENDING_LINES=0
+    fi
 
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}Results: $suite_name${NC}"
@@ -94,6 +105,7 @@ print_suite() {
 # Use "bash_exit=0; cmd || bash_exit=$?" so the exit file is always written
 # even when set -e is active in the subshell and the command fails.
 echo -e "${YELLOW}Starting: Unit Tests${NC}"
+PENDING_LINES=$((PENDING_LINES + 1))
 ( bash_exit=0
   cd "$SCRIPT_DIR" && bash unit-test.sh > "$TMPDIR_SUITES/unit-tests.txt" 2>&1 || bash_exit=$?
   echo "$bash_exit" > "$TMPDIR_SUITES/exit-unit-tests.txt" ) &
@@ -102,12 +114,14 @@ UNIT_TESTS_PID=$!
 # Docker build tests run in parallel with unit tests, but integration tests
 # wait for Docker build to finish (both use the same test-df-deployment:8.3 image tag).
 echo -e "${YELLOW}Starting: Docker Build Tests${NC}"
+PENDING_LINES=$((PENDING_LINES + 1))
 ( bash_exit=0
   cd "$SCRIPT_DIR" && bash docker-build-test.sh > "$TMPDIR_SUITES/docker-build-tests.txt" 2>&1 || bash_exit=$?
   echo "$bash_exit" > "$TMPDIR_SUITES/exit-docker-build-tests.txt" ) &
 DOCKER_BUILD_PID=$!
 
 echo ""
+PENDING_LINES=$((PENDING_LINES + 1))  # Account for the blank line above
 
 # Print results as each suite completes.
 # Unit tests are fast (~seconds); wait for them first so their output appears early.
@@ -120,16 +134,24 @@ wait "$DOCKER_BUILD_PID" || true
 docker_build_exit=$(cat "$TMPDIR_SUITES/exit-docker-build-tests.txt" 2>/dev/null || echo 1)
 print_suite "Docker Build Tests" "$TMPDIR_SUITES/docker-build-tests.txt" "$docker_build_exit"
 
-# Run integration tests after Docker build (shared image tag); print when done.
-echo -e "${YELLOW}Starting: Integration Tests${NC}"
+# Run integration tests after Docker build (shared image tag).
+# Stream output directly to the terminal (no file redirect) so that Docker
+# Compose detects the TTY and preserves the blue color in build progress output.
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Results: Integration Tests${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-( bash_exit=0
-  cd "$SCRIPT_DIR" && bash integration-test.sh > "$TMPDIR_SUITES/integration-tests.txt" 2>&1 || bash_exit=$?
-  echo "$bash_exit" > "$TMPDIR_SUITES/exit-integration-tests.txt" ) &
-INTEGRATION_PID=$!
-wait "$INTEGRATION_PID" || true
-integration_exit=$(cat "$TMPDIR_SUITES/exit-integration-tests.txt" 2>/dev/null || echo 1)
-print_suite "Integration Tests" "$TMPDIR_SUITES/integration-tests.txt" "$integration_exit"
+integration_exit=0
+(cd "$SCRIPT_DIR" && bash integration-test.sh) || integration_exit=$?
+echo ""
+if [ "$integration_exit" -eq 0 ]; then
+    echo -e "${GREEN}✓ Integration Tests PASSED${NC}"
+    ((TESTS_PASSED+=1))
+else
+    echo -e "${RED}✗ Integration Tests FAILED${NC}"
+    ((TESTS_FAILED+=1))
+fi
+echo ""
 
 rm -rf "$TMPDIR_SUITES"
 
