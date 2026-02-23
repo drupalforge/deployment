@@ -28,19 +28,61 @@ echo -e "${BLUE}================================${NC}"
 echo ""
 
 # Create temp dir for test output, exit codes, and the sudo status file.
-# Write "pending" now — tests start immediately and will poll this file
-# before using sudo; the probe below writes the final value when it finishes.
 TMPDIR_TESTS=$(mktemp -d)
 SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
 echo "pending" > "$SUDO_STATUS_FILE"
 export SUDO_STATUS_FILE
 
-# Launch all test suites in parallel NOW (before the probe) so non-sudo tests
-# run immediately while we wait for the password.  All output is buffered so
-# nothing is printed until after the probe completes.
+# Probe for sudo credentials BEFORE launching parallel tests so that no
+# background processes interfere with the password prompt.  Skip if a parent
+# script (e.g. run-all-tests.sh) already ran the probe.
+if [ "${SUDO_PROBED:-}" != "1" ]; then
+    SUDO_AVAILABLE=0
+    if sudo -n true 2>/dev/null; then
+        SUDO_AVAILABLE=1
+    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
+        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
+        # Print one countdown line, then each tick uses ANSI save/restore cursor
+        # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
+        # returns to exactly where sudo left it (after "Password: ").
+        # A stop-flag file prevents one extra tick from firing after the user
+        # presses Enter (which shifts the cursor and would overwrite the password line).
+        COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
+        printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
+        ( for i in $(seq 30 -1 1); do
+              sleep 1
+              [ -f "$COUNTDOWN_STOP_FILE" ] && break
+              printf "\033[s\033[A\r  (%2d sec remaining)\033[u" "$i" > /dev/tty 2>/dev/null || true
+          done
+        ) &
+        COUNTDOWN_PID=$!
+        if _timeout 30 sudo -v; then
+            SUDO_AVAILABLE=1
+        fi
+        touch "$COUNTDOWN_STOP_FILE"
+        kill "$COUNTDOWN_PID" 2>/dev/null || true
+        wait "$COUNTDOWN_PID" 2>/dev/null || true
+        # sudo always writes "Password:" in this branch (sudo -n failed to get here).
+        # After the user interacts, cursor is 2 lines below the countdown line.
+        # Go up 2 and erase to end of screen to remove countdown + password lines.
+        printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
+        if [ "$SUDO_AVAILABLE" = "0" ]; then
+            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+        fi
+        echo ""
+    fi
+fi
+export SUDO_AVAILABLE SUDO_PROBED=1
+
+# Signal any tests that are polling the flag file.
+echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
+
+# Launch all test suites in parallel.  All output is buffered so nothing is
+# printed until after all tests complete.
 #
 # test-deployment-entrypoint.sh is excluded from the parallel launch and instead
-# run in the foreground after the sudo probe (see below).  On macOS the default
+# run in the foreground after the other tests (see below).  On macOS the default
 # sudo timestamp_type is "tty", which scopes credentials to the foreground
 # process group of the terminal.  Background jobs (&) are in a different process
 # group, so sudo -n true fails non-deterministically even when the parent shell
@@ -67,55 +109,6 @@ for test_file in "$TEST_DIR"/test-*.sh; do
       echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
-total_tests=$(( ${#TEST_NAMES[@]} + ${#DEFERRED_TESTS[@]} ))
-
-# Probe for sudo credentials.  Skip if a parent script already ran the probe.
-# The countdown loop also shows live test progress so the user knows work is
-# happening while they wait for the password.
-if [ "${SUDO_PROBED:-}" != "1" ]; then
-    SUDO_AVAILABLE=0
-    if sudo -n true 2>/dev/null; then
-        SUDO_AVAILABLE=1
-    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
-        done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
-        # Print one countdown line, then each tick uses ANSI save/restore cursor
-        # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
-        # returns to exactly where sudo left it (after "Password: ").
-        # A stop-flag file prevents one extra tick from firing after the user
-        # presses Enter (which shifts the cursor and would overwrite the password line).
-        COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
-        printf "  (30 sec remaining) [%d/%d tests done]\n" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
-        ( for i in $(seq 30 -1 1); do
-              sleep 1
-              [ -f "$COUNTDOWN_STOP_FILE" ] && break
-              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-              printf "\033[s\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[u" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
-          done
-        ) &
-        COUNTDOWN_PID=$!
-        if _timeout 30 sudo -v; then
-            SUDO_AVAILABLE=1
-        fi
-        touch "$COUNTDOWN_STOP_FILE"
-        kill "$COUNTDOWN_PID" 2>/dev/null || true
-        wait "$COUNTDOWN_PID" 2>/dev/null || true
-        rm -f "$COUNTDOWN_STOP_FILE"
-        # sudo always writes "Password:" in this branch (sudo -n failed to get here).
-        # After the user interacts, cursor is 2 lines below the countdown line.
-        # Go up 2 and erase to end of screen to remove countdown + password lines.
-        printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
-        if [ "$SUDO_AVAILABLE" = "0" ]; then
-            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-        fi
-        echo ""
-    fi
-fi
-export SUDO_AVAILABLE SUDO_PROBED=1
-
-# Signal any tests that are polling the flag file.
-echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
 
 # Run deferred tests (those requiring sudo) in the current foreground process so
 # that TTY-scoped sudo credentials are available on macOS (tty_tickets policy).
