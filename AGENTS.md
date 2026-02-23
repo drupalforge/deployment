@@ -2,6 +2,16 @@
 
 This file defines the standards and workflow that all agents (human or automated) must follow when contributing to this repository.
 
+## Deployment Context
+
+Images built from this repository are deployed by **DevPanel** to run Drupal sites on [Drupal Forge](https://www.drupalforge.org/). Agents must keep this in mind when making any change:
+
+- **DevPanel deploys the image** — the container is started by DevPanel, not by a human operator running `docker run`. Any behaviour that relies on flags or environment variables being passed manually will not work in production.
+- **DevPanel provides environment variables automatically** — `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` are injected by DevPanel at runtime. Do not hardcode or require these to be set manually.
+- **DevPanel handles source code** — it clones the repository and checks out the correct branch before the container starts. The deployment image only needs to handle post-clone steps (Git submodule init, Composer install, etc.).
+- **Changes to the entrypoint or startup sequence must remain compatible** with DevPanel's expectations. Do not rename, move, or remove the deployment entrypoint (`deployment-entrypoint.sh`) or change its exit behaviour without understanding the impact on DevPanel's orchestration.
+- **Do not introduce host-level dependencies** — the image must be fully self-contained. DevPanel does not guarantee any specific host tooling beyond what is standard in the base image.
+
 ## Workflow Order
 
 1. **Document first** — before writing any code or tests, update or create the relevant documentation (README, inline comments, environment variable tables). This ensures the intended behavior is understood and agreed upon before implementation begins.
