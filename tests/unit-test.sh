@@ -27,20 +27,17 @@ echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
 
-# Create temp dir for test output, exit codes, and the sudo status file.
+# Create temp dir for test output and exit codes.
 TMPDIR_TESTS=$(mktemp -d)
-SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
-export SUDO_STATUS_FILE
 
 # Probe for sudo credentials before launching any tests.  Skip if a parent
 # script (run-all-tests.sh) already ran the probe.
 #
 # Running the probe here — before any background processes are forked — ensures
-# that the credential established by sudo -v is available to all child processes,
-# including the deferred test-deployment-entrypoint suite.  On macOS the default
-# sudo timestamp_type is "tty"; forking background jobs before sudo -v is called
-# can cause the cached credential to be scoped to a different context from the
-# one that later calls sudo -n true, producing non-deterministic skips.
+# that the credential established by sudo -v is cached before any test calls
+# sudo -n true.  On macOS with timestamp_type=tty the credential is tied to the
+# controlling terminal and is available to all child processes (including
+# background jobs) that share it, so no special foreground handling is needed.
 if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
@@ -81,33 +78,15 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
 fi
 export SUDO_AVAILABLE SUDO_PROBED=1
 
-# Write the probe result so test scripts can read it.
-echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
-
-# Launch all non-deferred test suites in parallel.  All output is buffered so
-# nothing is printed until after all suites finish.
-#
-# test-deployment-entrypoint.sh is excluded from the parallel launch and instead
-# run in the foreground after the parallel suites are started (see below).  On
-# macOS the default sudo timestamp_type is "tty", which scopes credentials to
-# the foreground process group of the terminal.  Background jobs (&) are in a
-# different process group, so sudo -n true fails non-deterministically even when
-# the parent shell successfully authenticated — causing a variable number (1–4)
-# of tests to be skipped.  Running that test suite in the foreground puts it in
-# the same process group as the terminal, making TTY-scoped credentials reliably
-# available.
+# Launch all test suites in parallel.  All output is buffered so nothing is
+# printed until after all suites finish.
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
-declare -a DEFERRED_TESTS=()
 
 for test_file in "$TEST_DIR"/test-*.sh; do
     [ -f "$test_file" ] || continue
     test_name=$(basename "$test_file" .sh)
-    if [ "$test_name" = "test-deployment-entrypoint" ]; then
-        DEFERRED_TESTS+=("$test_file")
-        continue
-    fi
     out_file="$TMPDIR_TESTS/output-${test_name}.txt"
     TEST_NAMES+=("$test_name")
     OUT_FILES+=("$out_file")
@@ -117,22 +96,9 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     PIDS+=($!)
 done
 
-# Run deferred tests (those requiring sudo) in the current foreground process so
-# that TTY-scoped sudo credentials are available on macOS (tty_tickets policy).
-for _deferred_test in "${DEFERRED_TESTS[@]}"; do
-    _deferred_name=$(basename "$_deferred_test" .sh)
-    _deferred_out="$TMPDIR_TESTS/output-${_deferred_name}.txt"
-    _deferred_exit=0
-    bash "$_deferred_test" > "$_deferred_out" 2>&1 || _deferred_exit=$?
-    echo "$_deferred_exit" > "$TMPDIR_TESTS/exit-${_deferred_name}.txt"
-    TEST_NAMES+=("$_deferred_name")
-    OUT_FILES+=("$_deferred_out")
-    PIDS+=("")  # Deferred test ran synchronously above; empty entry keeps array indices aligned with TEST_NAMES
-done
-
 # Wait for ALL parallel tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
-    [ -n "${PIDS[$i]}" ] && { wait "${PIDS[$i]}" || true; }
+    wait "${PIDS[$i]}" || true
 done
 
 # Print each suite's buffered output in order.
