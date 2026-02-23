@@ -2,9 +2,6 @@ services:
   # MinIO S3-compatible object storage
   minio:
     image: minio/minio:latest
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -36,8 +33,6 @@ services:
   # MySQL database
   mysql:
     image: mysql:8.0
-    ports:
-      - "3306:3306"
     environment:
       MYSQL_DATABASE: drupaldb
       MYSQL_USER: drupal
@@ -55,8 +50,6 @@ services:
   # Test origin server (simple web server with test files)
   origin-server:
     image: python:3.11-slim
-    ports:
-      - "8000:8000"
     volumes:
       - ./fixtures/origin-files:/files
     working_dir: /files
@@ -111,8 +104,6 @@ services:
       AWS_S3_ENDPOINT: http://minio:9000
     volumes:
       - ./fixtures/app:/var/www/html
-    ports:
-      - "80:80"
 
   # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
   # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path
