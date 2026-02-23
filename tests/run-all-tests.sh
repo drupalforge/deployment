@@ -34,8 +34,6 @@ SUDO_AVAILABLE=0
 TMPDIR_SUITES=$(mktemp -d)
 if sudo -n true 2>/dev/null; then
     SUDO_AVAILABLE=1
-    echo -e "${GREEN}✓ sudo credentials available${NC}"
-    echo ""
 elif [ -t 0 ] && [ -z "${CI:-}" ]; then
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"

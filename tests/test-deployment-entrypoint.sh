@@ -27,8 +27,6 @@ if [ "${SUDO_PROBED:-}" != "1" ] && [ -z "${SUDO_STATUS_FILE:-}" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
-        echo -e "${GREEN}✓ sudo credentials available${NC}"
-        echo ""
     elif [ -t 0 ] && [ -z "${CI:-}" ]; then
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
         echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
@@ -58,13 +56,18 @@ fi
 # Read the probe result written by unit-test.sh or run-all-tests.sh.
 # This is used as a fast short-circuit: if the parent probe found no sudo we can
 # skip immediately without attempting sudo -n true in the current process context.
-# Note: per-test checks also call sudo -n true directly to handle macOS tty_tickets,
-# where background subprocesses cannot use TTY-scoped credentials even when the
-# parent process successfully authenticated.
 _sudo_avail="${SUDO_AVAILABLE:-0}"
 if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
     [ "$_sf_val" = "1" ] && _sudo_avail=1
+fi
+
+# Verify once that sudo -n actually works in the current process context.
+# A single check here is sufficient; repeating it inside every test function
+# causes false negatives on macOS where each sudo -n call can independently
+# fail if the TTY ticket has been consumed by a preceding sudo invocation.
+if [ "${_sudo_avail:-0}" = "1" ] && ! sudo -n true 2>/dev/null; then
+    _sudo_avail=0
 fi
 
 # Test 1: Script is executable
@@ -100,7 +103,7 @@ test_app_root_wait_present() {
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -129,7 +132,7 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -151,36 +154,12 @@ test_app_root_ready_immediately() {
     fi
 }
 
-# Test 6: Timeout warning is logged when APP_ROOT remains empty
-test_app_root_timeout_warning() {
-    local app_root="$TEMP_DIR/empty-root-timeout"
-    mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
-
-    local output
-    set +e
-    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
-        bash "$ENTRYPOINT" true 2>&1)
-    set -e
-
-    if echo "$output" | grep -q "Warning:"; then
-        echo -e "${GREEN}✓ Timeout warning logged when APP_ROOT remains empty${NC}"
-    else
-        echo -e "${RED}✗ Expected timeout warning in output${NC}"
-        echo "$output"
-        exit 1
-    fi
-}
-
-# Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
+# Test 6: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -204,6 +183,30 @@ test_app_root_ignores_root_owned_entries() {
     fi
 }
 
+# Test 7: Timeout warning is logged when APP_ROOT remains empty
+test_app_root_timeout_warning() {
+    local app_root="$TEMP_DIR/empty-root-timeout"
+    mkdir -p "$app_root"
+    if [ "${_sudo_avail:-0}" != "1" ]; then
+        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+        return 0
+    fi
+
+    local output
+    set +e
+    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+        bash "$ENTRYPOINT" true 2>&1)
+    set -e
+
+    if echo "$output" | grep -q "Warning:"; then
+        echo -e "${GREEN}✓ Timeout warning logged when APP_ROOT remains empty${NC}"
+    else
+        echo -e "${RED}✗ Expected timeout warning in output${NC}"
+        echo "$output"
+        exit 1
+    fi
+}
+
 # Test 8: Proxy path directories are created unconditionally after bootstrap
 test_proxy_path_directory_creation() {
     if grep -q "install -d\|mkdir -p" "$ENTRYPOINT" && \
@@ -221,8 +224,8 @@ test_error_handling
 test_app_root_wait_present
 test_app_root_wait_skipped_at_zero
 test_app_root_ready_immediately
-test_app_root_timeout_warning
 test_app_root_ignores_root_owned_entries
+test_app_root_timeout_warning
 test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"
