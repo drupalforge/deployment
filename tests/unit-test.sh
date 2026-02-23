@@ -28,70 +28,37 @@ echo -e "${BLUE}================================${NC}"
 echo ""
 
 # Create temp dir for test output, exit codes, and the sudo status file.
-# Write "pending" now — tests start immediately and will poll this file
-# before using sudo; the probe below writes the final value when it finishes.
 TMPDIR_TESTS=$(mktemp -d)
 SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
-echo "pending" > "$SUDO_STATUS_FILE"
 export SUDO_STATUS_FILE
 
-# Launch all test suites in parallel NOW (before the probe) so non-sudo tests
-# run immediately while we wait for the password.  All output is buffered so
-# nothing is printed until after the probe completes.
+# Probe for sudo credentials before launching any tests.  Skip if a parent
+# script (run-all-tests.sh) already ran the probe.
 #
-# test-deployment-entrypoint.sh is excluded from the parallel launch and instead
-# run in the foreground after the sudo probe (see below).  On macOS the default
-# sudo timestamp_type is "tty", which scopes credentials to the foreground
-# process group of the terminal.  Background jobs (&) are in a different process
-# group, so sudo -n true fails non-deterministically even when the parent shell
-# successfully authenticated — causing a variable number (1–4) of tests to be
-# skipped.  Running that test suite in the foreground puts it in the same process
-# group as the terminal, making TTY-scoped credentials reliably available.
-declare -a PIDS=()
-declare -a TEST_NAMES=()
-declare -a OUT_FILES=()
-declare -a DEFERRED_TESTS=()
-
-for test_file in "$TEST_DIR"/test-*.sh; do
-    [ -f "$test_file" ] || continue
-    test_name=$(basename "$test_file" .sh)
-    if [ "$test_name" = "test-deployment-entrypoint" ]; then
-        DEFERRED_TESTS+=("$test_file")
-        continue
-    fi
-    out_file="$TMPDIR_TESTS/output-${test_name}.txt"
-    TEST_NAMES+=("$test_name")
-    OUT_FILES+=("$out_file")
-    ( bash_exit=0
-      bash "$test_file" > "$out_file" 2>&1 || bash_exit=$?
-      echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
-    PIDS+=($!)
-done
-total_tests=$(( ${#TEST_NAMES[@]} + ${#DEFERRED_TESTS[@]} ))
-
-# Probe for sudo credentials.  Skip if a parent script already ran the probe.
-# The countdown loop also shows live test progress so the user knows work is
-# happening while they wait for the password.
+# Running the probe here — before any background processes are forked — ensures
+# that the credential established by sudo -v is available to all child processes,
+# including the deferred test-deployment-entrypoint suite.  On macOS the default
+# sudo timestamp_type is "tty"; forking background jobs before sudo -v is called
+# can cause the cached credential to be scoped to a different context from the
+# one that later calls sudo -n true, producing non-deterministic skips.
 if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
     elif [ -t 0 ] && [ -z "${CI:-}" ]; then
-        done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
         echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout, ${done_count}/${total_tests} tests already running).${NC}"
+        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
         # Print one countdown line, then each tick uses ANSI save/restore cursor
         # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
         # returns to exactly where sudo left it (after "Password: ").
         # A stop-flag file prevents one extra tick from firing after the user
         # presses Enter (which shifts the cursor and would overwrite the password line).
         COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
-        printf "  (30 sec remaining) [%d/%d tests done]\n" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+        printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
         ( for i in $(seq 30 -1 1); do
               sleep 1
               [ -f "$COUNTDOWN_STOP_FILE" ] && break
-              done_count=$(ls "$TMPDIR_TESTS"/exit-*.txt 2>/dev/null | wc -l | tr -d ' ')
-              printf "\033[s\033[A\r  (%2d sec remaining) [%d/%d tests done]\033[u" "$i" "$done_count" "$total_tests" > /dev/tty 2>/dev/null || true
+              printf "\033[s\033[A\r  (%2d sec remaining)\033[u" "$i" > /dev/tty 2>/dev/null || true
           done
         ) &
         COUNTDOWN_PID=$!
@@ -114,8 +81,41 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
 fi
 export SUDO_AVAILABLE SUDO_PROBED=1
 
-# Signal any tests that are polling the flag file.
+# Write the probe result so test scripts can read it.
 echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
+
+# Launch all non-deferred test suites in parallel.  All output is buffered so
+# nothing is printed until after all suites finish.
+#
+# test-deployment-entrypoint.sh is excluded from the parallel launch and instead
+# run in the foreground after the parallel suites are started (see below).  On
+# macOS the default sudo timestamp_type is "tty", which scopes credentials to
+# the foreground process group of the terminal.  Background jobs (&) are in a
+# different process group, so sudo -n true fails non-deterministically even when
+# the parent shell successfully authenticated — causing a variable number (1–4)
+# of tests to be skipped.  Running that test suite in the foreground puts it in
+# the same process group as the terminal, making TTY-scoped credentials reliably
+# available.
+declare -a PIDS=()
+declare -a TEST_NAMES=()
+declare -a OUT_FILES=()
+declare -a DEFERRED_TESTS=()
+
+for test_file in "$TEST_DIR"/test-*.sh; do
+    [ -f "$test_file" ] || continue
+    test_name=$(basename "$test_file" .sh)
+    if [ "$test_name" = "test-deployment-entrypoint" ]; then
+        DEFERRED_TESTS+=("$test_file")
+        continue
+    fi
+    out_file="$TMPDIR_TESTS/output-${test_name}.txt"
+    TEST_NAMES+=("$test_name")
+    OUT_FILES+=("$out_file")
+    ( bash_exit=0
+      bash "$test_file" > "$out_file" 2>&1 || bash_exit=$?
+      echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
+    PIDS+=($!)
+done
 
 # Run deferred tests (those requiring sudo) in the current foreground process so
 # that TTY-scoped sudo credentials are available on macOS (tty_tickets policy).
