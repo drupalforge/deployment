@@ -3,9 +3,13 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
 trap "sudo -n rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
+
+# shellcheck source=lib/utils.sh
+source "$TEST_DIR/lib/utils.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,6 +19,29 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
+
+# Probe for sudo credentials when run standalone (not from unit-test.sh or run-all-tests.sh).
+# SUDO_STATUS_FILE is exported by unit-test.sh before launching background test scripts,
+# so its presence indicates an orchestrating parent is handling the probe.
+if [ "${SUDO_PROBED:-}" != "1" ] && [ -z "${SUDO_STATUS_FILE:-}" ]; then
+    SUDO_AVAILABLE=0
+    if sudo -n true 2>/dev/null; then
+        SUDO_AVAILABLE=1
+        echo -e "${GREEN}✓ sudo credentials available${NC}"
+        echo ""
+    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
+        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
+        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
+        if _timeout 30 sudo -v; then
+            SUDO_AVAILABLE=1
+        fi
+        if [ "$SUDO_AVAILABLE" = "0" ]; then
+            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
+        fi
+        echo ""
+    fi
+    export SUDO_AVAILABLE SUDO_PROBED=1
+fi
 
 # Several tests run the entrypoint which calls "sudo install" and "sudo chown"
 # without -n.  If launched in parallel from unit-test.sh, the sudo probe may
@@ -29,8 +56,11 @@ if [ -n "${SUDO_STATUS_FILE:-}" ]; then
 fi
 
 # Read the probe result written by unit-test.sh or run-all-tests.sh.
-# Using the probe result (rather than re-running sudo -n true) ensures consistent
-# skip decisions regardless of per-tty credential scoping (e.g. macOS tty_tickets).
+# This is used as a fast short-circuit: if the parent probe found no sudo we can
+# skip immediately without attempting sudo -n true in the current process context.
+# Note: per-test checks also call sudo -n true directly to handle macOS tty_tickets,
+# where background subprocesses cannot use TTY-scoped credentials even when the
+# parent process successfully authenticated.
 _sudo_avail="${SUDO_AVAILABLE:-0}"
 if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
@@ -70,7 +100,7 @@ test_app_root_wait_present() {
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -99,7 +129,7 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -125,7 +155,7 @@ test_app_root_ready_immediately() {
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -150,7 +180,7 @@ test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${_sudo_avail:-0}" != "1" ]; then
+    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
