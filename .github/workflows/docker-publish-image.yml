@@ -109,7 +109,7 @@ jobs:
           #     silently be omitted from newly built images.
           #   https://github.com/moby/buildkit/issues/2279 - registry --cache-from fails roughly
           #     50% of the time in multi-platform builds.
-          # TODO: Switch back to type=registry cache once the above issues are resolved upstream.
+          # See TODO.md "Switch back to registry build cache" for the action item to revert this.
           cache-from: type=gha,scope=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }}
           cache-to: type=gha,scope=${{ inputs.php_version }}-${{ steps.platform-tag.outputs.tag }},mode=max
           outputs: type=image,name=${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
