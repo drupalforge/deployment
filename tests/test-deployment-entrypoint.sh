@@ -58,13 +58,18 @@ fi
 # Read the probe result written by unit-test.sh or run-all-tests.sh.
 # This is used as a fast short-circuit: if the parent probe found no sudo we can
 # skip immediately without attempting sudo -n true in the current process context.
-# Note: per-test checks also call sudo -n true directly as a runtime verification
-# that credentials are usable in the current process (e.g. when this script is run
-# standalone or when sudo credentials have expired between tests).
 _sudo_avail="${SUDO_AVAILABLE:-0}"
 if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
     [ "$_sf_val" = "1" ] && _sudo_avail=1
+fi
+
+# Verify once that sudo -n actually works in the current process context.
+# A single check here is sufficient; repeating it inside every test function
+# causes false negatives on macOS where each sudo -n call can independently
+# fail if the TTY ticket has been consumed by a preceding sudo invocation.
+if [ "${_sudo_avail:-0}" = "1" ] && ! sudo -n true 2>/dev/null; then
+    _sudo_avail=0
 fi
 
 # Test 1: Script is executable
@@ -100,7 +105,7 @@ test_app_root_wait_present() {
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -129,7 +134,7 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -155,7 +160,7 @@ test_app_root_ready_immediately() {
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
@@ -180,7 +185,7 @@ test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
     mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${_sudo_avail:-0}" != "1" ] || ! sudo -n true 2>/dev/null; then
+    if [ "${_sudo_avail:-0}" != "1" ]; then
         echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
         return 0
     fi
