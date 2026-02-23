@@ -38,13 +38,27 @@ export SUDO_STATUS_FILE
 # Launch all test suites in parallel NOW (before the probe) so non-sudo tests
 # run immediately while we wait for the password.  All output is buffered so
 # nothing is printed until after the probe completes.
+#
+# test-deployment-entrypoint.sh is excluded from the parallel launch and instead
+# run in the foreground after the sudo probe (see below).  On macOS the default
+# sudo timestamp_type is "tty", which scopes credentials to the foreground
+# process group of the terminal.  Background jobs (&) are in a different process
+# group, so sudo -n true fails non-deterministically even when the parent shell
+# successfully authenticated — causing a variable number (1–4) of tests to be
+# skipped.  Running that test suite in the foreground puts it in the same process
+# group as the terminal, making TTY-scoped credentials reliably available.
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
+declare -a DEFERRED_TESTS=()
 
 for test_file in "$TEST_DIR"/test-*.sh; do
     [ -f "$test_file" ] || continue
     test_name=$(basename "$test_file" .sh)
+    if [ "$test_name" = "test-deployment-entrypoint" ]; then
+        DEFERRED_TESTS+=("$test_file")
+        continue
+    fi
     out_file="$TMPDIR_TESTS/output-${test_name}.txt"
     TEST_NAMES+=("$test_name")
     OUT_FILES+=("$out_file")
@@ -53,7 +67,7 @@ for test_file in "$TEST_DIR"/test-*.sh; do
       echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
     PIDS+=($!)
 done
-total_tests="${#TEST_NAMES[@]}"
+total_tests=$(( ${#TEST_NAMES[@]} + ${#DEFERRED_TESTS[@]} ))
 
 # Probe for sudo credentials.  Skip if a parent script already ran the probe.
 # The countdown loop also shows live test progress so the user knows work is
@@ -105,9 +119,22 @@ export SUDO_AVAILABLE SUDO_PROBED=1
 # Signal any tests that are polling the flag file.
 echo "$SUDO_AVAILABLE" > "$SUDO_STATUS_FILE"
 
-# Wait for ALL tests to finish before printing results.
+# Run deferred tests (those requiring sudo) in the current foreground process so
+# that TTY-scoped sudo credentials are available on macOS (tty_tickets policy).
+for _deferred_test in "${DEFERRED_TESTS[@]}"; do
+    _deferred_name=$(basename "$_deferred_test" .sh)
+    _deferred_out="$TMPDIR_TESTS/output-${_deferred_name}.txt"
+    _deferred_exit=0
+    bash "$_deferred_test" > "$_deferred_out" 2>&1 || _deferred_exit=$?
+    echo "$_deferred_exit" > "$TMPDIR_TESTS/exit-${_deferred_name}.txt"
+    TEST_NAMES+=("$_deferred_name")
+    OUT_FILES+=("$_deferred_out")
+    PIDS+=("")  # Deferred test ran synchronously above; empty entry keeps array indices aligned with TEST_NAMES
+done
+
+# Wait for ALL parallel tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
-    wait "${PIDS[$i]}" || true
+    [ -n "${PIDS[$i]}" ] && { wait "${PIDS[$i]}" || true; }
 done
 
 # Print each suite's buffered output in order.

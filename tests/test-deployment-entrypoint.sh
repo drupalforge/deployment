@@ -58,9 +58,9 @@ fi
 # Read the probe result written by unit-test.sh or run-all-tests.sh.
 # This is used as a fast short-circuit: if the parent probe found no sudo we can
 # skip immediately without attempting sudo -n true in the current process context.
-# Note: per-test checks also call sudo -n true directly to handle macOS tty_tickets,
-# where background subprocesses cannot use TTY-scoped credentials even when the
-# parent process successfully authenticated.
+# Note: per-test checks also call sudo -n true directly as a runtime verification
+# that credentials are usable in the current process (e.g. when this script is run
+# standalone or when sudo credentials have expired between tests).
 _sudo_avail="${SUDO_AVAILABLE:-0}"
 if [ -n "${SUDO_STATUS_FILE:-}" ]; then
     _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
