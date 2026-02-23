@@ -76,6 +76,25 @@ When a task is finished:
 - Ensure `TODO.md` no longer lists items that are already resolved.
 - Remove any documentation that was written specifically for the work-in-progress state.
 
+## Test Output Formatting
+
+Every test script must produce output using the following conventions so that the runner (`tests/unit-test.sh`) and humans can parse results consistently.
+
+| Situation | Format |
+|-----------|--------|
+| Suite header (first line) | `echo -e "${BLUE}Testing <component>...${NC}"` |
+| Passing assertion | `echo -e "${GREEN}✓ <description>${NC}"` |
+| Failing assertion | `echo -e "${RED}✗ <description>${NC}"` then `exit 1` |
+| Skipped / optional assertion | `echo -e "${YELLOW}⊘ <description>${NC}"` |
+| Suite summary (last line) | `echo -e "${GREEN}✓ <Suite name> tests passed${NC}"` |
+
+Rules:
+- `${GREEN}` is reserved for assertions that passed.
+- `${RED}` is reserved for assertions that failed; always exit with a non-zero status immediately after.
+- `${YELLOW}` is reserved for skipped or optional assertions (ones that do not fail the suite). Do **not** use `${YELLOW}` for general informational or progress messages.
+- `${BLUE}` is used for structural output: the suite header and any other non-result informational messages (e.g., `echo -e "${BLUE}  Linting $n files...${NC}"`).
+- Each test script must define the color variables (`RED`, `GREEN`, `YELLOW`, `BLUE`, `NC`) locally; do not assume they are inherited from the environment.
+
 ## Test Coverage Requirements
 
 Tests must cover all of the following dimensions:
