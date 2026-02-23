@@ -21,9 +21,7 @@ NC='\033[0m'
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
 
 # Probe for sudo credentials when run standalone (not from unit-test.sh or run-all-tests.sh).
-# SUDO_STATUS_FILE is exported by unit-test.sh before launching background test scripts,
-# so its presence indicates an orchestrating parent is handling the probe.
-if [ "${SUDO_PROBED:-}" != "1" ] && [ -z "${SUDO_STATUS_FILE:-}" ]; then
+if [ "${SUDO_PROBED:-}" != "1" ]; then
     SUDO_AVAILABLE=0
     if sudo -n true 2>/dev/null; then
         SUDO_AVAILABLE=1
@@ -41,26 +39,8 @@ if [ "${SUDO_PROBED:-}" != "1" ] && [ -z "${SUDO_STATUS_FILE:-}" ]; then
     export SUDO_AVAILABLE SUDO_PROBED=1
 fi
 
-# Several tests run the entrypoint which calls "sudo install" and "sudo chown"
-# without -n.  If launched in parallel from unit-test.sh, the sudo probe may
-# still be running; wait here (up to 35 s) so credentials are cached before
-# any test invokes the entrypoint.
-if [ -n "${SUDO_STATUS_FILE:-}" ]; then
-    _sudo_wait=0
-    while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$_sudo_wait" -lt 350 ]; do
-        sleep 0.1
-        _sudo_wait=$((_sudo_wait + 1))
-    done
-fi
-
-# Read the probe result written by unit-test.sh or run-all-tests.sh.
-# This is used as a fast short-circuit: if the parent probe found no sudo we can
-# skip immediately without attempting sudo -n true in the current process context.
+# Read the probe result: if the parent probe found no sudo, skip immediately.
 _sudo_avail="${SUDO_AVAILABLE:-0}"
-if [ -n "${SUDO_STATUS_FILE:-}" ]; then
-    _sf_val=$(cat "$SUDO_STATUS_FILE" 2>/dev/null || echo "0")
-    [ "$_sf_val" = "1" ] && _sudo_avail=1
-fi
 
 # Verify once that sudo -n actually works in the current process context.
 # A single check here is sufficient; repeating it inside every test function
