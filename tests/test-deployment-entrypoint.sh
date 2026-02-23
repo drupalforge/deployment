@@ -186,7 +186,7 @@ test_app_root_ignores_root_owned_entries() {
     fi
     # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
     sudo -n mkdir -p "$app_root/lost+found"
-    sudo -n chown root:root "$app_root/lost+found"
+    sudo -n chown root "$app_root/lost+found"
 
     local output
     set +e
