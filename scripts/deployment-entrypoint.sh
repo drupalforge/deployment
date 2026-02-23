@@ -83,29 +83,16 @@ fi
 FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
 _apache_user="${APACHE_RUN_USER:-www-data}"
 _apache_group="${APACHE_RUN_GROUP:-www-data}"
-
-# Helper: run a command with privilege escalation only when required.
-# Privilege escalation is not needed when already running as root (UID 0)
-# or when the target apache user is the same as the current user
-# (e.g., in local test environments where the developer owns the directories).
-_run_priv() {
-  if [ "$(id -u)" = "0" ] || [ "$_apache_user" = "$(id -un)" ]; then
-    "$@"
-  else
-    sudo -n "$@"
-  fi
-}
-
 IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"
 for _path in "${_proxy_paths[@]}"; do
   _path=$(echo "$_path" | xargs)
   [[ "$_path" != /* ]] && _path="/$_path"
   full_path="${WEB_ROOT}${_path}"
   if [ ! -d "$full_path" ]; then
-    _run_priv install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path"
+    sudo -n install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path"
     log "Created proxy path directory: $full_path"
   fi
-  _run_priv chown -R "$_apache_user:$_apache_group" "$full_path"
+  sudo -n chown -R "$_apache_user:$_apache_group" "$full_path"
   log "Ownership set for proxy path: $full_path (owner: $_apache_user)"
 done
 

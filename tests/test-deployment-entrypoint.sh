@@ -5,7 +5,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+_cleanup_test() {
+    sudo -n rm -rf "$TEMP_DIR" 2>/dev/null || rm -rf "$TEMP_DIR"
+}
+trap _cleanup_test EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -45,9 +48,12 @@ test_app_root_wait_present() {
     fi
 }
 
+# Tests 4-6 run the entrypoint with APACHE_RUN_USER/GROUP set to the current
+# user so that sudo install/chown operate on a user that exists on all platforms
+# (unlike the default www-data which may be absent on macOS).  The sudo calls
+# are still exercised — only the target ownership differs.
+
 # Test 4: Wait is skipped when APP_ROOT_TIMEOUT=0
-# Sets APACHE_RUN_USER/GROUP to the current user so the entrypoint's
-# install/chown calls require no privilege escalation.
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
@@ -118,37 +124,17 @@ test_app_root_timeout_warning() {
 }
 
 # Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT.
-# A fake 'find' injected via PATH returns nothing for '! -user root' queries,
-# simulating a directory whose only contents are root-owned — without needing sudo.
+# Creates an actual root-owned directory inside APP_ROOT using sudo.
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
-    mkdir -p "$app_root/lost+found"
-
-    # Create a fake 'find' that simulates all content being root-owned:
-    # when called with '-user root' arguments it produces no output (nothing is non-root).
-    local fake_bin="$TEMP_DIR/fake-bin"
-    local real_find
-    real_find=$(command -v find)
-    mkdir -p "$fake_bin"
-    cat > "$fake_bin/find" << EOF
-#!/bin/bash
-# Fake find for tests: simulate a directory whose entries are all root-owned.
-# Returns nothing when called with '-user root', by parsing args individually.
-prev=""
-for arg in "\$@"; do
-    if [ "\$prev" = "-user" ] && [ "\$arg" = "root" ]; then
-        exit 0
-    fi
-    prev="\$arg"
-done
-exec "$real_find" "\$@"
-EOF
-    chmod +x "$fake_bin/find"
+    mkdir -p "$app_root"
+    # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
+    sudo -n mkdir -p "$app_root/lost+found"
+    sudo -n chown root:root "$app_root/lost+found"
 
     local output
     set +e
-    output=$(PATH="$fake_bin:$PATH" \
-        APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
         APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" true 2>&1)
     set -e

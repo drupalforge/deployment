@@ -34,6 +34,14 @@ TMPDIR_TESTS=$(mktemp -d)
 SUDO_STATUS_FILE="$TMPDIR_TESTS/sudo-status"
 echo "pending" > "$SUDO_STATUS_FILE"
 export SUDO_STATUS_FILE
+_SUDOERS_FILE=""
+
+# Cleanup: remove the temporary NOPASSWD sudoers entry and the test temp dir.
+_cleanup() {
+    [ -n "$_SUDOERS_FILE" ] && sudo -n rm -f "$_SUDOERS_FILE" 2>/dev/null || true
+    rm -rf "${TMPDIR_TESTS:-}"
+}
+trap _cleanup EXIT
 
 # Launch all test suites in parallel NOW (before the probe) so non-sudo tests
 # run immediately while we wait for the password.  All output is buffered so
@@ -85,6 +93,19 @@ if [ "${SUDO_PROBED:-}" != "1" ]; then
         COUNTDOWN_PID=$!
         if _timeout 30 sudo -v; then
             SUDO_AVAILABLE=1
+            # sudo -v caches credentials for the current process's TTY, but on
+            # macOS the default tty_tickets policy scopes that cache per-TTY and
+            # does not propagate it to background subprocess tests.  Write a
+            # temporary NOPASSWD sudoers entry (if sudoers.d is available) so
+            # every subprocess can call sudo -n reliably for the test duration.
+            if [ -d /etc/sudoers.d ]; then
+                _SUDOERS_FILE="/etc/sudoers.d/drupalforge-test-$$"
+                if echo "$(id -un) ALL=(ALL) NOPASSWD: ALL" | sudo tee "$_SUDOERS_FILE" >/dev/null 2>&1; then
+                    sudo chmod 0440 "$_SUDOERS_FILE" 2>/dev/null || true
+                else
+                    _SUDOERS_FILE=""
+                fi
+            fi
         fi
         touch "$COUNTDOWN_STOP_FILE"
         kill "$COUNTDOWN_PID" 2>/dev/null || true
