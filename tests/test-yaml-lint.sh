@@ -50,7 +50,7 @@ test_yaml_files() {
     fi
     
     local file_count=$(echo "$yaml_files" | wc -l)
-    echo -e "${YELLOW}  Linting $file_count YAML file(s)...${NC}"
+    echo -e "${BLUE}  Linting $file_count YAML file(s)...${NC}"
     
     # Run yamllint and capture output
     if echo "$yaml_files" | xargs yamllint -f parsable 2>&1; then
