@@ -175,7 +175,7 @@ docker run \
   -e AWS_SECRET_ACCESS_KEY=... \
   -v /path/to/app:/var/www/html \
   -p 80:80 \
-  drupalforge/deployment:8.3
+  drupalforge/deployment:php-8.3
 ```
 
 **Note:** When deployed on Drupal Forge, database connection variables (`DB_HOST`, `DB_USER`, etc.) are automatically provided by DevPanel.
@@ -193,7 +193,7 @@ docker run \
   -e ORIGIN_URL=https://prod-site.example.com \
   -v /path/to/app:/var/www/html \
   -p 80:80 \
-  drupalforge/deployment:8.3
+  drupalforge/deployment:php-8.3
 ```
 
 ### Deployment with Apache File Proxy
@@ -210,7 +210,7 @@ docker run \
   -e FILE_PROXY_PATHS=/sites/default/files,/modules/contrib/custom_module/assets \
   -v /path/to/app:/var/www/html \
   -p 80:80 \
-  drupalforge/deployment:8.3
+  drupalforge/deployment:php-8.3
 ```
 
 ### Deployment with Code Server Development
@@ -228,7 +228,7 @@ docker run \
   -v /path/to/app:/var/www/html \
   -p 80:80 \
   -p 8080:8080 \
-  drupalforge/deployment:8.3
+  drupalforge/deployment:php-8.3
 ```
 
 ### Using AWS Instance Role (no credentials needed)
@@ -245,14 +245,24 @@ docker run \
   -e S3_DATABASE_PATH=dumps/site.sql.gz \
   -v /path/to/app:/var/www/html \
   -p 80:80 \
-  drupalforge/deployment:8.3
+  drupalforge/deployment:php-8.3
 ```
 
 ## Available Tags
 
-- `drupalforge/deployment:8.2` - PHP 8.2 base
-- `drupalforge/deployment:8.3` - PHP 8.3 base (latest)
-- Branch and SHA-based tags available for development/testing
+### Default branch (`main`)
+
+Floating tags updated on every successful merge to `main`:
+
+- `drupalforge/deployment:php-8.2` - PHP 8.2 (latest build)
+- `drupalforge/deployment:php-8.3` - PHP 8.3 (latest build)
+
+### Version releases (e.g., git tag `v1.2.3`)
+
+Immutable tags created for each version release, one per PHP variant:
+
+- `drupalforge/deployment:1.2.3-php-8.2` - version 1.2.3, PHP 8.2
+- `drupalforge/deployment:1.2.3-php-8.3` - version 1.2.3, PHP 8.3
 
 ## Build Images Locally
 
@@ -260,10 +270,10 @@ Build the deployment images for local development:
 
 ```bash
 # Build PHP 8.3 image
-docker build --build-arg PHP_VERSION=8.3 -t drupalforge/deployment:8.3 .
+docker build --build-arg PHP_VERSION=8.3 -t drupalforge/deployment:php-8.3 .
 
 # Build PHP 8.2 image
-docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:8.2 .
+docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:php-8.2 .
 ```
 
 **Note:** The `BASE_CMD` is dynamically extracted from the base image in CI/CD workflows. For local builds, the Dockerfile provides a default value that matches the current base image.
@@ -316,7 +326,7 @@ The workflow automatically creates manifest lists for multi-platform builds:
 
 No manual manifest creation is required. You can verify a multi-arch image with:
 ```bash
-docker buildx imagetools inspect drupalforge/deployment:8.3
+docker buildx imagetools inspect drupalforge/deployment:php-8.3
 ```
 
 ## Deployment Workflow
