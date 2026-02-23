@@ -250,9 +250,19 @@ docker run \
 
 ## Available Tags
 
-- `drupalforge/deployment:php-8.2` - PHP 8.2 base
-- `drupalforge/deployment:php-8.3` - PHP 8.3 base (latest)
-- Branch and SHA-based tags available for development/testing
+### Default branch (`main`)
+
+Floating tags updated on every successful merge to `main`:
+
+- `drupalforge/deployment:php-8.2` - PHP 8.2 (latest build)
+- `drupalforge/deployment:php-8.3` - PHP 8.3 (latest build)
+
+### Version releases (e.g., git tag `v1.2.3`)
+
+Immutable tags created for each version release, one per PHP variant:
+
+- `drupalforge/deployment:1.2.3-php-8.2` - version 1.2.3, PHP 8.2
+- `drupalforge/deployment:1.2.3-php-8.3` - version 1.2.3, PHP 8.3
 
 ## Build Images Locally
 

@@ -147,7 +147,7 @@ jobs:
         with:
           images: ${{ github.repository }}
           tags: |
-            type=semver,pattern=php-{{version}},value=${{ inputs.php_version }}
+            type=semver,pattern={{version}}-php-${{ inputs.php_version }}
             type=raw,value=php-${{ inputs.php_version }},enable={{is_default_branch}}
 
       - name: Create manifest list and push
