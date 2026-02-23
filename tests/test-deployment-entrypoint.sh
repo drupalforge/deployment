@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
-trap "sudo -n rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
+trap "rm -rf $TEMP_DIR" EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -15,26 +15,6 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
-
-# Several tests run the entrypoint which calls "sudo install" and "sudo chown".
-# If launched in parallel from unit-test.sh, the sudo probe may still be running;
-# wait here (up to 35 s) so credentials are cached before any test invokes the entrypoint.
-if [ -n "${SUDO_STATUS_FILE:-}" ]; then
-    _sudo_wait=0
-    while [ "$(cat "$SUDO_STATUS_FILE" 2>/dev/null)" = "pending" ] && [ "$_sudo_wait" -lt 350 ]; do
-        sleep 0.1
-        _sudo_wait=$((_sudo_wait + 1))
-    done
-fi
-
-# Helper: check whether passwordless sudo actually works in *this* process context.
-# On macOS the default tty_tickets policy scopes credential caching per-TTY, so
-# a successful "sudo -v" in the parent does not guarantee "sudo -n" works in a
-# background subprocess.  Always probe at the call site instead of relying on the
-# inherited SUDO_AVAILABLE flag.
-_sudo_available() {
-    sudo -n true 2>/dev/null
-}
 
 # Test 1: Script is executable
 test_script_executable() {
@@ -66,13 +46,11 @@ test_app_root_wait_present() {
 }
 
 # Test 4: Wait is skipped when APP_ROOT_TIMEOUT=0
+# Sets APACHE_RUN_USER/GROUP to the current user so the entrypoint's
+# install/chown calls require no privilege escalation.
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
     mkdir -p "$app_root"
-    if ! _sudo_available; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     # With timeout=0 the script should proceed immediately without waiting.
     # We pass a no-op command so exec succeeds without starting Apache.
@@ -80,6 +58,7 @@ test_app_root_wait_skipped_at_zero() {
     start=$(date +%s)
     set +e
     APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" true >/dev/null 2>&1
     set -e
     end=$(date +%s)
@@ -98,15 +77,12 @@ test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if ! _sudo_available; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     local start end elapsed
     start=$(date +%s)
     set +e
     APP_ROOT="$app_root" APP_ROOT_TIMEOUT=30 BOOTSTRAP_REQUIRED=no \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" true >/dev/null 2>&1
     set -e
     end=$(date +%s)
@@ -124,14 +100,11 @@ test_app_root_ready_immediately() {
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
     mkdir -p "$app_root"
-    if ! _sudo_available; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     local output
     set +e
     output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" true 2>&1)
     set -e
 
@@ -144,22 +117,39 @@ test_app_root_timeout_warning() {
     fi
 }
 
-# Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
+# Test 7: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT.
+# A fake 'find' injected via PATH returns nothing for '! -user root' queries,
+# simulating a directory whose only contents are root-owned — without needing sudo.
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
-    mkdir -p "$app_root"
-    # This test requires sudo.
-    if ! _sudo_available; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
+    mkdir -p "$app_root/lost+found"
+
+    # Create a fake 'find' that simulates all content being root-owned:
+    # when called with '-user root' arguments it produces no output (nothing is non-root).
+    local fake_bin="$TEMP_DIR/fake-bin"
+    local real_find
+    real_find=$(command -v find)
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/find" << EOF
+#!/bin/bash
+# Fake find for tests: simulate a directory whose entries are all root-owned.
+# Returns nothing when called with '-user root', by parsing args individually.
+prev=""
+for arg in "\$@"; do
+    if [ "\$prev" = "-user" ] && [ "\$arg" = "root" ]; then
+        exit 0
     fi
-    # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
-    sudo -n mkdir -p "$app_root/lost+found"
-    sudo -n chown root:root "$app_root/lost+found"
+    prev="\$arg"
+done
+exec "$real_find" "\$@"
+EOF
+    chmod +x "$fake_bin/find"
 
     local output
     set +e
-    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+    output=$(PATH="$fake_bin:$PATH" \
+        APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" true 2>&1)
     set -e
 
