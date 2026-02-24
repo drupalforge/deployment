@@ -51,6 +51,7 @@ ensure_settings_php_exists() {
 
   target_owner_spec="$(id -u):$(id -g)"
   if sudo -n cp "$default_settings" "$settings_file"; then
+    # Cross-platform owner lookup: GNU/Linux uses `stat -c`, macOS/BSD uses `stat -f`.
     current_spec="$(stat -c '%u:%g' "$settings_file" 2>/dev/null || stat -f '%u:%g' "$settings_file" 2>/dev/null || true)"
     if [ -z "$target_owner_spec" ] || [ -z "$current_spec" ] || [ "$target_owner_spec" = "$current_spec" ] || sudo -n chown "$target_owner_spec" "$settings_file"; then
       log "Created settings.php from default.settings.php"
@@ -108,7 +109,8 @@ main() {
   
   cd "$app_root"
   log "Working in: $(pwd)"
-  log "Directory owner: $(stat -c '%U (%u)' "$(pwd)" 2>/dev/null || echo 'unknown')"
+  # Cross-platform directory owner lookup: GNU/Linux `stat -c` and macOS/BSD `stat -f`.
+  log "Directory owner: $(stat -c '%U (%u)' "$(pwd)" 2>/dev/null || stat -f '%Su (%u)' "$(pwd)" 2>/dev/null || echo 'unknown')"
   
   # Check if default.settings.php exists BEFORE bootstrap
   # We'll use this to determine if we should create settings.php

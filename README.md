@@ -10,6 +10,9 @@
 This repository builds a container image for deploying sites to Drupal Forge.
 This provides a safe environment to develop, preview, and share changes.
 
+[![Tests](https://github.com/drupalforge/deployment/actions/workflows/tests.yml/badge.svg)](https://github.com/drupalforge/deployment/actions/workflows/tests.yml)
+[![Build and publish deployment images](https://github.com/drupalforge/deployment/actions/workflows/docker-publish-images.yml/badge.svg)](https://github.com/drupalforge/deployment/actions/workflows/docker-publish-images.yml)
+
 ## Overview
 
 The deployment image is built on [devpanel/php](https://github.com/devpanel/php) base images (PHP 8.2 and 8.3) and adds the following deployment capabilities:
@@ -350,6 +353,8 @@ docker buildx imagetools inspect drupalforge/deployment:php-8.3
 6. **Code Server:** Optional development interface available on port 8080
 
 ## Testing
+
+For contributor and agent workflow policies (including Linux/macOS compatibility expectations), use `AGENTS.md` as the single source of truth.
 
 This repository includes a comprehensive test suite to validate all components:
 

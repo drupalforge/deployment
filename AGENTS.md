@@ -12,6 +12,24 @@ Images built from this repository are deployed by **DevPanel** to run Drupal sit
 - **Changes to the entrypoint or startup sequence must remain compatible** with DevPanel's expectations. Do not rename, move, or remove the deployment entrypoint (`deployment-entrypoint.sh`) or change its exit behaviour without understanding the impact on DevPanel's orchestration.
 - **Do not introduce host-level dependencies** — the image must be fully self-contained. DevPanel does not guarantee any specific host tooling beyond what is standard in the base image.
 
+## Cross-Platform Compatibility (Linux + macOS)
+
+Contributors and agents must keep local developer workflows compatible with both Linux and macOS:
+
+- Prefer POSIX-compatible shell patterns over GNU-specific flags when possible.
+- When GNU and BSD tools differ (for example `stat`, `sed`, `date`, `find`), either use a portable form or provide explicit Linux/macOS fallbacks.
+- Do not assume GNU coreutils are installed on macOS unless tests explicitly install and use them.
+- Any new script or test command that may behave differently across platforms must include a brief inline comment explaining the compatibility handling.
+
+## Coding Conventions
+
+Use these repository conventions when modifying code:
+
+- **Bash scripts:** Use `#!/bin/bash`, `set -e`, quoted expansions (`"${VAR}"`), clear `[INFO]/[ERROR]` logging, and required-variable checks.
+- **PHP code:** Follow PSR-12, validate external inputs, and handle errors with actionable messages.
+- **Dockerfile:** Use `ARG` for build-time inputs, `ENV` for runtime inputs, non-root runtime user, and readable multi-line `RUN` chains with `&&` and `\`.
+- **Apache config:** Group related directives and use explicit rewrite/proxy directives with descriptive comments.
+
 ## Workflow Order
 
 1. **Document first** — before writing any code or tests, update or create the relevant documentation (README, inline comments, environment variable tables). This ensures the intended behavior is understood and agreed upon before implementation begins.

@@ -301,6 +301,7 @@ test_settings_copy_owner_matches_invoking_user() {
     }
     sudo -n chmod 755 "$settings_dir" || true
 
+    # Use a portable sed expression (avoids GNU/BSD `sed -i` differences).
     script_source=$(sed '$d' "$SCRIPT_DIR/scripts/bootstrap-app.sh")
     if [ -z "$script_source" ]; then
         echo -e "${RED}✗ Could not extract required functions from bootstrap-app.sh${NC}"
@@ -324,6 +325,7 @@ test_settings_copy_owner_matches_invoking_user() {
     fi
 
     expected_spec="$(id -u):$(id -g)"
+    # Cross-platform owner lookup: GNU/Linux uses `stat -c`, macOS/BSD uses `stat -f`.
     file_spec=$(stat -c '%u:%g' "$dest_file" 2>/dev/null || stat -f '%u:%g' "$dest_file" 2>/dev/null || echo "")
 
     if [ -n "$expected_spec" ] && [ "$expected_spec" = "$file_spec" ]; then
