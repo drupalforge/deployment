@@ -17,6 +17,8 @@ The pre-push hook runs automatically before `git push` and performs the followin
 3. **Blocks the push** if any tests fail
 4. **Cleans up** after tests automatically
 
+When Git invokes hooks with stdin attached to a pipe instead of a terminal, the hook reattaches stdin to `/dev/tty` (when available). This allows test scripts to prompt for `sudo` credentials interactively instead of skipping sudo-dependent checks.
+
 This ensures that:
 - Only relevant tests run (faster feedback)
 - Broken code doesn't get pushed

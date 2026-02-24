@@ -23,6 +23,13 @@ echo ""
 remote="$1"
 url="$2"
 
+# Git may invoke hooks with stdin connected to a pipe (ref updates) rather than
+# the interactive terminal. Reattach stdin to /dev/tty so child test scripts can
+# prompt for sudo credentials when needed.
+if [ -r /dev/tty ] && [ ! -t 0 ]; then
+    exec < /dev/tty
+fi
+
 # Get list of changed files
 CHANGED_FILES=$(git diff --name-only @{upstream}...HEAD 2>/dev/null || git diff --name-only HEAD~1...HEAD 2>/dev/null || echo "")
 
