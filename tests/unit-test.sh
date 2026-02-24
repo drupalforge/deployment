@@ -19,8 +19,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# shellcheck source=lib/utils.sh
-source "$SCRIPT_DIR/lib/utils.sh"
+# shellcheck source=lib/sudo.sh
+source "$SCRIPT_DIR/lib/sudo.sh"
 
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}Drupal Forge Deployment Tests${NC}"
@@ -30,53 +30,8 @@ echo ""
 # Create temp dir for test output and exit codes.
 TMPDIR_TESTS=$(mktemp -d)
 
-# Probe for sudo credentials before launching any tests.  Skip if a parent
-# script (run-all-tests.sh) already ran the probe.
-#
-# Running the probe here — before any background processes are forked — ensures
-# that the credential established by sudo -v is cached before any test calls
-# sudo -n true.  On macOS with timestamp_type=tty the credential is tied to the
-# controlling terminal and is available to all child processes (including
-# background jobs) that share it, so no special foreground handling is needed.
-if [ "${SUDO_PROBED:-}" != "1" ]; then
-    SUDO_AVAILABLE=0
-    if sudo -n true 2>/dev/null; then
-        SUDO_AVAILABLE=1
-    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
-        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
-        # Print one countdown line, then each tick uses ANSI save/restore cursor
-        # (\033[s/\033[u) so "Password:" stays below the countdown and the cursor
-        # returns to exactly where sudo left it (after "Password: ").
-        # A stop-flag file prevents one extra tick from firing after the user
-        # presses Enter (which shifts the cursor and would overwrite the password line).
-        COUNTDOWN_STOP_FILE="$TMPDIR_TESTS/countdown-stop"
-        printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
-        ( for i in $(seq 30 -1 1); do
-              sleep 1
-              [ -f "$COUNTDOWN_STOP_FILE" ] && break
-              printf "\033[s\033[A\r  (%2d sec remaining)\033[u" "$i" > /dev/tty 2>/dev/null || true
-          done
-        ) &
-        COUNTDOWN_PID=$!
-        if _timeout 30 sudo -v; then
-            SUDO_AVAILABLE=1
-        fi
-        touch "$COUNTDOWN_STOP_FILE"
-        kill "$COUNTDOWN_PID" 2>/dev/null || true
-        wait "$COUNTDOWN_PID" 2>/dev/null || true
-        rm -f "$COUNTDOWN_STOP_FILE"
-        # sudo always writes "Password:" in this branch (sudo -n failed to get here).
-        # After the user interacts, cursor is 2 lines below the countdown line.
-        # Go up 2 and erase to end of screen to remove countdown + password lines.
-        printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
-        if [ "$SUDO_AVAILABLE" = "0" ]; then
-            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-        fi
-        echo ""
-    fi
-fi
-export SUDO_AVAILABLE SUDO_PROBED=1
+# Setup sudo credentials with interactive countdown if needed, start background refresh, and setup cleanup.
+setup_sudo "$TMPDIR_TESTS"
 
 # Launch all test suites in parallel.  All output is buffered so nothing is
 # printed until after all suites finish.
@@ -102,13 +57,17 @@ for i in "${!TEST_NAMES[@]}"; do
 done
 
 # Print each suite's buffered output in order.
+
 failed_tests=0
 passed_suites=0
+skipped_assertions=0
 
 for i in "${!TEST_NAMES[@]}"; do
     test_name="${TEST_NAMES[$i]}"
     echo -e "${YELLOW}Running $test_name...${NC}"
     cat "${OUT_FILES[$i]}"
+    skips_in_suite=$(awk '/⊘ /{c++} END{print c+0}' "${OUT_FILES[$i]}")
+    skipped_assertions=$((skipped_assertions + skips_in_suite))
     exit_code=$(cat "$TMPDIR_TESTS/exit-${test_name}.txt" 2>/dev/null || echo 1)
     if [ "$exit_code" -eq 0 ]; then
         echo -e "${GREEN}✓ $test_name passed${NC}"
@@ -120,9 +79,7 @@ for i in "${!TEST_NAMES[@]}"; do
     echo ""
 done
 
-rm -rf "$TMPDIR_TESTS"
-
-# Summary
+# Summary (cleanup trap will run before exit)
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}Test Summary${NC}"
 echo -e "${BLUE}================================${NC}"
@@ -136,6 +93,10 @@ if [ $failed_tests -eq 0 ]; then
     echo "Suites failed: $((failed_tests))"
 else
     echo -e "Suites failed: ${RED}$((failed_tests))${NC}"
+fi
+
+if [ $skipped_assertions -gt 0 ]; then
+    echo -e "Assertions skipped: ${YELLOW}$((skipped_assertions))${NC}"
 fi
 echo ""
 

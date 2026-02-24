@@ -23,10 +23,17 @@ echo ""
 remote="$1"
 url="$2"
 
+# Detect whether Git was launched from an interactive terminal.
+# In pre-push, stdin is often a pipe with ref updates, so rely on stdout/stderr.
+RUNNING_FROM_TERMINAL=false
+if [ -t 1 ] || [ -t 2 ]; then
+    RUNNING_FROM_TERMINAL=true
+fi
+
 # Git may invoke hooks with stdin connected to a pipe (ref updates) rather than
 # the interactive terminal. Reattach stdin to /dev/tty so child test scripts can
 # prompt for sudo credentials when needed.
-if [ -r /dev/tty ] && [ ! -t 0 ]; then
+if [ "$RUNNING_FROM_TERMINAL" = true ] && [ -r /dev/tty ] && [ ! -t 0 ]; then
     exec < /dev/tty
 fi
 

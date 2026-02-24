@@ -126,6 +126,12 @@ fi
 # Create temporary .gitignore to isolate fixture mutations from host git status
 echo '*' > "$FIXTURE_GITIGNORE"
 
+# Ensure settings.php exists for DevPanel include validation (untracked fixture)
+mkdir -p "$SCRIPT_DIR/fixtures/app/web/sites/default"
+if [ ! -f "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php" ]; then
+    echo '<?php' > "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php"
+fi
+
 cd "$SCRIPT_DIR"
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
 

@@ -162,6 +162,21 @@ bash docker-build-test.sh   # Docker builds
 bash integration-test.sh    # Full integration
 ```
 
+### Sudo-dependent tests are skipped or intermittently fail
+
+Pre-push runs unit tests that may include sudo-dependent checks. If credentials are stale, non-interactive `sudo -n` calls can skip/fail those checks.
+
+Try:
+```bash
+sudo -v
+sudo -n true && echo "sudo active"
+git push
+```
+
+If prompts still do not appear, run push from an interactive terminal (the hook reattaches stdin to `/dev/tty` when available).
+
+Test suites in this repository keep sudo-dependent checks first (shortest runtime first) to reduce credential-expiration risk during longer runs.
+
 ## Integration with CI
 
 The pre-push hook complements CI rather than replacing it:

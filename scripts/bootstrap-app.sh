@@ -23,6 +23,45 @@ error() {
   return 1
 }
 
+ensure_settings_php_exists() {
+  local app_root="$1"
+  local has_default_settings="$2"
+  local default_settings="${WEB_ROOT:-${app_root}/web}/sites/default/default.settings.php"
+  local settings_file="${WEB_ROOT:-${app_root}/web}/sites/default/settings.php"
+  local target_owner_spec current_spec
+
+  if [ -f "$settings_file" ]; then
+    log "Drupal settings.php already exists at $settings_file"
+    return 0
+  fi
+
+  # Only create settings.php if default.settings.php did NOT exist BEFORE bootstrap
+  # This means it was likely added during bootstrap (via git submodules or composer)
+  if [ "$has_default_settings" -eq 1 ]; then
+    log "default.settings.php existed before bootstrap; not auto-creating settings.php"
+    return 0
+  fi
+
+  if [ ! -f "$default_settings" ]; then
+    log "default.settings.php not found after bootstrap; cannot create settings.php"
+    return 0
+  fi
+
+  log "Creating settings.php from default.settings.php that was added during bootstrap..."
+
+  target_owner_spec="$(id -u):$(id -g)"
+  if sudo -n cp "$default_settings" "$settings_file"; then
+    current_spec="$(stat -c '%u:%g' "$settings_file" 2>/dev/null || stat -f '%u:%g' "$settings_file" 2>/dev/null || true)"
+    if [ -z "$target_owner_spec" ] || [ -z "$current_spec" ] || [ "$target_owner_spec" = "$current_spec" ] || sudo -n chown "$target_owner_spec" "$settings_file"; then
+      log "Created settings.php from default.settings.php"
+      return 0
+    fi
+  fi
+
+  error "Failed to create settings.php from default.settings.php"
+  return 1
+}
+
 ensure_devpanel_settings_include() {
   local app_root="$1"
   local settings_file="${WEB_ROOT:-${app_root}/web}/sites/default/settings.php"
@@ -37,18 +76,21 @@ ensure_devpanel_settings_include() {
     return 0
   fi
 
-  cat >> "$settings_file" <<'PHP'
-
+  local devpanel_block=$'
 /**
  * Load DevPanel override configuration, if available.
  */
-$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
-if (getenv('DP_APP_ID') !== FALSE && file_exists($devpanel_settings)) {
+$devpanel_settings = \'/usr/local/share/drupalforge/settings.devpanel.php\';
+if (getenv(\'DP_APP_ID\') !== FALSE && file_exists($devpanel_settings)) {
   include $devpanel_settings;
-}
-PHP
+}'
 
-  log "Added DevPanel settings include block to $settings_file"
+  if echo "$devpanel_block" | sudo -n tee -a "$settings_file" >/dev/null; then
+    log "Added DevPanel settings include block to $settings_file"
+  else
+    error "Failed to add DevPanel settings include block to $settings_file"
+    return 1
+  fi
 }
 
 # Main execution
@@ -67,6 +109,17 @@ main() {
   cd "$app_root"
   log "Working in: $(pwd)"
   log "Directory owner: $(stat -c '%U (%u)' "$(pwd)" 2>/dev/null || echo 'unknown')"
+  
+  # Check if default.settings.php exists BEFORE bootstrap
+  # We'll use this to determine if we should create settings.php
+  local default_settings="${WEB_ROOT:-${app_root}/web}/sites/default/default.settings.php"
+  local has_default_settings=0
+  if [ -f "$default_settings" ]; then
+    has_default_settings=1
+    log "default.settings.php exists before bootstrap; will NOT auto-create settings.php"
+  else
+    log "default.settings.php does not exist before bootstrap; will create settings.php if it appears during bootstrap"
+  fi
   
   # Initialize and update Git submodules recursively
   if [ -d ".git" ]; then
@@ -122,6 +175,7 @@ main() {
     log "No composer.json found, skipping composer install"
   fi
 
+  ensure_settings_php_exists "$app_root" "$has_default_settings"
   ensure_devpanel_settings_include "$app_root"
   
   log "Application bootstrap completed successfully"

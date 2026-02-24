@@ -6,10 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
-trap "sudo -n rm -rf $TEMP_DIR 2>/dev/null || rm -rf $TEMP_DIR" EXIT
 
-# shellcheck source=lib/utils.sh
-source "$TEST_DIR/lib/utils.sh"
+# shellcheck source=lib/sudo.sh
+source "$TEST_DIR/lib/sudo.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -20,35 +19,8 @@ NC='\033[0m'
 
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
 
-# Probe for sudo credentials when run standalone (not from unit-test.sh or run-all-tests.sh).
-if [ "${SUDO_PROBED:-}" != "1" ]; then
-    SUDO_AVAILABLE=0
-    if sudo -n true 2>/dev/null; then
-        SUDO_AVAILABLE=1
-    elif [ -t 0 ] && [ -z "${CI:-}" ]; then
-        echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-        echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
-        if _timeout 30 sudo -v; then
-            SUDO_AVAILABLE=1
-        fi
-        if [ "$SUDO_AVAILABLE" = "0" ]; then
-            echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-        fi
-        echo ""
-    fi
-    export SUDO_AVAILABLE SUDO_PROBED=1
-fi
-
-# Read the probe result: if the parent probe found no sudo, skip immediately.
-_sudo_avail="${SUDO_AVAILABLE:-0}"
-
-# Verify once that sudo -n actually works in the current process context.
-# A single check here is sufficient; repeating it inside every test function
-# causes false negatives on macOS where each sudo -n call can independently
-# fail if the TTY ticket has been consumed by a preceding sudo invocation.
-if [ "${_sudo_avail:-0}" = "1" ] && ! sudo -n true 2>/dev/null; then
-    _sudo_avail=0
-fi
+# Setup sudo credentials and background refresh
+setup_sudo "$TEMP_DIR"
 
 # Test 1: Script is executable
 test_script_executable() {
@@ -82,11 +54,8 @@ test_app_root_wait_present() {
 # Test 4: Wait is skipped when APP_ROOT_TIMEOUT=0
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
+
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     # With timeout=0 the script should proceed immediately without waiting.
     # We pass a no-op command so exec succeeds without starting Apache.
@@ -110,12 +79,9 @@ test_app_root_wait_skipped_at_zero() {
 # Test 5: Script proceeds immediately when APP_ROOT is non-empty
 test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
+
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     local start end elapsed
     start=$(date +%s)
@@ -137,15 +103,22 @@ test_app_root_ready_immediately() {
 # Test 6: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
 test_app_root_ignores_root_owned_entries() {
     local app_root="$TEMP_DIR/root-owned-root"
-    mkdir -p "$app_root"
     # This test requires sudo.
-    if [ "${_sudo_avail:-0}" != "1" ]; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires sudo${NC}"
         return 0
     fi
+
+    mkdir -p "$app_root"
     # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
-    sudo -n mkdir -p "$app_root/lost+found"
-    sudo -n chown root "$app_root/lost+found"
+    if ! sudo -n mkdir -p "$app_root/lost+found"; then
+        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires active sudo credentials${NC}"
+        return 0
+    fi
+    if ! sudo -n chown root "$app_root/lost+found"; then
+        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires active sudo credentials${NC}"
+        return 0
+    fi
 
     local output
     set +e
@@ -166,11 +139,8 @@ test_app_root_ignores_root_owned_entries() {
 # Test 7: Timeout warning is logged when APP_ROOT remains empty
 test_app_root_timeout_warning() {
     local app_root="$TEMP_DIR/empty-root-timeout"
+
     mkdir -p "$app_root"
-    if [ "${_sudo_avail:-0}" != "1" ]; then
-        echo -e "${YELLOW}⊘ Skipping: passwordless sudo not available${NC}"
-        return 0
-    fi
 
     local output
     set +e
@@ -201,11 +171,14 @@ test_proxy_path_directory_creation() {
 # Run tests
 test_script_executable
 test_error_handling
-test_app_root_wait_present
-test_app_root_wait_skipped_at_zero
-test_app_root_ready_immediately
+# Sudo-dependent tests first (shortest to longest expected runtime)
 test_app_root_ignores_root_owned_entries
+
+# Non-sudo tests
+test_app_root_ready_immediately
+test_app_root_wait_skipped_at_zero
 test_app_root_timeout_warning
+test_app_root_wait_present
 test_proxy_path_directory_creation
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"

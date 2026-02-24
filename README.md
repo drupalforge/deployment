@@ -31,7 +31,8 @@ Container Start
 Deployment Entrypoint (deployment-entrypoint.sh)
     ├─→ Bootstrap App (bootstrap-app.sh)
     │   ├─→ Initialize Git submodules recursively
-    │   └─→ Run composer install (if composer.json exists)
+    │   ├─→ Run composer install (if composer.json exists)
+    │   ├─→ Create settings.php from default.settings.php (if needed)
     │   └─→ Ensure Drupal settings.php includes DevPanel configuration
     │
     ├─→ Database Import (if S3_BUCKET + S3_DATABASE_PATH set)
@@ -78,7 +79,15 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 **Deployment image handles (on startup):**
 - Initializing and updating Git submodules recursively
 - Running `composer install` if `composer.json` exists
+- Creating Drupal `settings.php` from `default.settings.php` if:
+  - `default.settings.php` **did not exist** before bootstrap (likely was added via Git submodules or Composer)
+  - `default.settings.php` **now exists** after bootstrap
 - Ensuring Drupal `settings.php` includes DevPanel configuration (from `/usr/local/share/drupalforge/settings.devpanel.php`) if the project has `web/sites/default/settings.php`
+
+**Permission Handling:** The bootstrap script uses non-interactive `sudo` for settings file operations.
+- When `sites/default` or `settings.php` are read-only, operations are attempted via `sudo -n` only
+- If `sudo` credentials are unavailable, the bootstrap step fails with an error
+- This allows configuration to work when files are owned by a different user or have restricted permissions
 
 ### The site database
 

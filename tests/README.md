@@ -212,6 +212,23 @@ docker system prune -a  # Clean up if needed
 lsof -i :80  # Check if port 80 is available
 ```
 
+### "Sudo-dependent tests are skipped or flaky in longer runs"
+
+Sudo-dependent checks can skip if non-interactive credentials are not active at the moment they execute.
+
+**Solutions:**
+- Re-authenticate before running tests:
+    ```bash
+    sudo -v
+    cd tests && bash unit-test.sh
+    ```
+- Verify non-interactive sudo is active:
+    ```bash
+    sudo -n true && echo "sudo active"
+    ```
+- Keep sudo-dependent tests first in each suite, ordered by expected runtime (shortest to longest), to reduce credential-age risk before privileged checks run.
+- If running from hooks or scripts, ensure an interactive TTY is available when a password prompt is needed.
+
 ## Test Development Guidelines
 
 When adding new tests:

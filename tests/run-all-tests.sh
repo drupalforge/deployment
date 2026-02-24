@@ -19,8 +19,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# shellcheck source=lib/utils.sh
-source "$SCRIPT_DIR/lib/utils.sh"
+# shellcheck source=lib/sudo.sh
+source "$SCRIPT_DIR/lib/sudo.sh"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║          Drupal Forge Deployment - Complete Test Suite         ║${NC}"
@@ -28,40 +28,10 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # Probe for sudo credentials before launching tests.
-# Unit tests need sudo for some tests. By probing here with a clear message
-# and a countdown, credentials are cached before the tests that need them.
-SUDO_AVAILABLE=0
+# Unit tests need sudo for some tests. By using the library function,
+# credentials are cached before the tests that need them.
 TMPDIR_SUITES=$(mktemp -d)
-if sudo -n true 2>/dev/null; then
-    SUDO_AVAILABLE=1
-elif [ -t 0 ] && [ -z "${CI:-}" ]; then
-    echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
-    echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
-    COUNTDOWN_STOP_FILE="$TMPDIR_SUITES/countdown-stop"
-    printf "  (30 sec remaining)\n" > /dev/tty 2>/dev/null || true
-    ( for i in $(seq 30 -1 1); do
-          sleep 1
-          [ -f "$COUNTDOWN_STOP_FILE" ] && break
-          printf "\033[s\033[A\r  (%2d sec remaining)\033[u" "$i" > /dev/tty 2>/dev/null || true
-      done
-    ) &
-    COUNTDOWN_PID=$!
-    if _timeout 30 sudo -v; then
-        SUDO_AVAILABLE=1
-    fi
-    touch "$COUNTDOWN_STOP_FILE"
-    kill "$COUNTDOWN_PID" 2>/dev/null || true
-    wait "$COUNTDOWN_PID" 2>/dev/null || true
-    # sudo always writes "Password:" in this branch (sudo -n failed to get here).
-    # After the user interacts, cursor is 2 lines below the countdown line.
-    # Go up 2 and erase to end of screen to remove countdown + password lines.
-    printf "\033[2A\r\033[J" > /dev/tty 2>/dev/null || true
-    if [ "$SUDO_AVAILABLE" = "0" ]; then
-        echo -e "${YELLOW}No sudo credentials — sudo-dependent tests will be skipped.${NC}"
-    fi
-    echo ""
-fi
-export SUDO_AVAILABLE SUDO_PROBED=1
+setup_sudo "$TMPDIR_SUITES"
 
 # Print results for a suite immediately when it completes.
 TESTS_FAILED=0
@@ -151,9 +121,7 @@ else
 fi
 echo ""
 
-rm -rf "$TMPDIR_SUITES"
-
-# Summary
+# Summary (cleanup trap will run before exit)
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║                        Test Summary                            ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
