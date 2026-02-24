@@ -32,6 +32,7 @@ Deployment Entrypoint (deployment-entrypoint.sh)
     ├─→ Bootstrap App (bootstrap-app.sh)
     │   ├─→ Initialize Git submodules recursively
     │   └─→ Run composer install (if composer.json exists)
+    │   └─→ Ensure Drupal settings.php includes DevPanel configuration
     │
     ├─→ Database Import (if S3_BUCKET + S3_DATABASE_PATH set)
     │   └─→ Download from S3 → MySQL import
@@ -77,6 +78,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 **Deployment image handles (on startup):**
 - Initializing and updating Git submodules recursively
 - Running `composer install` if `composer.json` exists
+- Ensuring Drupal `settings.php` includes DevPanel configuration (from `/usr/local/share/drupalforge/settings.devpanel.php`) if the project has `web/sites/default/settings.php`
 
 ### The site database
 

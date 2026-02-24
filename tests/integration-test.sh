@@ -7,6 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_COMPOSE_PROJECT="test-df-deployment"
+FIXTURES_PATH="tests/fixtures/app"
+FIXTURE_GITIGNORE="$SCRIPT_DIR/fixtures/app/.gitignore"
 
 # Colors for output
 RED='\033[0;31m'
@@ -63,10 +65,14 @@ cleanup() {
         echo "$test_images" | xargs -r docker rmi 2>/dev/null || true
     fi
 
+    # Remove temporary fixture .gitignore so git can restore tracked files
+    rm -f "$FIXTURE_GITIGNORE"
+
     # Remove generated files written through bind-mounted fixtures/app volume
-    # Use git clean to purge ignored artifacts while preserving tracked fixture files.
+    # Restore tracked fixture files and remove untracked files.
     if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git -C "$PROJECT_ROOT" clean -dfX -- "$SCRIPT_DIR/fixtures/app" >/dev/null 2>&1 || true
+        git -C "$PROJECT_ROOT" checkout -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
+        git -C "$PROJECT_ROOT" clean -df -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
     else
         rm -rf "$SCRIPT_DIR/fixtures/app/web/sites" 2>/dev/null || true
     fi
@@ -107,6 +113,19 @@ echo ""
 
 # Start services
 echo -e "${YELLOW}Starting test environment...${NC}"
+
+# Remove temporary fixture .gitignore from any previous failed run
+rm -f "$FIXTURE_GITIGNORE"
+
+# Restore fixture baseline from Git
+if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$PROJECT_ROOT" checkout -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
+    git -C "$PROJECT_ROOT" clean -df -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
+fi
+
+# Create temporary .gitignore to isolate fixture mutations from host git status
+echo '*' > "$FIXTURE_GITIGNORE"
+
 cd "$SCRIPT_DIR"
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
 
@@ -265,6 +284,22 @@ fi
 # Test 13: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
 if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 14: DevPanel settings template exists in image/container
+if run_test "DevPanel settings template exists in container" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /usr/local/share/drupalforge/settings.devpanel.php"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 15: Bootstrap injected DevPanel include into settings.php exactly once
+if run_test "Bootstrap injected DevPanel include into settings.php once" \
+    "grep -c \"getenv('DP_APP_ID')\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))

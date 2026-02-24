@@ -23,6 +23,7 @@ COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
 
 # Copy Apache configuration for proxy and PHP proxy handler
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
+COPY config/settings.devpanel.php /usr/local/share/drupalforge/settings.devpanel.php
 COPY scripts/proxy-handler.php /var/www/drupalforge-proxy-handler.php
 
 # Enable Apache proxy and rewrite modules for conditional file serving

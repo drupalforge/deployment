@@ -114,7 +114,56 @@ EOF
     fi
 }
 
-# Test 5: Script is executable
+# Test 5: DevPanel settings include block is added when missing
+test_devpanel_settings_include_added() {
+    local test_repo="$TEMP_DIR/test-settings-append"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+
+    mkdir -p "$settings_dir"
+    cat > "$settings_file" <<'PHP'
+<?php
+
+$settings['hash_salt'] = 'test';
+PHP
+
+    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if grep -q "getenv('DP_APP_ID')" "$settings_file"; then
+        echo -e "${GREEN}✓ DevPanel settings include block is added to settings.php${NC}"
+    else
+        echo -e "${RED}✗ DevPanel settings include block was not added${NC}"
+        exit 1
+    fi
+}
+
+# Test 6: DevPanel settings include block is not duplicated
+test_devpanel_settings_include_not_duplicated() {
+    local test_repo="$TEMP_DIR/test-settings-idempotent"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+
+    mkdir -p "$settings_dir"
+    cat > "$settings_file" <<'PHP'
+<?php
+
+$settings['hash_salt'] = 'test';
+PHP
+
+    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    local include_count
+    include_count=$(grep -c "getenv('DP_APP_ID')" "$settings_file")
+    if [ "$include_count" -eq 1 ]; then
+        echo -e "${GREEN}✓ DevPanel settings include block is not duplicated${NC}"
+    else
+        echo -e "${RED}✗ DevPanel settings include block duplicated (count: $include_count)${NC}"
+        exit 1
+    fi
+}
+
+# Test 7: Script is executable
 test_script_executable() {
     if [ -x "$SCRIPT_DIR/scripts/bootstrap-app.sh" ]; then
         echo -e "${GREEN}✓ bootstrap-app.sh is executable${NC}"
@@ -124,7 +173,7 @@ test_script_executable() {
     fi
 }
 
-# Test 6: Script has error handling
+# Test 8: Script has error handling
 test_error_handling() {
     if grep -q "set -e" "$SCRIPT_DIR/scripts/bootstrap-app.sh"; then
         echo -e "${GREEN}✓ Script has error handling (set -e)${NC}"
@@ -139,5 +188,7 @@ test_error_handling
 test_composer_detection
 test_composer_install_failure
 test_composer_lock_permission_without_vendor_fails
+test_devpanel_settings_include_added
+test_devpanel_settings_include_not_duplicated
 
 echo -e "${GREEN}✓ Bootstrap app tests passed${NC}"

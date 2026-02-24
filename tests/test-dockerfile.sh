@@ -83,7 +83,17 @@ test_apache_config_copy() {
     fi
 }
 
-# Test 7: Scripts are copied (execute permissions preserved from source)
+# Test 7: Copies DevPanel settings config
+test_devpanel_settings_copy() {
+    if grep -q "COPY.*settings.devpanel.php" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Copies DevPanel settings config${NC}"
+    else
+        echo -e "${RED}✗ Missing settings.devpanel.php copy${NC}"
+        exit 1
+    fi
+}
+
+# Test 8: Scripts are copied (execute permissions preserved from source)
 test_scripts_copied() {
     # The scripts in the scripts/ directory already have execute permissions
     # which are preserved when copied to the image via COPY command
@@ -96,7 +106,7 @@ test_scripts_copied() {
     fi
 }
 
-# Test 8: Enables required Apache modules
+# Test 9: Enables required Apache modules
 test_apache_modules() {
     local modules=("rewrite" "proxy" "proxy_http")
     for module in "${modules[@]}"; do
@@ -109,7 +119,7 @@ test_apache_modules() {
     done
 }
 
-# Test 9: Sets ENTRYPOINT
+# Test 10: Sets ENTRYPOINT
 test_entrypoint() {
     if grep -q "ENTRYPOINT.*deployment-entrypoint" "$DOCKERFILE"; then
         echo -e "${GREEN}✓ Sets deployment entrypoint${NC}"
@@ -119,7 +129,7 @@ test_entrypoint() {
     fi
 }
 
-# Test 10: Has labels
+# Test 11: Has labels
 test_labels() {
     if grep -q "LABEL.*org.opencontainers.image" "$DOCKERFILE"; then
         echo -e "${GREEN}✓ Has OCI labels${NC}"
@@ -135,6 +145,7 @@ test_php_version_arg
 test_script_copies
 test_php_handler_copy
 test_apache_config_copy
+test_devpanel_settings_copy
 test_scripts_copied
 test_apache_modules
 test_entrypoint

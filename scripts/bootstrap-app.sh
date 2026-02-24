@@ -23,6 +23,34 @@ error() {
   return 1
 }
 
+ensure_devpanel_settings_include() {
+  local app_root="$1"
+  local settings_file="${WEB_ROOT:-${app_root}/web}/sites/default/settings.php"
+
+  if [ ! -f "$settings_file" ]; then
+    log "Drupal settings.php not found at $settings_file, skipping DevPanel settings include"
+    return 0
+  fi
+
+  if grep -qE "(getenv\([\"']DP_APP_ID[\"']\)|\\\$_ENV\[[\"']DP_APP_ID[\"']\])" "$settings_file"; then
+    log "DevPanel settings include already exists in $settings_file"
+    return 0
+  fi
+
+  cat >> "$settings_file" <<'PHP'
+
+/**
+ * Load DevPanel override configuration, if available.
+ */
+$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
+if (getenv('DP_APP_ID') !== FALSE && file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+PHP
+
+  log "Added DevPanel settings include block to $settings_file"
+}
+
 # Main execution
 main() {
   local app_root="${APP_ROOT:-.}"
@@ -93,6 +121,8 @@ main() {
   else
     log "No composer.json found, skipping composer install"
   fi
+
+  ensure_devpanel_settings_include "$app_root"
   
   log "Application bootstrap completed successfully"
   return 0

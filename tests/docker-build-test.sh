@@ -81,6 +81,15 @@ test_version() {
             failed=1
         fi
 
+        # Verify DevPanel settings template is present in image
+        echo -e "${YELLOW}  Verifying DevPanel settings template...${NC}"
+        if docker run --rm --entrypoint sh "$tag" -c 'test -f /usr/local/share/drupalforge/settings.devpanel.php'; then
+            echo -e "${GREEN}  ✓ DevPanel settings template exists in image${NC}"
+        else
+            echo -e "${RED}  ✗ DevPanel settings template missing in image${NC}"
+            failed=1
+        fi
+
         # Verify BASE_CMD environment variable is set
         echo -e "${YELLOW}  Verifying BASE_CMD environment...${NC}"
         base_cmd=$(docker inspect "$tag" --format='{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep "^BASE_CMD=" | cut -d= -f2-)
