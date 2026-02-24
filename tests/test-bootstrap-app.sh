@@ -324,7 +324,7 @@ test_settings_copy_owner_matches_invoking_user() {
     fi
 
     expected_spec="$(id -u):$(id -g)"
-    file_spec=$(stat -f '%u:%g' "$dest_file" 2>/dev/null || stat -c '%u:%g' "$dest_file" 2>/dev/null || echo "")
+    file_spec=$(stat -c '%u:%g' "$dest_file" 2>/dev/null || stat -f '%u:%g' "$dest_file" 2>/dev/null || echo "")
 
     if [ -n "$expected_spec" ] && [ "$expected_spec" = "$file_spec" ]; then
         echo -e "${GREEN}✓ settings.php copy aligns destination file owner/group with invoking user${NC}"
