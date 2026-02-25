@@ -42,6 +42,7 @@ test_yaml_files() {
     local yaml_files=$(find "$SCRIPT_DIR" -type f \( -name "*.yml" -o -name "*.yaml" \) \
         ! -path "*/node_modules/*" \
         ! -path "*/.git/*" \
+        ! -path "*/tests/fixtures/*" \
         ! -path "*/vendor/*")
     
     if [ -z "$yaml_files" ]; then

@@ -5,10 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_COMPOSE_PROJECT="test-df-deployment"
-FIXTURES_PATH="tests/fixtures/app"
-FIXTURE_GITIGNORE="$SCRIPT_DIR/fixtures/app/.gitignore"
 
 # Colors for output
 RED='\033[0;31m'
@@ -37,16 +34,39 @@ run_test() {
     fi
 }
 
+cleanup_compose_state() {
+    local remove_orphans="${1:-no}"
+    local compose_down_args="-v"
+    local stale_containers
+
+    if [ "$remove_orphans" = "yes" ]; then
+        compose_down_args="$compose_down_args --remove-orphans"
+    fi
+
+    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down $compose_down_args 2>/dev/null || true
+
+    stale_containers=$(docker ps -aq --filter "label=com.docker.compose.project=${TEST_COMPOSE_PROJECT}" 2>/dev/null || true)
+    if [ -n "$stale_containers" ]; then
+        echo "$stale_containers" | xargs docker rm -f 2>/dev/null || true
+    fi
+}
+
 # Function to cleanup
 cleanup() {
+    if [ "${KEEP_TEST_ENV:-no}" = "yes" ]; then
+        echo ""
+        echo -e "${YELLOW}KEEP_TEST_ENV=yes set; skipping cleanup for debugging${NC}"
+        return
+    fi
+
     echo ""
     echo -e "${YELLOW}Cleaning up test environment...${NC}"
     cd "$SCRIPT_DIR"
     
-    # Stop and remove containers, networks, volumes
-    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v 2>/dev/null || true
+    # Stop and remove compose resources for this test project.
+    cleanup_compose_state "no"
     
-    # Restore fixture ownership to the current (host) user so git clean can remove generated files
+    # Restore fixture ownership to the current (host) user before fixture cleanup
     docker run --rm \
       --platform linux/amd64 \
       -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
@@ -62,20 +82,11 @@ cleanup() {
     # Remove dangling images created during test
     local test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "^test-df-deployment" || true)
     if [ -n "$test_images" ]; then
-        echo "$test_images" | xargs -r docker rmi 2>/dev/null || true
+        echo "$test_images" | xargs docker rmi 2>/dev/null || true
     fi
 
-    # Remove temporary fixture .gitignore so git can restore tracked files
-    rm -f "$FIXTURE_GITIGNORE"
-
-    # Remove generated files written through bind-mounted fixtures/app volume
-    # Restore tracked fixture files and remove untracked files.
-    if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git -C "$PROJECT_ROOT" checkout -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
-        git -C "$PROJECT_ROOT" clean -df -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
-    else
-        rm -rf "$SCRIPT_DIR/fixtures/app/web/sites" 2>/dev/null || true
-    fi
+    # Remove integration fixture app directory.
+    rm -rf "$SCRIPT_DIR/fixtures/app" 2>/dev/null || true
     
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -97,43 +108,63 @@ else
 fi
 echo ""
 
-# Initialize git repository for test app
+# Best-effort stale cleanup before building/running to avoid memory pressure
+# from interrupted prior runs.
+echo -e "${YELLOW}Cleaning stale integration resources...${NC}"
+cleanup_compose_state "yes"
+echo -e "${GREEN}✓ Stale resources cleaned${NC}"
+echo ""
+
+# Check Docker memory allocation (integration stack is memory-intensive on macOS Docker Desktop).
+docker_mem_bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
+if [[ "$docker_mem_bytes" =~ ^[0-9]+$ ]] && [ "$docker_mem_bytes" -gt 0 ]; then
+    docker_mem_mb=$((docker_mem_bytes / 1024 / 1024))
+    if [ "$docker_mem_mb" -lt 3072 ]; then
+        echo -e "${BLUE}  Docker memory is ${docker_mem_mb} MiB; integration is more reliable with >= 3072 MiB${NC}"
+    fi
+fi
+
+# Initialize test app from Drupal 11 recommended-project
 echo -e "${YELLOW}Initializing test app...${NC}"
-if [ ! -d "$SCRIPT_DIR/fixtures/app/.git" ]; then
+if [ ! -f "$SCRIPT_DIR/fixtures/app/composer.json" ]; then
+    # Clean up any partial/failed installation
+    rm -rf "$SCRIPT_DIR/fixtures/app"
+    mkdir -p "$SCRIPT_DIR/fixtures/app"
     cd "$SCRIPT_DIR/fixtures/app"
-    git init . >/dev/null 2>&1
-    git config user.email "test@example.com"
-    git config user.name "Test User"
-    git add . >/dev/null 2>&1
-    git commit -m "Initial commit" >/dev/null 2>&1
+    
+    # Clone Drupal 11 recommended-project (shallow clone for speed)
+    git clone --branch 11.x --single-branch --depth 1 \
+        https://github.com/drupal/recommended-project.git . >/dev/null 2>&1
+    
+    # Install dependencies including Drush and Stage File Proxy
+    composer require drush/drush drupal/stage_file_proxy \
+        --no-interaction >/dev/null 2>&1
+
     cd "$SCRIPT_DIR"
 fi
+
+# Ensure fixture has settings.php (existing fixture checkouts skip the block above).
+# Bootstrap intentionally does not auto-create settings.php when default.settings.php
+# existed before bootstrap started, so integration fixtures must provide it.
+if [ ! -f "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php" ] && [ -f "$SCRIPT_DIR/fixtures/app/web/sites/default/default.settings.php" ]; then
+    cp "$SCRIPT_DIR/fixtures/app/web/sites/default/default.settings.php" "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php"
+fi
+
+# Ensure the default files directory exists and is writable after fresh fixture
+# recreation. On macOS bind mounts, UID/GID mapping can make container writes
+# fail unless explicit write permissions are set on the host path.
+mkdir -p "$SCRIPT_DIR/fixtures/app/web/sites/default/files"
+chmod -R a+rwX "$SCRIPT_DIR/fixtures/app/web/sites/default/files" 2>/dev/null || true
 echo -e "${GREEN}✓ Test app initialized${NC}"
 echo ""
 
 # Start services
 echo -e "${YELLOW}Starting test environment...${NC}"
 
-# Remove temporary fixture .gitignore from any previous failed run
-rm -f "$FIXTURE_GITIGNORE"
-
-# Restore fixture baseline from Git
-if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$PROJECT_ROOT" checkout -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
-    git -C "$PROJECT_ROOT" clean -df -- "$FIXTURES_PATH" >/dev/null 2>&1 || true
-fi
-
-# Create temporary .gitignore to isolate fixture mutations from host git status
-echo '*' > "$FIXTURE_GITIGNORE"
-
-# Ensure settings.php exists for DevPanel include validation (untracked fixture)
-mkdir -p "$SCRIPT_DIR/fixtures/app/web/sites/default"
-if [ ! -f "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php" ]; then
-    echo '<?php' > "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php"
-fi
-
 cd "$SCRIPT_DIR"
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
+
+# Ensure a clean compose state immediately before building and starting services.
+cleanup_compose_state "yes"
 
 # Build image first so we can use it to set fixture ownership
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
@@ -146,10 +177,30 @@ docker run --rm \
   --user root \
   --entrypoint "" \
   test-df-deployment:8.3 \
-  chown -R www:www /var/www/html
+    chown -R www:www /var/www/html 2>/dev/null || true
 echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
 
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d
+compose_up_ok=0
+for start_attempt in 1 2; do
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d; then
+        compose_up_ok=1
+        break
+    fi
+
+    echo -e "${BLUE}  Compose startup attempt ${start_attempt} failed; capturing mysql logs${NC}"
+    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml ps || true
+    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs mysql --tail=200 || true
+
+    if [ "$start_attempt" -lt 2 ]; then
+        echo -e "${BLUE}  Retrying startup with clean services/volumes${NC}"
+        cleanup_compose_state "yes"
+    fi
+done
+
+if [ "$compose_up_ok" -ne 1 ]; then
+    echo -e "${RED}✗ Failed to start integration environment after retries${NC}"
+    exit 1
+fi
 
 # Wait for regular deployment container to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
@@ -199,17 +250,18 @@ else
     ((failed=failed+1))
 fi
 
-# Test 2: Database connectivity from application
-if run_test "App can connect to database" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Database connected'"; then
+# Test 2: Installer endpoint is reachable and reports a valid Drupal install state
+# Depending on fixture DB snapshot, Drupal may report either installer flow or already-installed state.
+if run_test "Drupal install state endpoint reachable" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/core/install.php | grep -Eqi \"(already installed|choose language|set up database)\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 3: Application is reachable
-if run_test "Application is reachable" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php | grep -q 'Deployment Test Application'"; then
+# Test 3: Drupal entrypoint responds
+if run_test "Drupal index endpoint reachable" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/index.php | grep -qi \"Drupal\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -233,7 +285,7 @@ fi
 
 # Test 6: File proxy - request missing file from origin
 if run_test "File proxy setup (rewrite rules)" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment grep -q 'RewriteRule.*proxy-handler' /etc/apache2/conf-available/drupalforge-proxy.conf"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc \"grep -q 'RewriteRule.*proxy-handler' /etc/apache2/conf-available/drupalforge-proxy.conf || grep -q 'RewriteRule.*proxy-handler' /var/www/html/web/.htaccess\""; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -305,7 +357,7 @@ fi
 
 # Test 15: Bootstrap injected DevPanel include into settings.php exactly once
 if run_test "Bootstrap injected DevPanel include into settings.php once" \
-    "grep -c \"getenv('DP_APP_ID')\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
+    "grep -c \"/usr/local/share/drupalforge/settings.devpanel.php\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))

@@ -38,6 +38,7 @@ setup_sudo "$TMPDIR_TESTS"
 declare -a PIDS=()
 declare -a TEST_NAMES=()
 declare -a OUT_FILES=()
+declare -a EXIT_CODES=()
 
 for test_file in "$TEST_DIR"/test-*.sh; do
     [ -f "$test_file" ] || continue
@@ -45,15 +46,17 @@ for test_file in "$TEST_DIR"/test-*.sh; do
     out_file="$TMPDIR_TESTS/output-${test_name}.txt"
     TEST_NAMES+=("$test_name")
     OUT_FILES+=("$out_file")
-    ( bash_exit=0
-      bash "$test_file" > "$out_file" 2>&1 || bash_exit=$?
-      echo "$bash_exit" > "$TMPDIR_TESTS/exit-${test_name}.txt" ) &
+    bash "$test_file" > "$out_file" 2>&1 &
     PIDS+=($!)
 done
 
 # Wait for ALL parallel tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
-    wait "${PIDS[$i]}" || true
+    if wait "${PIDS[$i]}"; then
+        EXIT_CODES[$i]=0
+    else
+        EXIT_CODES[$i]=$?
+    fi
 done
 
 # Print each suite's buffered output in order.
@@ -68,7 +71,7 @@ for i in "${!TEST_NAMES[@]}"; do
     cat "${OUT_FILES[$i]}"
     skips_in_suite=$(awk '/⊘ /{c++} END{print c+0}' "${OUT_FILES[$i]}")
     skipped_assertions=$((skipped_assertions + skips_in_suite))
-    exit_code=$(cat "$TMPDIR_TESTS/exit-${test_name}.txt" 2>/dev/null || echo 1)
+    exit_code="${EXIT_CODES[$i]:-1}"
     if [ "$exit_code" -eq 0 ]; then
         echo -e "${GREEN}✓ $test_name passed${NC}"
         passed_suites=$((passed_suites + 1))

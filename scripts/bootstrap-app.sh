@@ -72,7 +72,7 @@ ensure_devpanel_settings_include() {
     return 0
   fi
 
-  if grep -qE "(getenv\([\"']DP_APP_ID[\"']\)|\\\$_ENV\[[\"']DP_APP_ID[\"']\])" "$settings_file"; then
+  if grep -q "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file"; then
     log "DevPanel settings include already exists in $settings_file"
     return 0
   fi
@@ -82,7 +82,7 @@ ensure_devpanel_settings_include() {
  * Load DevPanel override configuration, if available.
  */
 $devpanel_settings = \'/usr/local/share/drupalforge/settings.devpanel.php\';
-if (getenv(\'DP_APP_ID\') !== FALSE && file_exists($devpanel_settings)) {
+if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }'
 
@@ -159,7 +159,12 @@ main() {
 
     log "Running composer install..."
     set +e  # Temporarily disable exit on error
-    composer install --no-interaction 2>&1 | tee "$composer_log"
+    if [ -n "${COMPOSER_INSTALL_FLAGS:-}" ]; then
+      read -r -a composer_flags <<< "$COMPOSER_INSTALL_FLAGS"
+    else
+      composer_flags=()
+    fi
+    composer install --no-interaction "${composer_flags[@]}" 2>&1 | tee "$composer_log"
     local composer_exit=${PIPESTATUS[0]}
     set -e  # Re-enable exit on error
 

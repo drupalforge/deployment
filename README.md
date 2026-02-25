@@ -61,6 +61,8 @@ Extends `devpanel/php:{8.2,8.3}-base` with:
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
 
+The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
+
 **CMD Inheritance:** The deployment image dynamically inherits the CMD from the base image at build time. This is achieved by:
 1. Extracting the base image's CMD using `docker inspect`
 2. Passing it as a `BASE_CMD` build argument
@@ -128,7 +130,28 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 | `AWS_ACCESS_KEY_ID` | AWS access key (optional, uses instance role if not provided) | - |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key (optional, uses instance role if not provided) | - |
 
-**Database Connection Variables:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` are automatically provided by DevPanel and do not need to be specified when deploying on Drupal Forge. They are only required when running the container outside of Drupal Forge.
+**Database Connection Variables:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_DRIVER` are required by `settings.devpanel.php`. DevPanel should provide these automatically on Drupal Forge.
+
+### Drupal Settings Overrides (`settings.devpanel.php`)
+
+When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php`, the image configures Drupal database settings from environment variables and applies safe defaults for DevPanel environments.
+
+- `hash_salt` is derived deterministically from the configured `$databases['default']['default']` connection values.
+- `config_sync_directory` defaults to `../config/sync` unless already defined.
+- `file_private_path` defaults to `../private` unless already defined.
+- `trusted_host_patterns` includes `DP_HOSTNAME` when provided, otherwise `.*`.
+
+Database SSL mode can be controlled with:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MYSQL_SSL_MODE` | MySQL SSL mode for import and Drupal runtime DB connections (`compat` uses client defaults; `strict` optionally pins a CA via `MYSQL_SSL_CA`; `insecure` enables skip-verify fallback for local/test use) | `compat` |
+| `MYSQL_SSL_CA` | CA certificate path used in strict mode (optional) | `/etc/ssl/certs/mysql-ca.pem` |
+
+Notes:
+- `compat` matches plain `mysql` CLI usage with no explicit SSL flags (for example: `mysql --host=... --port=... -u... -p...`).
+- `strict` is recommended when a CA file is available because it allows explicit certificate trust via `--ssl-ca`.
+- `insecure` is intended for local/test environments with self-signed certificates when CA validation is not feasible.
 
 ### File Proxy Configuration
 
@@ -145,6 +168,7 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 |----------|-------------|---------|
 | `APP_ROOT_TIMEOUT` | Seconds to wait for `APP_ROOT` to be populated before proceeding (optional, default: `300`; set to `0` to disable) | `300` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
+| `COMPOSER_INSTALL_FLAGS` | Extra flags appended to `composer install` during bootstrap (optional) | `--ignore-platform-req=php` |
 
 ### Conditional File Serving with On-Demand Download
 
@@ -385,6 +409,7 @@ This validates:
 - Database import from S3 (using MinIO for local testing)
 - Application database connectivity
 - Git bootstrap and Composer installation
+- Drupal install state detection against imported fixture data
 - File proxy setup and configuration
 - File proxy downloads from origin server
 - Downloaded files persist locally
@@ -393,7 +418,7 @@ This validates:
 1. Builds the deployment image
 2. Starts MinIO, MySQL, and a mock origin server
 3. Runs the deployment container with full initialization
-4. Executes 11 validation checks
+4. Executes 15 validation checks
 5. Cleans up resources
 
 See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual testing instructions.
@@ -401,7 +426,7 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 ### Test Coverage
 
 - **Unit Tests**: 40+ individual tests covering all scripts and configuration
-- **Integration Tests**: 11 end-to-end validation checks
+- **Integration Tests**: 15 end-to-end validation checks
 - **CI/CD**: Automated tests on every PR and push to main branch
   - Tests run automatically on pull requests that are ready for review
   - Draft pull requests are skipped (tests don't run)

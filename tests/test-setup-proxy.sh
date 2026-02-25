@@ -54,7 +54,9 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-    if grep -q "RewriteCond\|RewriteRule" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+    if grep -q "%{REQUEST_FILENAME} -f" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "%{REQUEST_FILENAME} -d" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q '/drupalforge-proxy-handler.php \[END\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Script generates rewrite rules${NC}"
     else
         echo -e "${RED}✗ Script doesn't generate rewrite rules${NC}"
@@ -91,6 +93,19 @@ test_default_paths() {
     fi
 }
 
+# Test 9: Unified helper performs rewrite lifecycle operations
+test_unified_rewrite_helper() {
+    if grep -q "update_proxy_rewrite_rules()" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    grep -q "REQUEST_FILENAME" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Unified helper manages cleanup, bypass, and injection${NC}"
+    else
+        echo -e "${RED}✗ Unified helper lifecycle behavior not found${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -100,5 +115,6 @@ test_rewrite_rules
 test_handler_setup
 test_env_variables
 test_default_paths
+test_unified_rewrite_helper
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"

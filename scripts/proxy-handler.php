@@ -6,8 +6,8 @@
  * Subsequent requests serve the file directly from disk.
  */
 
-// Get the requested path
-$requested_uri = $_SERVER['REQUEST_URI'] ?? '/';
+// Get the requested path from Apache rewrite context.
+$requested_uri = $_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/');
 
 // Remove query string if present
 $requested_path = strtok($requested_uri, '?');

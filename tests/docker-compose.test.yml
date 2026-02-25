@@ -33,6 +33,12 @@ services:
   # MySQL database
   mysql:
     image: mysql:8.0
+    command:
+      - --innodb-buffer-pool-size=64M
+      - --innodb-log-buffer-size=8M
+      - --key-buffer-size=8M
+      - --max-connections=50
+      - --performance-schema=OFF
     environment:
       MYSQL_DATABASE: drupaldb
       MYSQL_USER: drupal
@@ -42,10 +48,10 @@ services:
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot_password --silent"]
-      start_period: 30s
+      start_period: 60s
       interval: 5s
       timeout: 5s
-      retries: 24
+      retries: 36
 
   # Test origin server (simple web server with test files)
   origin-server:
@@ -87,6 +93,11 @@ services:
       DB_USER: drupal
       DB_PASSWORD: drupal_password
       DB_NAME: drupaldb
+      DB_DRIVER: mysql
+      MYSQL_SSL_MODE: insecure
+
+      # Allow fixture lock files to install even if PHP platform differs in tests
+      COMPOSER_INSTALL_FLAGS: "--ignore-platform-req=php"
 
       # S3 configuration for database import
       S3_BUCKET: test-deployments
@@ -98,12 +109,20 @@ services:
       # File proxy configuration
       ORIGIN_URL: http://origin-server:8000
       FILE_PROXY_PATHS: /sites/default/files
+      # Keep integration assertions deterministic in CI by testing Apache proxy mode.
+      # Real Drupal fixture still includes Stage File Proxy for manual/optional validation.
+      USE_STAGE_FILE_PROXY: "no"
       WEB_ROOT: /var/www/html/web
 
       # AWS S3 endpoint override for MinIO
       AWS_S3_ENDPOINT: http://minio:9000
     volumes:
       - ./fixtures/app:/var/www/html
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/index.php"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
 
   # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
   # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path
@@ -114,16 +133,23 @@ services:
     platform: linux/amd64
     image: test-df-deployment:8.3
     depends_on:
+      deployment:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
       origin-server:
         condition: service_healthy
     environment:
       # Skip bootstrap and database import for this scenario
       BOOTSTRAP_REQUIRED: "no"
       APP_ROOT_TIMEOUT: "0"
+      APP_ROOT: /tmp/nonexistent-app
+      USE_STAGE_FILE_PROXY: "no"
 
-      # File proxy with a distinct path since both containers mount the same volume
+      # Include both paths so secure startup does not overwrite the default path
+      # rewrite when both containers share the same .htaccess on the app volume.
       ORIGIN_URL: http://origin-server:8000
-      FILE_PROXY_PATHS: /sites/www-data-test-files
+      FILE_PROXY_PATHS: /sites/default/files,/sites/www-data-test-files
       WEB_ROOT: /var/www/html/web
     volumes:
       - ./fixtures/app:/var/www/html

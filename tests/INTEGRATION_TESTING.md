@@ -7,8 +7,8 @@ This directory contains fixtures and scripts for integration testing the deploym
 - **docker-compose.test.yml** - Complete test environment orchestration
 - **integration-test.sh** - Full validation script
 - **fixtures/**
-  - `app/` - Minimal test application (git repo with composer.json and index.php)
-  - `test-database.sql` - Sample database dump for import testing
+  - `app/` - Drupal app fixture used by bootstrap and runtime checks
+  - `test-database.sql` - Drupal database dump used for import/install-state testing
   - `origin-files/` - Mock origin server files
 
 ## Services
@@ -37,9 +37,10 @@ bash integration-test.sh
 This will:
 1. Start all services
 2. Build the deployment image
-3. Run 11 validation tests covering:
+3. Run 15 validation tests covering:
    - Database import from S3/MinIO
    - Application connectivity to database
+  - Drupal install-state detection
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence
@@ -85,6 +86,7 @@ The integration test validates:
 ✓ File proxy downloads from origin
 ✓ Proxied files persist locally
 ✓ S3/MinIO connectivity
+✓ DevPanel settings template and include injection
 
 ## Troubleshooting
 

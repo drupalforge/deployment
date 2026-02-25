@@ -1,9 +1,0 @@
-{
-  "name": "test/app",
-  "description": "Test application",
-  "type": "project",
-  "license": "MIT",
-  "require": {
-    "php": ">=8.2"
-  }
-}

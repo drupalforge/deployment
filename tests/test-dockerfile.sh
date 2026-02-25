@@ -129,7 +129,17 @@ test_entrypoint() {
     fi
 }
 
-# Test 11: Has labels
+# Test 11: Installs AWS CLI via bundled installer
+test_aws_cli_install() {
+    if grep -q "awscli-exe-linux" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Installs AWS CLI via bundled installer${NC}"
+    else
+        echo -e "${RED}✗ Missing AWS CLI bundled installer configuration${NC}"
+        exit 1
+    fi
+}
+
+# Test 12: Has labels
 test_labels() {
     if grep -q "LABEL.*org.opencontainers.image" "$DOCKERFILE"; then
         echo -e "${GREEN}✓ Has OCI labels${NC}"
@@ -149,6 +159,7 @@ test_devpanel_settings_copy
 test_scripts_copied
 test_apache_modules
 test_entrypoint
+test_aws_cli_install
 test_labels
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

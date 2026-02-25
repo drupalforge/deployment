@@ -55,6 +55,45 @@ test_composer_detection() {
     echo -e "${GREEN}✓ Composer detection logic works${NC}"
 }
 
+# Test 3: Composer install flags are passed through
+test_composer_install_flags() {
+        local test_repo="$TEMP_DIR/test-composer-flags"
+        local fake_bin="$TEMP_DIR/fake-bin-flags"
+        mkdir -p "$test_repo" "$fake_bin"
+
+        echo '{"name": "test/app"}' > "$test_repo/composer.json"
+
+        cat > "$fake_bin/composer" <<'EOF'
+#!/bin/bash
+if [[ "$*" == *"--version"* ]]; then
+    echo "Composer version 2.x"
+    exit 0
+fi
+if [[ "$*" == *"install"* ]]; then
+    if [[ "$*" == *"--ignore-platform-req=php"* ]]; then
+        exit 0
+    fi
+    echo "Missing composer install flag" >&2
+    exit 1
+fi
+exit 0
+EOF
+        chmod +x "$fake_bin/composer"
+
+        set +e
+        PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_FLAGS="--ignore-platform-req=php" \
+                bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+        local status=$?
+        set -e
+
+        if [ "$status" -eq 0 ]; then
+                echo -e "${GREEN}✓ Composer install flags are passed through${NC}"
+        else
+                echo -e "${RED}✗ Composer install flags were not passed through${NC}"
+                exit 1
+        fi
+}
+
 # Test 3: Composer install failure causes script to fail
 test_composer_install_failure() {
     local test_repo="$TEMP_DIR/test-composer-fail"
@@ -136,7 +175,7 @@ test_devpanel_settings_include_added() {
 
     APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
-    if grep -q "getenv('DP_APP_ID')" "$settings_file"; then
+    if grep -q "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file"; then
         echo -e "${GREEN}✓ DevPanel settings include block is added to settings.php${NC}"
     else
         echo -e "${RED}✗ DevPanel settings include block was not added${NC}"
@@ -162,7 +201,7 @@ test_devpanel_settings_include_not_duplicated() {
     APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     local include_count
-    include_count=$(grep -c "getenv('DP_APP_ID')" "$settings_file")
+    include_count=$(grep -c "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file")
     if [ "$include_count" -eq 1 ]; then
         echo -e "${GREEN}✓ DevPanel settings include block is not duplicated${NC}"
     else
@@ -351,6 +390,7 @@ test_settings_can_be_created_from_default
 
 # Non-sudo tests
 test_composer_detection
+test_composer_install_flags
 test_composer_install_failure
 test_composer_lock_permission_without_vendor_fails
 test_settings_not_created_if_default_existed_before
