@@ -9,12 +9,8 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 USER root
 
 # Install AWS CLI for S3 database import functionality.
-# Use bundled installer to avoid distro Python package post-install issues
-# in emulated cross-platform builds (linux/amd64 on Apple Silicon).
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        unzip \
-    && arch="$(dpkg --print-architecture)" \
+# curl and unzip are already provided by the base image.
+RUN arch="$(dpkg --print-architecture)" \
     && case "${arch}" in \
         amd64) aws_arch="x86_64" ;; \
         arm64) aws_arch="aarch64" ;; \
@@ -23,15 +19,12 @@ RUN apt-get update && \
     && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install \
-    && rm -rf /tmp/aws /tmp/awscliv2.zip \
-    && apt-get purge -y --auto-remove unzip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
 
 # Configure MariaDB client to accept server SSL certificates from managed databases.
 # DigitalOcean and similar providers use a self-signed CA not in the system truststore;
 # SSL encryption is still used, but certificate chain validation is skipped.
-RUN mkdir -p /etc/mysql/conf.d
+# /etc/mysql/conf.d/ is provided by the base image; no mkdir needed.
 COPY config/mariadb-client.cnf /etc/mysql/conf.d/drupalforge.cnf
 
 # Copy startup and deployment scripts
