@@ -19,7 +19,7 @@
 - [x] Make skip-verify fallback explicit (non-default)
 - [x] Run relevant tests and mark complete
 
-**Status (2026-02-26): ✅ Complete**
+**Status (2026-02-26): ✅ Complete (superseded — see MySQL SSL Certificate Handling below)**
 
 ## Consolidate proxy rewrite helper
 
@@ -107,44 +107,30 @@ Current test fixtures use a synthetic database and a minimal fake app, which doe
 
 ## MySQL SSL Certificate Handling
 
-### Investigate proper solution for MySQL 8.0 SSL certificates
-
-**Current workaround:**
-Using `--skip-ssl-verify-server-cert` flag in `scripts/import-database.sh` to bypass SSL certificate validation.
+### Root cause identified and fixed
 
 **Problem:**
-MySQL 8.0 uses SSL by default with self-signed certificates. The MariaDB client in the devpanel/php base image attempts SSL validation and fails with:
+The MariaDB client in our image failed with:
 ```
 ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
 ```
+when connecting to cloud managed databases (e.g. DigitalOcean), while the base image worked fine.
 
-**Why this workaround is not ideal:**
-While `--skip-ssl-verify-server-cert` maintains encryption (better than `--skip-ssl`), it bypasses certificate validation entirely. This is a security trade-off appropriate for test/development but not a proper solution.
+**Root cause:**
+Our Dockerfile ran `apt-get update && apt-get install curl`, which upgraded `libssl3` to a newer version whose stricter certificate-chain validation broke the MariaDB client. The base image already provides `curl` (PHP requires it).
 
-**Proper solutions to investigate:**
-1. **Configure MariaDB client to trust the MySQL self-signed CA**
-   - Examine if MySQL 8.0 container provides its CA certificate
-   - Configure MariaDB client to use that CA via `--ssl-ca` option
-   - This would maintain both encryption AND validation
+**Fix:**
+Removed `curl` from the `apt-get install` list in the Dockerfile. The base image's SSL libraries are now used as-is, restoring the working connection behaviour. The `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround machinery in `import-database.sh` and its associated tests and documentation have been removed.
 
-2. **Check if docker_publish_action solves this differently**
-   - They use `devpanel/php:8.3-base-ai` (different base image)
-   - May have MySQL client configuration we don't have
-   - Investigate what's different in their setup
+**Done definition:**
+- [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
+- [x] `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround removed from `scripts/import-database.sh`
+- [x] Corresponding workaround tests removed from `tests/test-import-database.sh`
+- [x] `README.md` no longer documents `MYSQL_SSL_MODE`/`MYSQL_SSL_CA`
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
 
-3. **Consider if GitHub Actions MySQL service has different defaults**
-   - GitHub Actions services might configure MySQL differently
-   - Test locally with exact same MySQL configuration
-
-**Action items:**
-- [ ] Investigate MySQL 8.0 container CA certificate location
-- [ ] Test with `--ssl-ca` pointing to MySQL's CA
-- [ ] Compare docker_publish_action's base image configuration
-- [ ] Document findings and implement proper fix
-
-**References:**
-- MySQL SSL docs: https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html
-- MariaDB client SSL options: https://mariadb.com/kb/en/mysql-command-line-client/
+**Status (2026-02-27): ✅ Complete**
 
 ---
 

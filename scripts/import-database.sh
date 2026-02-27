@@ -26,38 +26,6 @@ error() {
   return 1
 }
 
-MYSQL_SSL_MODE="${MYSQL_SSL_MODE:-}"
-MYSQL_SSL_CA="${MYSQL_SSL_CA:-}"
-MYSQL_SSL_ARGS=()
-
-init_mysql_ssl_args() {
-  MYSQL_SSL_MODE="${MYSQL_SSL_MODE:-compat}"
-  MYSQL_SSL_MODE="$(echo "$MYSQL_SSL_MODE" | tr '[:upper:]' '[:lower:]')"
-  MYSQL_SSL_CA="${MYSQL_SSL_CA:-}"
-
-  MYSQL_SSL_ARGS=()
-  case "$MYSQL_SSL_MODE" in
-    compat)
-      # Use MySQL client defaults in compatibility mode.
-      ;;
-    strict)
-      if [ -n "$MYSQL_SSL_CA" ]; then
-        MYSQL_SSL_ARGS+=("--ssl-ca=$MYSQL_SSL_CA")
-      fi
-      ;;
-    insecure)
-      # Local/test fallback for self-signed certificates.
-      MYSQL_SSL_ARGS+=("--skip-ssl-verify-server-cert")
-      ;;
-    *)
-      error "Invalid MYSQL_SSL_MODE: $MYSQL_SSL_MODE (supported: compat, strict, insecure)"
-      return 1
-      ;;
-  esac
-
-  log "MySQL SSL mode: $MYSQL_SSL_MODE"
-}
-
 # Validate required environment variables
 validate_env() {
   local required_vars=("DB_HOST" "DB_USER" "DB_PASSWORD" "DB_NAME" "S3_BUCKET" "S3_DATABASE_PATH")
@@ -80,17 +48,12 @@ validate_env() {
   # Avoid metadata service lookups in containers that can cause long startup delays.
   AWS_EC2_METADATA_DISABLED="true"
   export AWS_EC2_METADATA_DISABLED
-
-  # Initialize MySQL SSL mode/options after env validation.
-  if ! init_mysql_ssl_args; then
-    return 1
-  fi
 }
 
 # Check if database already has tables
 database_exists() {
   local table_count
-  table_count=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "${MYSQL_SSL_ARGS[@]}" \
+  table_count=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
     -se "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';" 2>/dev/null || echo "0")
   
   if [ "$table_count" -gt 0 ]; then
@@ -127,9 +90,9 @@ import_from_s3() {
   
   # Determine if file is gzipped
   if [[ "$S3_DATABASE_PATH" == *.gz ]]; then
-    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "${MYSQL_SSL_ARGS[@]}"
+    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME"
   else
-    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "${MYSQL_SSL_ARGS[@]}" < "$temp_dump"
+    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$temp_dump"
   fi
   
   if [ $? -eq 0 ]; then
@@ -157,7 +120,7 @@ main() {
   local attempt=0
   
   while [ $attempt -lt $max_attempts ]; do
-    if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "${MYSQL_SSL_ARGS[@]}" -e "SELECT 1" &>/dev/null; then
+    if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1" &>/dev/null; then
       log "Database is ready"
       break
     fi
