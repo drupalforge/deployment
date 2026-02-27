@@ -37,10 +37,11 @@ bash integration-test.sh
 This will:
 1. Start all services
 2. Build the deployment image
-3. Run 15 validation tests covering:
+3. Run 16 validation tests covering:
    - Database import from S3/MinIO
    - Application connectivity to database
-  - Drupal install-state detection
+   - Drupal install-state detection
+   - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence

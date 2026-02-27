@@ -6,6 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_COMPOSE_PROJECT="test-df-deployment"
+NOIMPORT_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-noimport-once"
 
 # Colors for output
 RED='\033[0;31m'
@@ -65,6 +66,9 @@ cleanup() {
     
     # Stop and remove compose resources for this test project.
     cleanup_compose_state "no"
+
+    # Best-effort cleanup for one-off no-import validation container.
+    docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
     
     # Restore fixture ownership to the current (host) user before fixture cleanup
     docker run --rm \
@@ -361,6 +365,61 @@ if run_test "Bootstrap injected DevPanel include into settings.php once" \
     ((passed=passed+1))
 else
     ((failed=failed+1))
+fi
+
+# Test 16: No-import installer flow skips DB setup and redirects to install start
+echo -e "${YELLOW}Preparing no-import installer flow scenario...${NC}"
+if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T mysql \
+    mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS drupaldb_noimport; CREATE DATABASE drupaldb_noimport; GRANT ALL PRIVILEGES ON drupaldb_noimport.* TO 'drupal'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then
+    echo -e "${RED}✗ Failed to prepare empty installer test database${NC}"
+    ((failed=failed+1))
+else
+    docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
+    # Use a one-off container from the same built image rather than mutating
+    # the primary deployment service state. This keeps proxy/import assertions
+    # deterministic and isolates no-import installer validation.
+    if ! docker run -d \
+        --platform linux/amd64 \
+        --name "$NOIMPORT_CONTAINER_NAME" \
+        --network "${TEST_COMPOSE_PROJECT}_default" \
+        -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+        -e APACHE_RUN_USER=www \
+        -e APACHE_RUN_GROUP=www \
+        -e DB_HOST=mysql \
+        -e DB_PORT=3306 \
+        -e DB_USER=drupal \
+        -e DB_PASSWORD=drupal_password \
+        -e DB_NAME=drupaldb_noimport \
+        -e DB_DRIVER=mysql \
+        -e COMPOSER_INSTALL_FLAGS="--ignore-platform-req=php" \
+        -e WEB_ROOT=/var/www/html/web \
+        -e USE_STAGE_FILE_PROXY=no \
+        test-df-deployment:8.3 >/dev/null 2>&1; then
+        echo -e "${RED}✗ Failed to start no-import validation container${NC}"
+        ((failed=failed+1))
+    else
+        for i in {1..60}; do
+            if docker exec "$NOIMPORT_CONTAINER_NAME" curl -s http://localhost/index.php >/dev/null 2>&1; then
+                break
+            fi
+            if [ "$i" -eq 60 ]; then
+                echo -e "${RED}✗ Timeout waiting for no-import validation container${NC}"
+                docker logs --tail=100 "$NOIMPORT_CONTAINER_NAME" || true
+                ((failed=failed+1))
+                break
+            fi
+            sleep 1
+        done
+
+        if run_test "No-import installer flow skips database setup" \
+            "docker exec $NOIMPORT_CONTAINER_NAME sh -lc 'location=\"\$(curl -sI \"http://localhost/core/install.php?rewrite=ok&langcode=en&profile=minimal\" | tr -d \"\\r\" | awk -F\": \" '\''tolower(\$1)==\"location\" {print \$2; exit}'\'')\" && echo \"\$location\" | grep -q \"op=start\"'"; then
+            ((passed=passed+1))
+        else
+            ((failed=failed+1))
+        fi
+
+        docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
+    fi
 fi
 
 echo ""

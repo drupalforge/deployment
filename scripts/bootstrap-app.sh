@@ -94,6 +94,55 @@ if (file_exists($devpanel_settings)) {
   fi
 }
 
+ensure_config_sync_directory_exists() {
+  local app_root="$1"
+  local web_root="${WEB_ROOT:-${app_root}/web}"
+  local settings_file="${web_root}/sites/default/settings.php"
+  local config_sync_directory
+
+  if [ ! -f "$settings_file" ]; then
+    log "Drupal settings.php not found at $settings_file, skipping config sync directory creation"
+    return 0
+  fi
+
+  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" php -d display_errors=0 -d error_reporting=0 -r '
+$settings = [];
+$databases = [];
+if (!empty(getenv("DRUPAL_WEB_ROOT"))) {
+  define("DRUPAL_ROOT", getenv("DRUPAL_WEB_ROOT"));
+}
+include getenv("SETTINGS_FILE");
+$config_sync = $settings["config_sync_directory"] ?? "../config/sync";
+if (!preg_match("/^(\/|[A-Za-z]:[\\\\\/])/", $config_sync)) {
+  $config_sync = rtrim(getenv("DRUPAL_WEB_ROOT"), "/\\") . "/" . $config_sync;
+}
+echo $config_sync;
+' 2>/dev/null || true)"
+
+  if [ -z "$config_sync_directory" ]; then
+    error "Failed to resolve config sync directory from $settings_file"
+    return 1
+  fi
+
+  if [ -d "$config_sync_directory" ]; then
+    log "Config sync directory already exists at $config_sync_directory"
+    return 0
+  fi
+
+  if mkdir -p "$config_sync_directory"; then
+    log "Created config sync directory at $config_sync_directory"
+    return 0
+  fi
+
+  if sudo -n mkdir -p "$config_sync_directory"; then
+    log "Created config sync directory at $config_sync_directory"
+    return 0
+  fi
+
+  error "Failed to create config sync directory at $config_sync_directory"
+  return 1
+}
+
 # Main execution
 main() {
   local app_root="${APP_ROOT:-.}"
@@ -184,6 +233,7 @@ main() {
 
   ensure_settings_php_exists "$app_root" "$has_default_settings"
   ensure_devpanel_settings_include "$app_root"
+  ensure_config_sync_directory_exists "$app_root"
   
   log "Application bootstrap completed successfully"
   return 0

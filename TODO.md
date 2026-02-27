@@ -1,5 +1,49 @@
 # TODO List
 
+## Verify installer skips DB setup without import
+
+### Add integration coverage for install flow with settings.devpanel include and empty database
+
+**Context:**
+When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php` and no S3 database import runs, Drupal installer should skip the database setup form and proceed directly to install flow.
+
+**Done definition:**
+- [x] Integration suite includes a no-import deployment scenario using an empty database
+- [x] Integration test hits `/core/install.php?rewrite=ok&langcode=en&profile=minimal`
+- [x] Assertion confirms database setup step is skipped and install flow starts
+- [x] `bash tests/integration-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Document the new integration scenario in test docs
+- [x] Add no-import deployment scenario to compose test stack
+- [x] Add installer-flow assertion in integration test script
+- [x] Run integration tests and mark complete
+
+**Status (2026-02-27): ✅ Complete**
+
+## Ensure config sync directory exists
+
+### Create missing `$settings['config_sync_directory']` during DevPanel settings include
+
+**Context:**
+`config/settings.devpanel.php` sets a default `config_sync_directory` path, but deployments can fail when that directory does not exist yet.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` creates `$settings['config_sync_directory']` recursively when it is missing
+- [x] Existing values are respected (no override when already set)
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Document the new behavior in `README.md`
+- [x] Add/update unit tests for missing directory creation
+- [x] Implement directory creation in `scripts/bootstrap-app.sh`
+- [x] Run relevant tests and mark task complete
+
+**Status (2026-02-27): ✅ Complete**
+
 ## Remove insecure MySQL skip-verify flag
 
 ### Stop adding `--skip-ssl-verify-server-cert` during database import

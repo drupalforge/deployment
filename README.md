@@ -138,6 +138,7 @@ When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php
 
 - `hash_salt` is derived deterministically from the configured `$databases['default']['default']` connection values.
 - `config_sync_directory` defaults to `../config/sync` unless already defined.
+- If `config_sync_directory` does not exist, bootstrap creates it recursively after ensuring `settings.php` includes `settings.devpanel.php`.
 - `file_private_path` defaults to `../private` unless already defined.
 - `trusted_host_patterns` includes `DP_HOSTNAME` when provided, otherwise `.*`.
 

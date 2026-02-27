@@ -378,6 +378,59 @@ test_settings_copy_owner_matches_invoking_user() {
     fi
 }
 
+# Test 12: Default config sync directory is created during bootstrap
+test_default_config_sync_directory_created() {
+    local test_repo="$TEMP_DIR/test-default-config-sync"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local expected_dir="$test_repo/web/../config/sync"
+
+    mkdir -p "$settings_dir"
+    cat > "$settings_file" <<'EOF'
+<?php
+$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
+if (file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+EOF
+
+    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if [ -d "$expected_dir" ]; then
+        echo -e "${GREEN}✓ Default config sync directory is created during bootstrap${NC}"
+    else
+        echo -e "${RED}✗ Default config sync directory was not created during bootstrap${NC}"
+        exit 1
+    fi
+}
+
+# Test 13: Custom config sync directory in settings.php is respected
+test_custom_config_sync_directory_created() {
+    local test_repo="$TEMP_DIR/test-custom-config-sync"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local expected_dir="$test_repo/web/../custom/sync"
+
+    mkdir -p "$settings_dir"
+    cat > "$settings_file" <<'EOF'
+<?php
+$settings['config_sync_directory'] = '../custom/sync';
+$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
+if (file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+EOF
+
+    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if [ -d "$expected_dir" ]; then
+        echo -e "${GREEN}✓ Custom config sync directory is respected during bootstrap${NC}"
+    else
+        echo -e "${RED}✗ Custom config sync directory was not created during bootstrap${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -387,6 +440,8 @@ test_settings_copy_owner_matches_invoking_user
 test_devpanel_settings_include_added
 test_devpanel_settings_include_not_duplicated
 test_settings_can_be_created_from_default
+test_default_config_sync_directory_created
+test_custom_config_sync_directory_created
 
 # Non-sudo tests
 test_composer_detection

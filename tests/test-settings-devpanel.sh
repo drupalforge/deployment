@@ -162,11 +162,41 @@ echo $databases["default"]["default"]["driver"] ?? "";
     fi
 }
 
+# Test 6: Existing config sync directory setting is preserved
+test_config_sync_directory_preserved_when_preconfigured() {
+    local temp_dir sync_dir configured
+
+    temp_dir=$(mktemp -d)
+    sync_dir="$temp_dir/custom/sync"
+    trap 'rm -rf "$temp_dir"' RETURN
+
+    configured=$(SETTINGS_FILE="$SETTINGS_FILE" SYNC_DIR="$sync_dir" php -r '
+putenv("DB_NAME=drupaldb");
+putenv("DB_USER=drupal");
+putenv("DB_PASSWORD=drupal_password");
+putenv("DB_HOST=mysql");
+putenv("DB_PORT=3306");
+putenv("DB_DRIVER=mysql");
+$databases = [];
+$settings = ["config_sync_directory" => getenv("SYNC_DIR")];
+include getenv("SETTINGS_FILE");
+echo $settings["config_sync_directory"] ?? "";
+')
+
+    if [ "$configured" = "$sync_dir" ]; then
+        echo -e "${GREEN}✓ Existing config sync directory setting is preserved${NC}"
+    else
+        echo -e "${RED}✗ Existing config sync directory setting was overridden${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_file_and_syntax
 test_hash_salt_deterministic
 test_hash_salt_changes_with_database
 test_empty_hash_salt_replaced
 test_db_driver_env_usage
+test_config_sync_directory_preserved_when_preconfigured
 
 echo -e "${GREEN}✓ settings.devpanel.php tests passed${NC}"
