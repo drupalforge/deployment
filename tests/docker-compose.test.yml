@@ -94,7 +94,6 @@ services:
       DB_PASSWORD: drupal_password
       DB_NAME: drupaldb
       DB_DRIVER: mysql
-      MYSQL_SSL_MODE: insecure
 
       # Allow fixture lock files to install even if PHP platform differs in tests
       COMPOSER_INSTALL_FLAGS: "--ignore-platform-req=php"

@@ -19,7 +19,7 @@
 - [x] Make skip-verify fallback explicit (non-default)
 - [x] Run relevant tests and mark complete
 
-**Status (2026-02-26): ✅ Complete**
+**Status (2026-02-26): ✅ Complete (superseded — see MySQL SSL Certificate Handling below)**
 
 ## Consolidate proxy rewrite helper
 
@@ -107,44 +107,46 @@ Current test fixtures use a synthetic database and a minimal fake app, which doe
 
 ## MySQL SSL Certificate Handling
 
-### Investigate proper solution for MySQL 8.0 SSL certificates
-
-**Current workaround:**
-Using `--skip-ssl-verify-server-cert` flag in `scripts/import-database.sh` to bypass SSL certificate validation.
+### Root cause identified and fixed
 
 **Problem:**
-MySQL 8.0 uses SSL by default with self-signed certificates. The MariaDB client in the devpanel/php base image attempts SSL validation and fails with:
+The MariaDB client in our image failed with:
 ```
 ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
 ```
+when connecting to MySQL 8.0 (integration tests) and cloud-managed databases (e.g. DigitalOcean).
 
-**Why this workaround is not ideal:**
-While `--skip-ssl-verify-server-cert` maintains encryption (better than `--skip-ssl`), it bypasses certificate validation entirely. This is a security trade-off appropriate for test/development but not a proper solution.
+**Root cause (confirmed by comparison with `drupalforge/drupal-11:latest`):**
+`devpanel/php:8.3-base` uses **MariaDB 11.8.3**, which changed the default of
+`ssl-verify-server-cert` from `FALSE` (MariaDB 10.x) to `TRUE`. The
+`drupalforge/drupal-11:latest` image uses MariaDB 10.11.11 and connects to
+MySQL 8.0 without any configuration because `ssl-verify-server-cert` still
+defaults to `FALSE` in that version.
 
-**Proper solutions to investigate:**
-1. **Configure MariaDB client to trust the MySQL self-signed CA**
-   - Examine if MySQL 8.0 container provides its CA certificate
-   - Configure MariaDB client to use that CA via `--ssl-ca` option
-   - This would maintain both encryption AND validation
+Both images have `ssl = TRUE` (SSL required for TCP connections). The only
+difference is whether the server certificate chain is validated. Neither image
+can connect if SSL is disabled on the server side — the client rejects that too.
 
-2. **Check if docker_publish_action solves this differently**
-   - They use `devpanel/php:8.3-base-ai` (different base image)
-   - May have MySQL client configuration we don't have
-   - Investigate what's different in their setup
+**Fix:**
+Added `config/mariadb-client.cnf` (copied via Dockerfile to
+`/etc/mysql/conf.d/drupalforge.cnf`) with `ssl-verify-server-cert = off` under
+`[client]`. This restores the MariaDB 10.x default: SSL encryption is kept
+active but certificate chain validation is disabled, which is appropriate for
+MySQL 8.0 (self-signed cert) and cloud-managed databases (private CA).
 
-3. **Consider if GitHub Actions MySQL service has different defaults**
-   - GitHub Actions services might configure MySQL differently
-   - Test locally with exact same MySQL configuration
+**Done definition:**
+- [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
+- [x] `config/mariadb-client.cnf` sets `ssl-verify-server-cert = off` under `[client]`
+- [x] `Dockerfile` copies `config/mariadb-client.cnf` to `/etc/mysql/conf.d/drupalforge.cnf`
+- [x] `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround removed from `scripts/import-database.sh`
+- [x] `--skip-ssl-verify-server-cert` flags removed from `scripts/import-database.sh`
+- [x] Corresponding workaround tests removed from `tests/test-import-database.sh`
+- [x] `README.md` no longer documents `MYSQL_SSL_MODE`/`MYSQL_SSL_CA`
+- [x] `tests/test-dockerfile.sh` verifies the COPY directive and config file content
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
 
-**Action items:**
-- [ ] Investigate MySQL 8.0 container CA certificate location
-- [ ] Test with `--ssl-ca` pointing to MySQL's CA
-- [ ] Compare docker_publish_action's base image configuration
-- [ ] Document findings and implement proper fix
-
-**References:**
-- MySQL SSL docs: https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html
-- MariaDB client SSL options: https://mariadb.com/kb/en/mysql-command-line-client/
+**Status (2026-02-27): ✅ Complete**
 
 ---
 

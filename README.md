@@ -141,18 +141,6 @@ When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php
 - `file_private_path` defaults to `../private` unless already defined.
 - `trusted_host_patterns` includes `DP_HOSTNAME` when provided, otherwise `.*`.
 
-Database SSL mode can be controlled with:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `MYSQL_SSL_MODE` | MySQL SSL mode for import and Drupal runtime DB connections (`compat` uses client defaults; `strict` optionally pins a CA via `MYSQL_SSL_CA`; `insecure` enables skip-verify fallback for local/test use) | `compat` |
-| `MYSQL_SSL_CA` | CA certificate path used in strict mode (optional) | `/etc/ssl/certs/mysql-ca.pem` |
-
-Notes:
-- `compat` matches plain `mysql` CLI usage with no explicit SSL flags (for example: `mysql --host=... --port=... -u... -p...`).
-- `strict` is recommended when a CA file is available because it allows explicit certificate trust via `--ssl-ca`.
-- `insecure` is intended for local/test environments with self-signed certificates when CA validation is not feasible.
-
 ### File Proxy Configuration
 
 | Variable | Description | Example |

@@ -148,6 +148,19 @@ test_labels() {
     fi
 }
 
+# Test 13: Configures MariaDB client SSL cert verification
+test_mariadb_ssl_config() {
+    local cnf="$SCRIPT_DIR/config/mariadb-client.cnf"
+    if grep -q "COPY.*mariadb-client.cnf" "$DOCKERFILE" && \
+       grep -q "\[client\]" "$cnf" && \
+       grep -q "ssl-verify-server-cert" "$cnf"; then
+        echo -e "${GREEN}✓ Configures MariaDB SSL cert chain verification for managed databases${NC}"
+    else
+        echo -e "${RED}✗ Missing MariaDB SSL cert verification config${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_dockerfile_exists
 test_base_image
@@ -161,5 +174,6 @@ test_apache_modules
 test_entrypoint
 test_aws_cli_install
 test_labels
+test_mariadb_ssl_config
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

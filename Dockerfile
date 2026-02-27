@@ -9,13 +9,7 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 USER root
 
 # Install AWS CLI for S3 database import functionality.
-# Use bundled installer to avoid distro Python package post-install issues
-# in emulated cross-platform builds (linux/amd64 on Apple Silicon).
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        unzip \
-    && arch="$(dpkg --print-architecture)" \
+RUN arch="$(dpkg --print-architecture)" \
     && case "${arch}" in \
         amd64) aws_arch="x86_64" ;; \
         arm64) aws_arch="aarch64" ;; \
@@ -24,10 +18,14 @@ RUN apt-get update && \
     && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install \
-    && rm -rf /tmp/aws /tmp/awscliv2.zip \
-    && apt-get purge -y --auto-remove unzip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /tmp/aws /tmp/awscliv2.zip
+
+# MariaDB 11.x (used in devpanel/php:8.3-base) changed ssl-verify-server-cert
+# default from FALSE (10.x) to TRUE, rejecting MySQL 8.0 and cloud-managed
+# databases whose self-signed CA is not in the system truststore.
+# drupalforge/drupal-11:latest (MariaDB 10.11) connects fine without this config.
+# SSL encryption is still used; only certificate chain validation is disabled.
+COPY config/mariadb-client.cnf /etc/mysql/conf.d/drupalforge.cnf
 
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app

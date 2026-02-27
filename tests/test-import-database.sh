@@ -69,26 +69,6 @@ test_skip_if_exists() {
     fi
 }
 
-# Test 7: Script supports configurable MySQL SSL mode
-test_ssl_mode_variable() {
-    if grep -q "MYSQL_SSL_MODE" "$SCRIPT_DIR/scripts/import-database.sh"; then
-        echo -e "${GREEN}✓ Script supports MYSQL_SSL_MODE control${NC}"
-    else
-        echo -e "${RED}✗ Script missing MYSQL_SSL_MODE support${NC}"
-        exit 1
-    fi
-}
-
-# Test 8: Script supports strict SSL mode with optional CA path
-test_ssl_ca_variable() {
-    if grep -q "MYSQL_SSL_CA" "$SCRIPT_DIR/scripts/import-database.sh"; then
-        echo -e "${GREEN}✓ Script supports MYSQL_SSL_CA for strict SSL${NC}"
-    else
-        echo -e "${RED}✗ Script missing MYSQL_SSL_CA support${NC}"
-        exit 1
-    fi
-}
-
 # Run tests
 test_script_executable
 test_error_handling
@@ -96,7 +76,5 @@ test_variable_validation
 test_gzip_handling
 test_retry_logic
 test_skip_if_exists
-test_ssl_mode_variable
-test_ssl_ca_variable
 
 echo -e "${GREEN}✓ Import database tests passed${NC}"
