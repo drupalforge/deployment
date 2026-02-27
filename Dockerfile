@@ -28,6 +28,12 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Configure MariaDB client to accept server SSL certificates from managed databases.
+# DigitalOcean and similar providers use a self-signed CA not in the system truststore;
+# SSL encryption is still used, but certificate chain validation is skipped.
+RUN mkdir -p /etc/mysql/conf.d && \
+    printf '[client]\nssl-verify-server-cert = off\n' > /etc/mysql/conf.d/drupalforge.cnf
+
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database

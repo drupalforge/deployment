@@ -117,16 +117,18 @@ ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
 when connecting to cloud managed databases (e.g. DigitalOcean), while the base image worked fine.
 
 **Root cause:**
-Our Dockerfile ran `apt-get update && apt-get install curl`, which upgraded `libssl3` to a newer version whose stricter certificate-chain validation broke the MariaDB client. The base image already provides `curl` (PHP requires it).
+Cloud-managed databases (DigitalOcean, AWS RDS, etc.) use a self-signed CA certificate that is not present in the system truststore. The MariaDB client's default SSL certificate chain validation rejects these connections.
 
 **Fix:**
-Removed `curl` from the `apt-get install` list in the Dockerfile. The base image's SSL libraries are now used as-is, restoring the working connection behaviour. The `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround machinery in `import-database.sh` and its associated tests and documentation have been removed.
+Added a global MariaDB client configuration (`/etc/mysql/conf.d/drupalforge.cnf`) in the Dockerfile that sets `ssl-verify-server-cert = OFF`. This keeps SSL encryption active but disables certificate chain validation — appropriate for managed database connections where encryption matters but the CA is not publicly trusted. Also removed `curl` from the `apt-get install` list (the base image already provides it).
 
 **Done definition:**
 - [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
+- [x] `Dockerfile` creates `/etc/mysql/conf.d/drupalforge.cnf` with `ssl-verify-server-cert = OFF`
 - [x] `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround removed from `scripts/import-database.sh`
 - [x] Corresponding workaround tests removed from `tests/test-import-database.sh`
 - [x] `README.md` no longer documents `MYSQL_SSL_MODE`/`MYSQL_SSL_CA`
+- [x] `tests/test-dockerfile.sh` verifies the global SSL config is present
 - [x] `bash tests/unit-test.sh` passes locally
 - [x] This TODO section is marked complete
 
