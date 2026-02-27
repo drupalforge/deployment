@@ -9,7 +9,6 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 USER root
 
 # Install AWS CLI for S3 database import functionality.
-# curl and unzip are already provided by the base image.
 RUN arch="$(dpkg --print-architecture)" \
     && case "${arch}" in \
         amd64) aws_arch="x86_64" ;; \
@@ -21,6 +20,11 @@ RUN arch="$(dpkg --print-architecture)" \
     && /tmp/aws/install \
     && rm -rf /tmp/aws /tmp/awscliv2.zip
 
+# MariaDB 11.x (used in devpanel/php:8.3-base) changed ssl-verify-server-cert
+# default from FALSE (10.x) to TRUE, rejecting MySQL 8.0 and cloud-managed
+# databases whose self-signed CA is not in the system truststore.
+# drupalforge/drupal-11:latest (MariaDB 10.11) connects fine without this config.
+# SSL encryption is still used; only certificate chain validation is disabled.
 COPY config/mariadb-client.cnf /etc/mysql/conf.d/drupalforge.cnf
 
 # Copy startup and deployment scripts
