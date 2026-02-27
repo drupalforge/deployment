@@ -13,7 +13,6 @@ USER root
 # in emulated cross-platform builds (linux/amd64 on Apple Silicon).
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        curl \
         unzip \
     && arch="$(dpkg --print-architecture)" \
     && case "${arch}" in \
