@@ -1,0 +1,4 @@
+[client]
+# Managed databases (e.g. DigitalOcean) use a self-signed CA not in the system
+# truststore. SSL encryption is still used; certificate chain validation is skipped.
+ssl-verify-server-cert = off

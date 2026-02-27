@@ -150,10 +150,11 @@ test_labels() {
 
 # Test 13: Configures MariaDB client SSL cert verification
 test_mariadb_ssl_config() {
-    if grep -q "ssl-verify-server-cert" "$DOCKERFILE" && \
-       grep -q "/etc/mysql/conf.d/drupalforge.cnf" "$DOCKERFILE" && \
-       grep -q "\[client\]" "$DOCKERFILE"; then
-        echo -e "${GREEN}✓ Disables MariaDB SSL cert chain verification for managed databases${NC}"
+    local cnf="$SCRIPT_DIR/config/mariadb-client.cnf"
+    if grep -q "COPY.*mariadb-client.cnf" "$DOCKERFILE" && \
+       grep -q "\[client\]" "$cnf" && \
+       grep -q "ssl-verify-server-cert" "$cnf"; then
+        echo -e "${GREEN}✓ Configures MariaDB SSL cert chain verification for managed databases${NC}"
     else
         echo -e "${RED}✗ Missing MariaDB SSL cert verification config${NC}"
         exit 1
