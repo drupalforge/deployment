@@ -21,9 +21,11 @@ RUN arch="$(dpkg --print-architecture)" \
     && /tmp/aws/install \
     && rm -rf /tmp/aws /tmp/awscliv2.zip
 
-# Configure MariaDB client to accept server SSL certificates from managed databases.
-# DigitalOcean and similar providers use a self-signed CA not in the system truststore;
-# SSL encryption is still used, but certificate chain validation is skipped.
+# MariaDB 11.x (used in devpanel/php:8.3-base) changed ssl-verify-server-cert
+# default from FALSE (10.x) to TRUE, rejecting MySQL 8.0 and cloud-managed
+# databases whose self-signed CA is not in the system truststore.
+# drupalforge/drupal-11:latest (MariaDB 10.11) connects fine without this config.
+# SSL encryption is still used; only certificate chain validation is disabled.
 # /etc/mysql/conf.d/ is provided by the base image; no mkdir needed.
 COPY config/mariadb-client.cnf /etc/mysql/conf.d/drupalforge.cnf
 

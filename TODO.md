@@ -114,13 +114,25 @@ The MariaDB client in our image failed with:
 ```
 ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
 ```
-when connecting to cloud managed databases (e.g. DigitalOcean), while the base image worked fine.
+when connecting to MySQL 8.0 (integration tests) and cloud-managed databases (e.g. DigitalOcean).
 
-**Root cause:**
-Cloud-managed databases (DigitalOcean, AWS RDS, etc.) use a self-signed CA certificate that is not present in the system truststore. The MariaDB client's default SSL certificate chain validation rejects these connections.
+**Root cause (confirmed by comparison with `drupalforge/drupal-11:latest`):**
+`devpanel/php:8.3-base` uses **MariaDB 11.8.3**, which changed the default of
+`ssl-verify-server-cert` from `FALSE` (MariaDB 10.x) to `TRUE`. The
+`drupalforge/drupal-11:latest` image uses MariaDB 10.11.11 and connects to
+MySQL 8.0 without any configuration because `ssl-verify-server-cert` still
+defaults to `FALSE` in that version.
+
+Both images have `ssl = TRUE` (SSL required for TCP connections). The only
+difference is whether the server certificate chain is validated. Neither image
+can connect if SSL is disabled on the server side — the client rejects that too.
 
 **Fix:**
-Added `config/mariadb-client.cnf` (copied via Dockerfile to `/etc/mysql/conf.d/drupalforge.cnf`) with `ssl-verify-server-cert = off` under `[client]`. This keeps SSL encryption active but disables certificate chain validation for all MariaDB client connections — appropriate for managed database connections where encryption matters but the CA is not publicly trusted. Also removed `curl` from the `apt-get install` list (the base image already provides it).
+Added `config/mariadb-client.cnf` (copied via Dockerfile to
+`/etc/mysql/conf.d/drupalforge.cnf`) with `ssl-verify-server-cert = off` under
+`[client]`. This restores the MariaDB 10.x default: SSL encryption is kept
+active but certificate chain validation is disabled, which is appropriate for
+MySQL 8.0 (self-signed cert) and cloud-managed databases (private CA).
 
 **Done definition:**
 - [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
