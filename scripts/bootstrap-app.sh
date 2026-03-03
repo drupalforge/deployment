@@ -213,7 +213,7 @@ main() {
     else
       composer_flags=()
     fi
-    composer install --no-interaction "${composer_flags[@]}" 2>&1 | tee "$composer_log"
+    composer install -n --no-progress "${composer_flags[@]}" 2>&1 | tee "$composer_log"
     local composer_exit=${PIPESTATUS[0]}
     set -e  # Re-enable exit on error
 
