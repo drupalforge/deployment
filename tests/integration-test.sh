@@ -31,6 +31,7 @@ run_test() {
     fi
 }
 
+# shellcheck disable=SC2317  # Invoked indirectly via trap
 cleanup_compose_state() {
     local remove_orphans="${1:-no}"
     local compose_down_args="-v"
@@ -40,6 +41,7 @@ cleanup_compose_state() {
         compose_down_args="$compose_down_args --remove-orphans"
     fi
 
+    # shellcheck disable=SC2086  # compose_down_args must be unquoted for word-splitting
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down $compose_down_args 2>/dev/null || true
 
     stale_containers=$(docker ps -aq --filter "label=com.docker.compose.project=${TEST_COMPOSE_PROJECT}" 2>/dev/null || true)
@@ -48,7 +50,7 @@ cleanup_compose_state() {
     fi
 }
 
-# Function to cleanup
+# shellcheck disable=SC2317  # Invoked indirectly via trap
 cleanup() {
     if [ "${KEEP_TEST_ENV:-no}" = "yes" ]; then
         echo ""
@@ -212,7 +214,7 @@ for i in {1..60}; do
         echo -e "${GREEN}✓ Deployment container ready${NC}"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ "$i" -eq 60 ]; then
         echo -e "${RED}✗ Timeout waiting for deployment container${NC}"
         $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment
         exit 1
@@ -228,7 +230,7 @@ for i in {1..60}; do
         echo -e "${GREEN}✓ Secure deployment container ready${NC}"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ "$i" -eq 60 ]; then
         echo -e "${RED}✗ Timeout waiting for secure deployment container${NC}"
         $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml logs deployment-secure
         exit 1

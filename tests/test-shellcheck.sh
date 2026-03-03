@@ -44,7 +44,7 @@ test_shell_scripts() {
     echo -e "${BLUE}  Linting $file_count shell script(s)...${NC}"
 
     local output
-    if output=$(echo "$shell_files" | xargs shellcheck -x --source-path=SCRIPTDIR --severity=warning 2>&1); then
+    if output=$(echo "$shell_files" | xargs shellcheck -x --source-path=SCRIPTDIR 2>&1); then
         echo -e "${GREEN}✓ All shell scripts passed shellcheck${NC}"
     else
         echo -e "${RED}✗ shellcheck found issues:${NC}"

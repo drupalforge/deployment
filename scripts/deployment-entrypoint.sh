@@ -75,13 +75,16 @@ fi
 # whether file proxying is configured.
 # Get APACHE_RUN_USER/GROUP: prefer environment variables, then fall back to
 # the defaults in /etc/apache2/envvars (www-data on standard Debian/Ubuntu Apache).
+# shellcheck disable=SC2031  # APACHE_RUN_USER/GROUP captured via $() substitution; SC2031 is a false positive here
 if [ -z "${APACHE_RUN_USER:-}" ] && [ -f /etc/apache2/envvars ]; then
   APACHE_RUN_USER=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
 fi
+# shellcheck disable=SC2031  # Same pattern: APACHE_RUN_GROUP captured via $() substitution
 if [ -z "${APACHE_RUN_GROUP:-}" ] && [ -f /etc/apache2/envvars ]; then
   APACHE_RUN_GROUP=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
 fi
 FILE_PROXY_PATHS="${FILE_PROXY_PATHS:-/sites/default/files}"
+# shellcheck disable=SC2031  # APACHE_RUN_USER read after $() capture above; SC2031 is a false positive here
 _apache_user="${APACHE_RUN_USER:-www-data}"
 _apache_group="${APACHE_RUN_GROUP:-www-data}"
 IFS=',' read -ra _proxy_paths <<< "$FILE_PROXY_PATHS"

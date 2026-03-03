@@ -46,9 +46,9 @@ done
 # Wait for ALL parallel tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
     if wait "${PIDS[$i]}"; then
-        EXIT_CODES[$i]=0
+        EXIT_CODES[i]=0
     else
-        EXIT_CODES[$i]=$?
+        EXIT_CODES[i]=$?
     fi
 done
 

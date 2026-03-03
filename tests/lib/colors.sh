@@ -7,9 +7,10 @@
 #   # shellcheck source=lib/colors.sh
 #   source "$TEST_DIR/lib/colors.sh"
 #
-# Usage (from tests/lib/*.sh):
+# Usage (from tests/lib/*.sh that defines LIB_DIR):
+#   LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   # shellcheck source=./colors.sh
-#   source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+#   source "$LIB_DIR/colors.sh"
 
 # Variables are used by scripts that source this file, not within this file itself.
 # shellcheck disable=SC2034

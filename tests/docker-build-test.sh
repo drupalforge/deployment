@@ -18,7 +18,7 @@ TEST_TAG_PREFIX="test-df-deployment"
 echo -e "${BLUE}Testing Docker builds...${NC}"
 echo ""
 
-# Function to cleanup test images
+# shellcheck disable=SC2317  # Invoked indirectly via trap
 cleanup_images() {
     echo -e "${YELLOW}Cleaning up test images...${NC}"
     for version in "${PHP_VERSIONS[@]}"; do

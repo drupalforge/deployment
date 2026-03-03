@@ -2,11 +2,13 @@
 # Sudo credential management library for test suites
 # Provides consistent sudo setup, credential refresh, and cleanup across all tests
 
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Source utils library for _timeout helper
 # shellcheck source=./utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
+source "$LIB_DIR/utils.sh"
 # shellcheck source=./colors.sh
-source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
+source "$LIB_DIR/colors.sh"
 
 # Helper function to display interactive countdown with sudo password prompt.
 # Used when sudo credentials are needed but not cached.
@@ -145,7 +147,9 @@ ensure_active_sudo() {
 # Kills the background refresh process and removes the temp directory
 _sudo_cleanup() {
     local temp_dir="$1"
+    # shellcheck disable=SC2015  # A&&B||C is intentional: kill if PID set, ignore failure
     [ -n "$SUDO_REFRESH_PID" ] && kill "$SUDO_REFRESH_PID" >/dev/null 2>&1 || true
+    # shellcheck disable=SC2015  # A&&B||C is intentional: prefer sudo rm, fall back to plain rm
     [ -d "$temp_dir" ] && sudo -n rm -rf "$temp_dir" >/dev/null 2>&1 || rm -rf "$temp_dir"
 }
 

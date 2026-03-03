@@ -80,6 +80,7 @@ test_mysql_port_usage() {
     fi
 
     mysql_total=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]])' "$file")
+    # shellcheck disable=SC2016  # $DB_PORT in single quotes is intentional: matching literal text in grep pattern
     mysql_with_port=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]]).*-P "\$DB_PORT"' "$file")
 
     if [ "$mysql_total" -eq 0 ]; then

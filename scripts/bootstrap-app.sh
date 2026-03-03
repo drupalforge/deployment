@@ -107,6 +107,7 @@ ensure_config_sync_directory_exists() {
     return 0
   fi
 
+  # shellcheck disable=SC2016  # single quotes are intentional: this is PHP code, not bash expansion
   config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" php -d display_errors=0 -d error_reporting=0 -r '
 $settings = [];
 $databases = [];

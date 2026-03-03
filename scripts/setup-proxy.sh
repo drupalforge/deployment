@@ -64,10 +64,12 @@ update_proxy_rewrite_rules() {
 
   : > "$block_file"
   for path in "${normalized_paths[@]}"; do
-    printf '  # Proxy handler: %s\n' "$path" >> "$block_file"
-    printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path" >> "$block_file"
-    printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n' >> "$block_file"
-    printf '\n' >> "$block_file"
+    {
+      printf '  # Proxy handler: %s\n' "$path"
+      printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
+      printf '\n'
+    } >> "$block_file"
   done
 
   if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" -v has_bypass="$has_bypass" '
@@ -125,6 +127,7 @@ update_proxy_rewrite_rules() {
       }
     }
   ' "$file" > "$output_file"; then
+    # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes file with sudo
     if sudo -n tee "$file" < "$output_file" >/dev/null 2>&1 || \
        tee "$file" < "$output_file" >/dev/null 2>&1; then
       rm -f "$block_file" "$output_file"
@@ -251,6 +254,7 @@ configure_apache_proxy() {
 
     local temp_scope
     temp_scope=$(mktemp)
+    # shellcheck disable=SC2024  # < redirect reads temp_scope (no elevated read needed); tee writes conf with sudo
     if awk -v dir="$directory_scope" '
       BEGIN { updated=0 }
       /^<Directory / && updated==0 {
@@ -321,9 +325,8 @@ configure_apache_proxy() {
 main() {
   local app_root="${APP_ROOT:-.}"
   local web_root="${WEB_ROOT:-/var/www/html/web}"
-  local origin_url="${ORIGIN_URL}"
-  local file_proxy_paths="${FILE_PROXY_PATHS}"
-  local use_stage_file_proxy="${USE_STAGE_FILE_PROXY}"
+  # shellcheck disable=SC2153  # ORIGIN_URL, FILE_PROXY_PATHS, USE_STAGE_FILE_PROXY are runtime env vars
+  local origin_url="${ORIGIN_URL}" file_proxy_paths="${FILE_PROXY_PATHS}" use_stage_file_proxy="${USE_STAGE_FILE_PROXY}"
 
   log "Starting proxy configuration"
 

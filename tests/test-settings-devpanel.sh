@@ -1,5 +1,6 @@
 #!/bin/bash
 # Unit tests for config/settings.devpanel.php
+# shellcheck disable=SC2016  # Single quotes are intentional throughout: PHP code passed to php -r
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

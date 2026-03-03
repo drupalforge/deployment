@@ -102,6 +102,7 @@ import_from_s3() {
     mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$temp_dump"
   fi
   
+  # shellcheck disable=SC2181  # $? checked immediately after if/else; no commands between
   if [ $? -eq 0 ]; then
     log "Database imported successfully"
     return 0
@@ -136,7 +137,7 @@ main() {
   done
   
   if [ $attempt -eq $max_attempts ]; then
-    error "Database failed to become ready after $(($max_attempts * 2)) seconds"
+    error "Database failed to become ready after $((max_attempts * 2)) seconds"
     return 1
   fi
   
