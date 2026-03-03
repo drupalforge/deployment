@@ -75,7 +75,6 @@ setup_sudo() {
     unset SUDO_PROBED SUDO_AVAILABLE SUDO_REFRESH_PID
     
     # Define color codes locally (may not be inherited)
-    local RED='\033[0;31m'
     local YELLOW='\033[1;33m'
     local NC='\033[0m'
     
@@ -128,6 +127,7 @@ setup_sudo() {
     # Setup cleanup trap if temp_dir provided and not already set
     # (allows multiple setup_sudo calls without resetting the trap)
     if [ -n "$temp_dir" ] && [ "$(trap -p EXIT | grep -c _sudo_cleanup)" = "0" ]; then
+        # shellcheck disable=SC2064
         trap "_sudo_cleanup '$temp_dir'" EXIT
     fi
 }

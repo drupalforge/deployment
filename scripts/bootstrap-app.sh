@@ -10,14 +10,16 @@ LOG_FILE="/tmp/drupalforge-deployment.log"
 
 # Function to log messages
 log() {
-  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
+  local msg
+  msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
   echo "$msg"
   echo "$msg" >> "$LOG_FILE"
 }
 
 # Function to log errors
 error() {
-  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*"
+  local msg
+  msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*"
   echo "$msg" >&2
   echo "$msg" >> "$LOG_FILE"
   return 1

@@ -84,7 +84,8 @@ cleanup() {
     $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml rm -f 2>/dev/null || true
     
     # Remove dangling images created during test
-    local test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "^test-df-deployment" || true)
+    local test_images
+    test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "^test-df-deployment" || true)
     if [ -n "$test_images" ]; then
         echo "$test_images" | xargs docker rmi 2>/dev/null || true
     fi

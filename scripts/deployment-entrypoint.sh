@@ -13,7 +13,8 @@ LOG_FILE="/tmp/drupalforge-deployment.log"
 
 # Function to log messages
 log() {
-  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
+  local msg
+  msg="[$(date +'%Y-%m-%d %H:%M:%S')] [DEPLOYMENT] $*"
   echo "$msg"
   echo "$msg" >> "$LOG_FILE"
 }
