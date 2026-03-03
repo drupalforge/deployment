@@ -2,8 +2,8 @@
 # Unit tests for deployment-entrypoint.sh
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 ENTRYPOINT="$SCRIPT_DIR/scripts/deployment-entrypoint.sh"
 TEMP_DIR=$(mktemp -d)
 

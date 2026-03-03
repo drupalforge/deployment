@@ -8,9 +8,9 @@
 #
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DOCKERFILE="$SCRIPT_DIR/Dockerfile"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
+DOCKERFILE="$SCRIPT_DIR/Dockerfile"
 
 # shellcheck source=lib/colors.sh
 source "$TEST_DIR/lib/colors.sh"

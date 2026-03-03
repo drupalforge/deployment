@@ -3,8 +3,8 @@
 # shellcheck disable=SC2016  # Single quotes are intentional throughout: PHP code passed to php -r
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 SETTINGS_FILE="$SCRIPT_DIR/config/settings.devpanel.php"
 
 # shellcheck source=lib/colors.sh

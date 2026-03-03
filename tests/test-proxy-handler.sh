@@ -2,8 +2,8 @@
 # Unit tests for proxy-handler.php
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 HANDLER="$SCRIPT_DIR/scripts/proxy-handler.php"
 
 # shellcheck source=lib/colors.sh
