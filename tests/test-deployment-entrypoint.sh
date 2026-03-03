@@ -10,13 +10,6 @@ TEMP_DIR=$(mktemp -d)
 # shellcheck source=lib/sudo.sh
 source "$TEST_DIR/lib/sudo.sh"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
 echo -e "${BLUE}Testing deployment-entrypoint.sh...${NC}"
 
 # Setup sudo credentials and background refresh

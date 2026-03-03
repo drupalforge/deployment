@@ -5,6 +5,8 @@
 # Source utils library for _timeout helper
 # shellcheck source=./utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
+# shellcheck source=./colors.sh
+source "$(dirname "${BASH_SOURCE[0]}")/colors.sh"
 
 # Helper function to display interactive countdown with sudo password prompt.
 # Used when sudo credentials are needed but not cached.
@@ -15,11 +17,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
 _countdown_sudo_prompt() {
     local temp_dir="$1"
     local COUNTDOWN_STOP_FILE="$temp_dir/countdown-stop"
-    
-    # Define colors locally
-    local YELLOW='\033[1;33m'
-    local NC='\033[0m'
-    
+
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
     
@@ -73,11 +71,7 @@ setup_sudo() {
 
     # Reset potentially stale inherited sudo state from parent runners.
     unset SUDO_PROBED SUDO_AVAILABLE SUDO_REFRESH_PID
-    
-    # Define color codes locally (may not be inherited)
-    local YELLOW='\033[1;33m'
-    local NC='\033[0m'
-    
+
     # Probe for sudo credentials.
     SUDO_AVAILABLE=0
     if sudo -n true >/dev/null 2>&1; then

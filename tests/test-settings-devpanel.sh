@@ -5,11 +5,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETTINGS_FILE="$SCRIPT_DIR/config/settings.devpanel.php"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# shellcheck source=lib/colors.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
 
 echo -e "${BLUE}Testing settings.devpanel.php...${NC}"
 

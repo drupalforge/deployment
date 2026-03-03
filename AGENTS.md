@@ -113,7 +113,11 @@ Rules:
 - `${RED}` is reserved for assertions that failed; always exit with a non-zero status immediately after.
 - `${YELLOW}` is reserved for skipped or optional assertions (ones that do not fail the suite). Do **not** use `${YELLOW}` for general informational or progress messages.
 - `${BLUE}` is used for structural output: the suite header and any other non-result informational messages (e.g., `echo -e "${BLUE}  Linting $n files...${NC}"`).
-- Each test script must define the color variables (`RED`, `GREEN`, `YELLOW`, `BLUE`, `NC`) locally; do not assume they are inherited from the environment.
+- Color variables are defined once in `tests/lib/colors.sh` and must be sourced at the top of every test script — do not redefine them inline. Scripts that already source `tests/lib/sudo.sh` receive the colors transitively; all other scripts must source `colors.sh` directly:
+  ```bash
+  # shellcheck source=lib/colors.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
+  ```
 - If a test directly invokes sourced/evaluated script functions, capture stdout/stderr and only print that output when the assertion fails. Passing output must remain assertion-formatted only.
 
 ## Tests Requiring Sudo
