@@ -76,8 +76,7 @@ import_from_s3() {
   local s3_url="s3://${S3_BUCKET}/${S3_DATABASE_PATH}"
   
   temp_dump=$(mktemp)
-  # shellcheck disable=SC2064
-  trap "rm -f $temp_dump" EXIT
+  trap 'rm -f "'"$temp_dump"'"' EXIT
   
   log "Downloading database from S3: $s3_url"
   

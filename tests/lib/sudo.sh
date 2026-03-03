@@ -121,8 +121,7 @@ setup_sudo() {
     # Setup cleanup trap if temp_dir provided and not already set
     # (allows multiple setup_sudo calls without resetting the trap)
     if [ -n "$temp_dir" ] && [ "$(trap -p EXIT | grep -c _sudo_cleanup)" = "0" ]; then
-        # shellcheck disable=SC2064
-        trap "_sudo_cleanup '$temp_dir'" EXIT
+        trap '_sudo_cleanup "'"$temp_dir"'"' EXIT
     fi
 }
 
