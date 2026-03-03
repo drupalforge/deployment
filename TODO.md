@@ -1,5 +1,29 @@
 # TODO List
 
+## Add AVIF/APCU/uploadprogress PHP extensions
+
+### Enable GD AVIF support and install APCU/uploadprogress in image build
+
+**Context:**
+Drupal Forge deployments need GD compiled with AVIF support and two additional PHP extensions (`apcu` and `uploadprogress`) available at runtime.
+
+**Done definition:**
+- [x] `Dockerfile` installs build deps and compiles GD with AVIF support
+- [x] `Dockerfile` installs `apcu` and `uploadprogress` via PECL and enables both extensions
+- [x] Build dependency cleanup is performed after installation (purge/autoremove/apt cache cleanup)
+- [x] `tests/test-dockerfile.sh` validates the new extension install and cleanup patterns
+- [x] `README.md` documents these bundled PHP extension capabilities
+- [x] `bash tests/test-dockerfile.sh` and `bash tests/unit-test.sh` pass locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Update docs for bundled extension behavior
+- [x] Add Dockerfile pattern tests for extension installation/cleanup
+- [x] Implement Dockerfile extension install and cleanup
+- [x] Run Dockerfile/unit test suites and mark task complete
+
+**Status (2026-03-03): ✅ Complete**
+
 ## Normalize DB_PORT default assignment
 
 ### Set DB_PORT fallback once before MySQL calls

@@ -161,6 +161,43 @@ test_mariadb_ssl_config() {
     fi
 }
 
+# Test 14: Builds GD extension with AVIF support
+test_gd_avif_support() {
+    if grep -q "docker-php-ext-configure gd.*--with-avif" "$DOCKERFILE" && \
+       grep -q "docker-php-ext-install gd" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Builds GD extension with AVIF support${NC}"
+    else
+        echo -e "${RED}✗ Missing GD AVIF build configuration${NC}"
+        exit 1
+    fi
+}
+
+# Test 15: Installs APCU and uploadprogress via PECL
+test_pecl_extensions() {
+    if grep -q "pecl install apcu" "$DOCKERFILE" && \
+       grep -q "extension=apcu.so" "$DOCKERFILE" && \
+       grep -q "pecl install uploadprogress" "$DOCKERFILE" && \
+       grep -q "extension=uploadprogress.so" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Installs APCU and uploadprogress via PECL${NC}"
+    else
+        echo -e "${RED}✗ Missing APCU/uploadprogress PECL installation${NC}"
+        exit 1
+    fi
+}
+
+# Test 16: Cleans up temporary apt build dependencies and cache
+test_apt_cleanup() {
+    if grep -q "apt-get purge -y -qq libavif-dev" "$DOCKERFILE" && \
+       grep -q "apt-get autoremove -y -qq" "$DOCKERFILE" && \
+       grep -q "apt-get clean" "$DOCKERFILE" && \
+       grep -q "rm -rf /var/lib/apt/lists/\*" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Cleans apt build dependencies and cache${NC}"
+    else
+        echo -e "${RED}✗ Missing apt cleanup for extension build dependencies${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_dockerfile_exists
 test_base_image
@@ -175,5 +212,8 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_mariadb_ssl_config
+test_gd_avif_support
+test_pecl_extensions
+test_apt_cleanup
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

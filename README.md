@@ -60,6 +60,8 @@ Extends `devpanel/php:{8.2,8.3}-base` with:
 - Proxy configuration script (`setup-proxy.sh`)
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
+- PHP GD compiled with AVIF support (`--with-avif`)
+- PECL extensions enabled: `apcu` and `uploadprogress`
 
 The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
 
