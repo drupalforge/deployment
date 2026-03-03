@@ -102,9 +102,11 @@ echo -e "${YELLOW}Checking dependencies...${NC}"
 # Check for docker-compose (v1) or docker compose (v2)
 if command -v docker-compose &> /dev/null; then
     DOCKER_COMPOSE="docker-compose"
+    COMPOSE_UP_FLAGS=""
     echo -e "${GREEN}✓ docker-compose v1 installed${NC}"
 elif docker compose version &> /dev/null; then
     DOCKER_COMPOSE="docker compose"
+    COMPOSE_UP_FLAGS="--quiet-pull"
     echo -e "${GREEN}✓ docker compose v2 installed${NC}"
 else
     echo -e "${RED}✗ docker-compose or docker compose not found${NC}"
@@ -186,7 +188,7 @@ echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
 
 compose_up_ok=0
 for start_attempt in 1 2; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up -d; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS -d; then
         compose_up_ok=1
         break
     fi
