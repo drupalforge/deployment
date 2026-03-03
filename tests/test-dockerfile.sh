@@ -10,9 +10,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=lib/colors.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
+source "$TEST_DIR/lib/colors.sh"
 
 echo -e "${BLUE}Testing Dockerfile...${NC}"
 

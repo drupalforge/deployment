@@ -7,9 +7,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=lib/colors.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
+source "$TEST_DIR/lib/colors.sh"
 
 echo -e "${BLUE}Testing shell scripts with shellcheck...${NC}"
 
@@ -43,7 +44,7 @@ test_shell_scripts() {
     echo -e "${BLUE}  Linting $file_count shell script(s)...${NC}"
 
     local output
-    if output=$(echo "$shell_files" | xargs shellcheck -x --severity=warning 2>&1); then
+    if output=$(echo "$shell_files" | xargs shellcheck -x --source-path=SCRIPTDIR --severity=warning 2>&1); then
         echo -e "${GREEN}✓ All shell scripts passed shellcheck${NC}"
     else
         echo -e "${RED}✗ shellcheck found issues:${NC}"

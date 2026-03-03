@@ -2,9 +2,10 @@
 # Shared color/formatting constants for test output.
 # Source this file instead of redefining these variables in each test script.
 #
-# Usage (from a tests/*.sh script):
+# Usage (from a tests/*.sh script that defines TEST_DIR):
+#   TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   # shellcheck source=lib/colors.sh
-#   source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
+#   source "$TEST_DIR/lib/colors.sh"
 #
 # Usage (from tests/lib/*.sh):
 #   # shellcheck source=./colors.sh
