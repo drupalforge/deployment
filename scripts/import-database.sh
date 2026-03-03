@@ -4,16 +4,19 @@ set -e
 # S3 Database Import Script
 # This script imports a database from an S3 bucket into MySQL
 # 
-# Required environment variables:
+# Environment variables:
+# Required:
 #   DB_HOST - Database host
 #   DB_USER - Database user
 #   DB_PASSWORD - Database password
 #   DB_NAME - Database name
 #   S3_BUCKET - S3 bucket name (e.g., 'my-bucket')
 #   S3_DATABASE_PATH - Path to database dump in S3 (e.g., 'dumps/site.sql.gz')
+# Optional:
+#   DB_PORT - Database port (default: 3306)
 #   AWS_REGION - AWS region (default: us-east-1)
-#   AWS_ACCESS_KEY_ID - AWS access key (uses instance role if not provided)
-#   AWS_SECRET_ACCESS_KEY - AWS secret key (uses instance role if not provided)
+#   AWS_ACCESS_KEY_ID - AWS access key (uses instance role/credential chain if not provided)
+#   AWS_SECRET_ACCESS_KEY - AWS secret key (uses instance role/credential chain if not provided)
 
 # Function to log messages
 log() {
@@ -41,6 +44,10 @@ validate_env() {
   AWS_REGION="${AWS_REGION:-us-east-1}"
   export AWS_REGION
 
+  # Set database port default once for all mysql invocations.
+  DB_PORT="${DB_PORT:-3306}"
+  export DB_PORT
+
   # AWS CLI primarily reads AWS_DEFAULT_REGION; keep both set for compatibility.
   AWS_DEFAULT_REGION="$AWS_REGION"
   export AWS_DEFAULT_REGION
@@ -53,7 +60,7 @@ validate_env() {
 # Check if database already has tables
 database_exists() {
   local table_count
-  table_count=$(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
+  table_count=$(mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
     -se "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME';" 2>/dev/null || echo "0")
   
   if [ "$table_count" -gt 0 ]; then
@@ -90,9 +97,9 @@ import_from_s3() {
   
   # Determine if file is gzipped
   if [[ "$S3_DATABASE_PATH" == *.gz ]]; then
-    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME"
+    gzip -d -c "$temp_dump" | mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME"
   else
-    mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$temp_dump"
+    mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$temp_dump"
   fi
   
   if [ $? -eq 0 ]; then
@@ -115,12 +122,12 @@ main() {
   fi
   
   # Wait for database to be ready
-  log "Waiting for database to be ready at $DB_HOST:${DB_PORT:-3306}..."
+  log "Waiting for database to be ready at $DB_HOST:$DB_PORT..."
   local max_attempts=30
   local attempt=0
   
   while [ $attempt -lt $max_attempts ]; do
-    if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1" &>/dev/null; then
+    if mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" -e "SELECT 1" &>/dev/null; then
       log "Database is ready"
       break
     fi

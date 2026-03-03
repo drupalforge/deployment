@@ -69,6 +69,35 @@ test_skip_if_exists() {
     fi
 }
 
+# Test 7: Script passes DB_PORT to mysql commands
+test_mysql_port_usage() {
+    local file="$SCRIPT_DIR/scripts/import-database.sh"
+    local mysql_total
+    local mysql_with_port
+    local default_assignment_count
+
+    default_assignment_count=$(grep -Ec 'DB_PORT="\$\{DB_PORT:-3306\}"' "$file")
+    if [ "$default_assignment_count" -ne 1 ]; then
+        echo -e "${RED}✗ Script should assign DB_PORT default exactly once (found $default_assignment_count)${NC}"
+        exit 1
+    fi
+
+    mysql_total=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]])' "$file")
+    mysql_with_port=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]]).*-P "\$DB_PORT"' "$file")
+
+    if [ "$mysql_total" -eq 0 ]; then
+        echo -e "${RED}✗ Script does not contain mysql commands to validate${NC}"
+        exit 1
+    fi
+
+    if [ "$mysql_with_port" -eq "$mysql_total" ]; then
+        echo -e "${GREEN}✓ DB_PORT default is set once and all mysql commands use -P \"\$DB_PORT\"${NC}"
+    else
+        echo -e "${RED}✗ Not all mysql commands use -P \"\$DB_PORT\" (found $mysql_with_port/$mysql_total)${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -76,5 +105,6 @@ test_variable_validation
 test_gzip_handling
 test_retry_logic
 test_skip_if_exists
+test_mysql_port_usage
 
 echo -e "${GREEN}✓ Import database tests passed${NC}"

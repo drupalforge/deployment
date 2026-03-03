@@ -1,5 +1,49 @@
 # TODO List
 
+## Normalize DB_PORT default assignment
+
+### Set DB_PORT fallback once before MySQL calls
+
+**Context:**
+`scripts/import-database.sh` currently repeats `${DB_PORT:-3306}` in each MySQL invocation. Set the default once for readability and consistency.
+
+**Done definition:**
+- [x] `scripts/import-database.sh` assigns `DB_PORT` default once before connection attempts
+- [x] All MySQL commands use `-P "$DB_PORT"`
+- [x] `tests/test-import-database.sh` validates the single-default + per-command port usage pattern
+- [x] `bash tests/test-import-database.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Update import test expectations for single default assignment
+- [x] Refactor import script DB port handling
+- [x] Run import and unit tests
+
+**Status (2026-03-03): ✅ Complete**
+
+## Ensure import uses DB_PORT consistently
+
+### Pass explicit MySQL port in all import script connections
+
+**Context:**
+`scripts/import-database.sh` logs `DB_PORT` but does not pass it to `mysql`, so deployments on non-default ports can fail.
+
+**Done definition:**
+- [x] `scripts/import-database.sh` passes `-P "${DB_PORT:-3306}"` for readiness, table checks, and import execution
+- [x] `README.md` documents `DB_PORT` default behavior for import connections
+- [x] `bash tests/test-import-database.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Document DB port behavior
+- [x] Add unit test coverage for MySQL `-P` usage
+- [x] Implement MySQL port-aware command arguments
+- [x] Run import and unit test suites
+
+**Status (2026-03-03): ✅ Complete**
+
 ## Verify installer skips DB setup without import
 
 ### Add integration coverage for install flow with settings.devpanel include and empty database

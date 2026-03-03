@@ -127,10 +127,12 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 | `S3_BUCKET` | S3 bucket name (required for import) | `my-deployment-bucket` |
 | `S3_DATABASE_PATH` | Path to database dump in S3 (required for import) | `dumps/site-prod.sql.gz` |
 | `AWS_REGION` | AWS region (optional, default: `us-east-1`) | `us-east-1` |
-| `AWS_ACCESS_KEY_ID` | AWS access key (optional, uses instance role if not provided) | - |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key (optional, uses instance role if not provided) | - |
+| `AWS_ACCESS_KEY_ID` | AWS access key (optional; if omitted, AWS SDK/CLI credential chain is used, such as an IAM role when available) | - |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key (optional; if omitted, AWS SDK/CLI credential chain is used, such as an IAM role when available) | - |
 
-**Database Connection Variables:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_DRIVER` are required by `settings.devpanel.php`. DevPanel should provide these automatically on Drupal Forge.
+**Import script requirements (`scripts/import-database.sh`):** `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `S3_BUCKET`, and `S3_DATABASE_PATH` are required. `DB_PORT` is optional if using the default port `3306`.
+
+**Drupal settings requirements (`settings.devpanel.php`):** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `DB_DRIVER` are expected from the environment. DevPanel should provide these automatically on Drupal Forge.
 
 ### Drupal Settings Overrides (`settings.devpanel.php`)
 
@@ -258,9 +260,9 @@ docker run \
   drupalforge/deployment:php-8.3
 ```
 
-### Using AWS Instance Role (no credentials needed)
+### Using AWS IAM Role (when running on AWS)
 
-When deployed to AWS EC2/ECS with proper IAM role:
+When deployed to AWS (for example EC2 or ECS) with an attached IAM role, explicit `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are not required. In non-AWS environments, provide credentials through supported AWS credential sources if the S3 import needs access.
 
 ```bash
 docker run \
