@@ -19,8 +19,6 @@ echo -e "${BLUE}║                     Pre-Push Hook                           
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Git passes remote name ($1) and URL ($2) to pre-push hooks; not used here.
-
 # Detect whether Git was launched from an interactive terminal.
 # In pre-push, stdin is often a pipe with ref updates, so rely on stdout/stderr.
 RUNNING_FROM_TERMINAL=false
