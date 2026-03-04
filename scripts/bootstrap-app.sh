@@ -107,8 +107,9 @@ ensure_config_sync_directory_exists() {
     return 0
   fi
 
-  # shellcheck disable=SC2016  # single quotes are intentional: this is PHP code, not bash expansion
-  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" php -d display_errors=0 -d error_reporting=0 -r '
+  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" \
+    php -d display_errors=0 -d error_reporting=0 <<'PHPCODE' 2>/dev/null || true
+<?php
 $settings = [];
 $databases = [];
 if (!empty(getenv("DRUPAL_WEB_ROOT"))) {
@@ -120,7 +121,8 @@ if (!preg_match("/^(\/|[A-Za-z]:[\\\\\/])/", $config_sync)) {
   $config_sync = rtrim(getenv("DRUPAL_WEB_ROOT"), "/\\") . "/" . $config_sync;
 }
 echo $config_sync;
-' 2>/dev/null || true)"
+PHPCODE
+  )"
 
   if [ -z "$config_sync_directory" ]; then
     error "Failed to resolve config sync directory from $settings_file"
