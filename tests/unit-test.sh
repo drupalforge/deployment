@@ -12,13 +12,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_DIR="$SCRIPT_DIR"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
 # shellcheck source=lib/sudo.sh
 source "$SCRIPT_DIR/lib/sudo.sh"
 
@@ -53,9 +46,9 @@ done
 # Wait for ALL parallel tests to finish before printing results.
 for i in "${!TEST_NAMES[@]}"; do
     if wait "${PIDS[$i]}"; then
-        EXIT_CODES[$i]=0
+        EXIT_CODES[i]=0
     else
-        EXIT_CODES[$i]=$?
+        EXIT_CODES[i]=$?
     fi
 done
 

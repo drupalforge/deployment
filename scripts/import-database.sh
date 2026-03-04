@@ -76,7 +76,7 @@ import_from_s3() {
   local s3_url="s3://${S3_BUCKET}/${S3_DATABASE_PATH}"
   
   temp_dump=$(mktemp)
-  trap "rm -f $temp_dump" EXIT
+  trap 'rm -f "'"$temp_dump"'"' EXIT
   
   log "Downloading database from S3: $s3_url"
   
@@ -102,6 +102,7 @@ import_from_s3() {
     mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < "$temp_dump"
   fi
   
+  # shellcheck disable=SC2181  # $? checked immediately after if/else; no commands between
   if [ $? -eq 0 ]; then
     log "Database imported successfully"
     return 0
@@ -136,7 +137,7 @@ main() {
   done
   
   if [ $attempt -eq $max_attempts ]; then
-    error "Database failed to become ready after $(($max_attempts * 2)) seconds"
+    error "Database failed to become ready after $((max_attempts * 2)) seconds"
     return 1
   fi
   

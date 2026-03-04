@@ -6,14 +6,11 @@
 #
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# shellcheck source=lib/colors.sh
+source "$TEST_DIR/lib/colors.sh"
 
 echo -e "${BLUE}Testing YAML files...${NC}"
 
@@ -39,7 +36,8 @@ test_yamllint_config_exists() {
 
 # Test 3: Lint all YAML files
 test_yaml_files() {
-    local yaml_files=$(find "$SCRIPT_DIR" -type f \( -name "*.yml" -o -name "*.yaml" \) \
+    local yaml_files
+    yaml_files=$(find "$SCRIPT_DIR" -type f \( -name "*.yml" -o -name "*.yaml" \) \
         ! -path "*/node_modules/*" \
         ! -path "*/.git/*" \
         ! -path "*/tests/fixtures/*" \
@@ -50,7 +48,8 @@ test_yaml_files() {
         return 0
     fi
     
-    local file_count=$(echo "$yaml_files" | wc -l)
+    local file_count
+    file_count=$(echo "$yaml_files" | wc -l)
     echo -e "${BLUE}  Linting $file_count YAML file(s)...${NC}"
     
     # Run yamllint and capture output

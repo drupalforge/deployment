@@ -2,9 +2,13 @@
 # Sudo credential management library for test suites
 # Provides consistent sudo setup, credential refresh, and cleanup across all tests
 
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Source utils library for _timeout helper
 # shellcheck source=./utils.sh
-source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
+source "$LIB_DIR/utils.sh"
+# shellcheck source=./colors.sh
+source "$LIB_DIR/colors.sh"
 
 # Helper function to display interactive countdown with sudo password prompt.
 # Used when sudo credentials are needed but not cached.
@@ -15,11 +19,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
 _countdown_sudo_prompt() {
     local temp_dir="$1"
     local COUNTDOWN_STOP_FILE="$temp_dir/countdown-stop"
-    
-    # Define colors locally
-    local YELLOW='\033[1;33m'
-    local NC='\033[0m'
-    
+
     echo -e "${YELLOW}Some tests require sudo. Enter your password to run them,${NC}"
     echo -e "${YELLOW}or press Ctrl-C to skip (30 second timeout).${NC}"
     
@@ -73,12 +73,7 @@ setup_sudo() {
 
     # Reset potentially stale inherited sudo state from parent runners.
     unset SUDO_PROBED SUDO_AVAILABLE SUDO_REFRESH_PID
-    
-    # Define color codes locally (may not be inherited)
-    local RED='\033[0;31m'
-    local YELLOW='\033[1;33m'
-    local NC='\033[0m'
-    
+
     # Probe for sudo credentials.
     SUDO_AVAILABLE=0
     if sudo -n true >/dev/null 2>&1; then
@@ -128,7 +123,7 @@ setup_sudo() {
     # Setup cleanup trap if temp_dir provided and not already set
     # (allows multiple setup_sudo calls without resetting the trap)
     if [ -n "$temp_dir" ] && [ "$(trap -p EXIT | grep -c _sudo_cleanup)" = "0" ]; then
-        trap "_sudo_cleanup '$temp_dir'" EXIT
+        trap '_sudo_cleanup "'"$temp_dir"'"' EXIT
     fi
 }
 
@@ -152,7 +147,9 @@ ensure_active_sudo() {
 # Kills the background refresh process and removes the temp directory
 _sudo_cleanup() {
     local temp_dir="$1"
+    # shellcheck disable=SC2015  # A&&B||C is intentional: kill if PID set, ignore failure
     [ -n "$SUDO_REFRESH_PID" ] && kill "$SUDO_REFRESH_PID" >/dev/null 2>&1 || true
+    # shellcheck disable=SC2015  # A&&B||C is intentional: prefer sudo rm, fall back to plain rm
     [ -d "$temp_dir" ] && sudo -n rm -rf "$temp_dir" >/dev/null 2>&1 || rm -rf "$temp_dir"
 }
 

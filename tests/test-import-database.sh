@@ -2,14 +2,11 @@
 # Unit tests for import-database.sh
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# shellcheck source=lib/colors.sh
+source "$TEST_DIR/lib/colors.sh"
 
 echo -e "${BLUE}Testing import-database.sh...${NC}"
 
@@ -83,6 +80,7 @@ test_mysql_port_usage() {
     fi
 
     mysql_total=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]])' "$file")
+    # shellcheck disable=SC2016  # $DB_PORT in single quotes is intentional: matching literal text in grep pattern
     mysql_with_port=$(grep -Ec '^[[:space:]]*(if[[:space:]]+)?(mysql[[:space:]]|.*\|[[:space:]]*mysql[[:space:]]).*-P "\$DB_PORT"' "$file")
 
     if [ "$mysql_total" -eq 0 ]; then

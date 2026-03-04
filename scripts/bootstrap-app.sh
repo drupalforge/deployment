@@ -10,14 +10,16 @@ LOG_FILE="/tmp/drupalforge-deployment.log"
 
 # Function to log messages
 log() {
-  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
+  local msg
+  msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] $*"
   echo "$msg"
   echo "$msg" >> "$LOG_FILE"
 }
 
 # Function to log errors
 error() {
-  local msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*"
+  local msg
+  msg="[$(date +'%Y-%m-%d %H:%M:%S')] [BOOTSTRAP] ERROR: $*"
   echo "$msg" >&2
   echo "$msg" >> "$LOG_FILE"
   return 1
@@ -105,7 +107,9 @@ ensure_config_sync_directory_exists() {
     return 0
   fi
 
-  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" php -d display_errors=0 -d error_reporting=0 -r '
+  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" \
+    php -d display_errors=0 -d error_reporting=0 <<'PHPCODE' 2>/dev/null || true
+<?php
 $settings = [];
 $databases = [];
 if (!empty(getenv("DRUPAL_WEB_ROOT"))) {
@@ -117,7 +121,8 @@ if (!preg_match("/^(\/|[A-Za-z]:[\\\\\/])/", $config_sync)) {
   $config_sync = rtrim(getenv("DRUPAL_WEB_ROOT"), "/\\") . "/" . $config_sync;
 }
 echo $config_sync;
-' 2>/dev/null || true)"
+PHPCODE
+  )"
 
   if [ -z "$config_sync_directory" ]; then
     error "Failed to resolve config sync directory from $settings_file"

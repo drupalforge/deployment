@@ -2,19 +2,12 @@
 # Unit tests for bootstrap-app.sh
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 TEMP_DIR=$(mktemp -d)
 
 # shellcheck source=lib/sudo.sh
 source "$TEST_DIR/lib/sudo.sh"
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
 
 echo -e "${BLUE}Testing bootstrap-app.sh...${NC}"
 

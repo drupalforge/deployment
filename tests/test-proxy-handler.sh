@@ -2,15 +2,12 @@
 # Unit tests for proxy-handler.php
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${TEST_DIR%/*}"
 HANDLER="$SCRIPT_DIR/scripts/proxy-handler.php"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# shellcheck source=lib/colors.sh
+source "$TEST_DIR/lib/colors.sh"
 
 echo -e "${BLUE}Testing proxy-handler.php...${NC}"
 

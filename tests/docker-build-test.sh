@@ -8,12 +8,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# shellcheck source=lib/colors.sh
+source "$SCRIPT_DIR/lib/colors.sh"
 
 # Test configuration
 PHP_VERSIONS=("8.2" "8.3")
@@ -22,7 +18,7 @@ TEST_TAG_PREFIX="test-df-deployment"
 echo -e "${BLUE}Testing Docker builds...${NC}"
 echo ""
 
-# Function to cleanup test images
+# shellcheck disable=SC2317  # Invoked indirectly via trap
 cleanup_images() {
     echo -e "${YELLOW}Cleaning up test images...${NC}"
     for version in "${PHP_VERSIONS[@]}"; do
