@@ -1,5 +1,26 @@
 # TODO List
 
+## Add secure-mode private path integration check
+
+### Validate private path ownership with default Apache `www-data`
+
+**Context:**
+Current integration coverage validates private path ownership in the main deployment container (`APACHE_RUN_USER=www`). We also need a secure-mode check that validates bootstrap behavior when Apache runs with defaults (`www-data`).
+
+**Done definition:**
+- [x] `tests/integration-test.sh` includes a one-off secure-mode container assertion for private path ownership
+- [x] Assertion validates `/var/www/html/private` ownership resolves to `www-data:www-data`
+- [x] `tests/INTEGRATION_TESTING.md` reflects the added secure-mode private path check and updated test count
+- [x] `bash tests/integration-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Update integration docs with secure-mode private path coverage
+- [x] Add one-off secure-mode private path assertion in integration suite
+- [x] Run integration suite and mark task complete
+
+**Status (2026-03-03): ✅ Complete**
+
 ## Add AVIF/APCU/uploadprogress PHP extensions
 
 ### Enable GD AVIF support and install APCU/uploadprogress in image build
@@ -21,6 +42,74 @@ Drupal Forge deployments need GD compiled with AVIF support and two additional P
 - [x] Add Dockerfile pattern tests for extension installation/cleanup
 - [x] Implement Dockerfile extension install and cleanup
 - [x] Run Dockerfile/unit test suites and mark task complete
+
+**Status (2026-03-03): ✅ Complete**
+
+## Add integration coverage for private file path
+
+### Validate private path creation and ownership in integration environment
+
+**Context:**
+Unit tests cover private file path creation/ownership in bootstrap. Integration tests should also assert that the runtime container creates the private path and aligns ownership with the configured webserver user.
+
+**Done definition:**
+- [x] `tests/integration-test.sh` asserts the private file path exists in the integration deployment container
+- [x] Integration assertion validates ownership matches the Apache runtime user/group used by that container
+- [x] `tests/INTEGRATION_TESTING.md` documents the additional private path integration coverage
+- [x] `bash tests/integration-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Update integration docs to include private path coverage
+- [x] Add private path existence/ownership assertion to integration suite
+- [x] Run integration suite and mark task complete
+
+**Status (2026-03-03): ✅ Complete**
+
+## Ensure private path ownership matches webserver
+
+### Align `$settings['file_private_path']` ownership with Apache runtime user/group
+
+**Context:**
+The private files directory should be owned by the webserver user/group, matching how public files path ownership is handled.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` ensures non-empty `$settings['file_private_path']` is owned by the resolved Apache runtime user/group
+- [x] Ownership resolution follows existing Apache env behavior (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, `/etc/apache2/envvars` fallback)
+- [x] `tests/test-bootstrap-app.sh` covers private path ownership behavior
+- [x] `README.md` documents private path ownership behavior
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Add/update bootstrap tests for private path ownership
+- [x] Implement ownership alignment in bootstrap script
+- [x] Update README notes for private path ownership
+- [x] Run bootstrap/unit suites and mark task complete
+
+**Status (2026-03-03): ✅ Complete**
+
+## Ensure file private path exists
+
+### Create `$settings['file_private_path']` when configured
+
+**Context:**
+When Drupal config sets a non-empty `$settings['file_private_path']`, deployments can fail if that directory does not exist at startup.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` resolves `$settings['file_private_path']` and creates it recursively when non-empty
+- [x] Empty `file_private_path` values are treated as disabled and do not create directories
+- [x] `README.md` documents the private files directory bootstrap behavior
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] This TODO section is marked complete
+
+**Action items:**
+- [x] Add/update bootstrap unit tests for private path creation behavior
+- [x] Implement private path directory creation in bootstrap script
+- [x] Update README bootstrap behavior notes
+- [x] Run bootstrap/unit test suites and mark task complete
 
 **Status (2026-03-03): ✅ Complete**
 
@@ -73,7 +162,7 @@ Drupal Forge deployments need GD compiled with AVIF support and two additional P
 ### Add integration coverage for install flow with settings.devpanel include and empty database
 
 **Context:**
-When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php` and no S3 database import runs, Drupal installer should skip the database setup form and proceed directly to install flow.
+When `settings.php` includes the app-root-grandparent `settings.devpanel.php` path and no S3 database import runs, Drupal installer should skip the database setup form and proceed directly to install flow.
 
 **Done definition:**
 - [x] Integration suite includes a no-import deployment scenario using an empty database
@@ -294,6 +383,7 @@ Currently, we explicitly specify `--platform linux/amd64` in tests because the d
 
 1. Remove `--platform linux/amd64` from the docker build command in `tests/docker-build-test.sh`
 2. Remove `platform: linux/amd64` from the deployment service in `tests/docker-compose.test.yml`
+3. Remove the temporary single-thread GD compile workaround (`MAKEFLAGS="-j1" docker-php-ext-install gd`) from `Dockerfile`
 
 This will allow tests to run natively on any architecture without forcing a specific platform.
 

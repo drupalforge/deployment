@@ -1,2 +1,3 @@
 # Integration test fixtures - generated from drupal/recommended-project
 tests/fixtures/app/
+tests/fixtures/settings.devpanel.php

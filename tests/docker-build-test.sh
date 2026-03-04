@@ -18,7 +18,7 @@ TEST_TAG_PREFIX="test-df-deployment"
 echo -e "${BLUE}Testing Docker builds...${NC}"
 echo ""
 
-# shellcheck disable=SC2317  # Invoked indirectly via trap
+# shellcheck disable=SC2329  # Invoked indirectly via trap
 cleanup_images() {
     echo -e "${YELLOW}Cleaning up test images...${NC}"
     for version in "${PHP_VERSIONS[@]}"; do
@@ -79,7 +79,7 @@ test_version() {
 
         # Verify DevPanel settings template is present in image
         echo -e "${YELLOW}  Verifying DevPanel settings template...${NC}"
-        if docker run --rm --entrypoint sh "$tag" -c 'test -f /usr/local/share/drupalforge/settings.devpanel.php'; then
+        if docker run --rm --entrypoint sh "$tag" -c 'test -f /var/www/settings.devpanel.php'; then
             echo -e "${GREEN}  ✓ DevPanel settings template exists in image${NC}"
         else
             echo -e "${RED}  ✗ DevPanel settings template missing in image${NC}"
@@ -220,11 +220,14 @@ done
 BUILD_FAILED=0
 for i in "${!PHP_VERSIONS[@]}"; do
     version="${PHP_VERSIONS[$i]}"
+    set +e
     wait "${PIDS[$i]}"
+    wait_status=$?
+    set -e
     # Print the buffered output for this version
     cat "${OUT_FILES[$i]}"
     echo ""
-    exit_code=$(cat "$TMPDIR_TESTS/exit-${version}.txt" 2>/dev/null || echo 1)
+    exit_code=$(cat "$TMPDIR_TESTS/exit-${version}.txt" 2>/dev/null || echo "$wait_status")
     if [ "$exit_code" -ne 0 ]; then
         BUILD_FAILED=1
     fi

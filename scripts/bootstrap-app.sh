@@ -74,7 +74,7 @@ ensure_devpanel_settings_include() {
     return 0
   fi
 
-  if grep -q "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file"; then
+  if grep -q "settings.devpanel.php" "$settings_file"; then
     log "DevPanel settings include already exists in $settings_file"
     return 0
   fi
@@ -83,7 +83,7 @@ ensure_devpanel_settings_include() {
 /**
  * Load DevPanel override configuration, if available.
  */
-$devpanel_settings = \'/usr/local/share/drupalforge/settings.devpanel.php\';
+$devpanel_settings = dirname($app_root, 2) . \'/settings.devpanel.php\';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }'
@@ -96,33 +96,117 @@ if (file_exists($devpanel_settings)) {
   fi
 }
 
-ensure_config_sync_directory_exists() {
-  local app_root="$1"
-  local web_root="${WEB_ROOT:-${app_root}/web}"
-  local settings_file="${web_root}/sites/default/settings.php"
-  local config_sync_directory
+resolve_drupal_settings_paths() {
+  local app_root="${WEB_ROOT:-$1/web}"
+  local settings_file="${app_root}/sites/default/settings.php"
 
   if [ ! -f "$settings_file" ]; then
-    log "Drupal settings.php not found at $settings_file, skipping config sync directory creation"
+    return 2
+  fi
+
+  php -d display_errors=0 -d error_reporting=0 \
+    -- --app_root="$app_root" --settings_file="$settings_file" \
+    <<'PHPCODE' 2>/dev/null
+<?php
+$options = getopt("", ["app_root:", "settings_file:"]);
+extract($options, EXTR_SKIP);
+
+$settings = [];
+$databases = [];
+define("DRUPAL_ROOT", $app_root);
+ob_start();
+include $settings_file;
+ob_end_clean();
+$config_sync = $settings["config_sync_directory"] ?? null;
+if (!is_string($config_sync)) {
+  $config_sync = "";
+}
+$config_sync = trim($config_sync);
+if ($config_sync !== "" && !preg_match("/^(\/|[A-Za-z]:[\\\/])/", $config_sync)) {
+  $config_sync = rtrim($app_root, "/\\") . "/" . $config_sync;
+}
+$private_path = $settings["file_private_path"] ?? "";
+if (!is_string($private_path)) {
+  $private_path = "";
+}
+$private_path = trim($private_path);
+if ($private_path !== "" && !preg_match("/^(\/|[A-Za-z]:[\\\/])/", $private_path)) {
+  $private_path = rtrim($app_root, "/\\") . "/" . $private_path;
+}
+echo $config_sync . PHP_EOL . $private_path;
+PHPCODE
+}
+
+resolve_apache_owner_spec() {
+  local apache_user="${APACHE_RUN_USER:-}"
+  local apache_group="${APACHE_RUN_GROUP:-}"
+
+  if [ -z "$apache_user" ] && [ -f /etc/apache2/envvars ]; then
+    # shellcheck disable=SC1091
+    apache_user=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_USER:-www-data}" || echo "www-data")
+  fi
+  if [ -z "$apache_group" ] && [ -f /etc/apache2/envvars ]; then
+    # shellcheck disable=SC1091
+    apache_group=$(. /etc/apache2/envvars 2>/dev/null && echo "${APACHE_RUN_GROUP:-www-data}" || echo "www-data")
+  fi
+
+  if [ -z "$apache_user" ]; then
+    apache_user="$(id -u)"
+  fi
+  if [ -z "$apache_group" ]; then
+    apache_group="$(id -g)"
+  fi
+
+  echo "$apache_user:$apache_group"
+}
+
+ensure_directory_owned_by_apache() {
+  local directory_path="$1"
+  local directory_label="$2"
+  local owner_spec
+
+  owner_spec="$(resolve_apache_owner_spec)"
+  if [ -z "$owner_spec" ]; then
+    error "Failed to resolve Apache owner/group for $directory_label"
+    return 1
+  fi
+
+  if sudo -n chown -R "$owner_spec" "$directory_path"; then
+    log "Ownership set for $directory_label: $directory_path (owner/group: $owner_spec)"
     return 0
   fi
 
-  config_sync_directory="$(DRUPAL_WEB_ROOT="$web_root" SETTINGS_FILE="$settings_file" \
-    php -d display_errors=0 -d error_reporting=0 <<'PHPCODE' 2>/dev/null || true
-<?php
-$settings = [];
-$databases = [];
-if (!empty(getenv("DRUPAL_WEB_ROOT"))) {
-  define("DRUPAL_ROOT", getenv("DRUPAL_WEB_ROOT"));
+  error "Failed to set ownership for $directory_label: $directory_path (owner/group: $owner_spec)"
+  return 1
 }
-include getenv("SETTINGS_FILE");
-$config_sync = $settings["config_sync_directory"] ?? "../config/sync";
-if (!preg_match("/^(\/|[A-Za-z]:[\\\\\/])/", $config_sync)) {
-  $config_sync = rtrim(getenv("DRUPAL_WEB_ROOT"), "/\\") . "/" . $config_sync;
-}
-echo $config_sync;
-PHPCODE
-  )"
+
+ensure_settings_directories_exist() {
+  local app_root="$1"
+  local web_root="${WEB_ROOT:-${app_root}/web}"
+  local settings_file="${web_root}/sites/default/settings.php"
+  local resolved_paths config_sync_directory file_private_path
+
+  set +e
+  resolved_paths="$(resolve_drupal_settings_paths "$app_root")"
+  local resolve_status=$?
+  set -e
+
+  if [ "$resolve_status" -eq 2 ]; then
+    log "Drupal settings.php not found at $settings_file, skipping config sync/private directory creation"
+    return 0
+  fi
+
+  if [ "$resolve_status" -ne 0 ]; then
+    error "Failed to resolve Drupal directories from $settings_file"
+    return 1
+  fi
+
+  config_sync_directory="${resolved_paths%%$'\n'*}"
+  if [ "$resolved_paths" = "$config_sync_directory" ]; then
+    file_private_path=""
+  else
+    file_private_path="${resolved_paths#*$'\n'}"
+  fi
 
   if [ -z "$config_sync_directory" ]; then
     error "Failed to resolve config sync directory from $settings_file"
@@ -131,21 +215,28 @@ PHPCODE
 
   if [ -d "$config_sync_directory" ]; then
     log "Config sync directory already exists at $config_sync_directory"
-    return 0
-  fi
-
-  if mkdir -p "$config_sync_directory"; then
+  elif sudo -n mkdir -p "$config_sync_directory"; then
     log "Created config sync directory at $config_sync_directory"
+  else
+    error "Failed to create config sync directory at $config_sync_directory"
+    return 1
+  fi
+
+  if [ -z "$file_private_path" ]; then
+    log "Drupal file_private_path is empty or not set in $settings_file; skipping directory creation"
     return 0
   fi
 
-  if sudo -n mkdir -p "$config_sync_directory"; then
-    log "Created config sync directory at $config_sync_directory"
-    return 0
+  if [ -d "$file_private_path" ]; then
+    log "Private files directory already exists at $file_private_path"
+  elif sudo -n mkdir -p "$file_private_path"; then
+    log "Created private files directory at $file_private_path"
+  else
+    error "Failed to create private files directory at $file_private_path"
+    return 1
   fi
 
-  error "Failed to create config sync directory at $config_sync_directory"
-  return 1
+  ensure_directory_owned_by_apache "$file_private_path" "private files directory"
 }
 
 # Main execution
@@ -238,7 +329,7 @@ main() {
 
   ensure_settings_php_exists "$app_root" "$has_default_settings"
   ensure_devpanel_settings_include "$app_root"
-  ensure_config_sync_directory_exists "$app_root"
+  ensure_settings_directories_exist "$app_root"
   
   log "Application bootstrap completed successfully"
   return 0

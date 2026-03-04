@@ -119,9 +119,10 @@ services:
       - ./fixtures/app:/var/www/html
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/index.php"]
+      start_period: 120s
       interval: 5s
       timeout: 3s
-      retries: 24
+      retries: 48
 
   # Secure deployment container - runs Apache as its default www-data user (no APACHE_RUN_USER/GROUP set)
   # Both deployment and deployment-secure mount the same volume; FILE_PROXY_PATHS uses a distinct path

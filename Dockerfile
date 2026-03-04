@@ -14,7 +14,7 @@ USER root
 RUN apt-get update -qq \
     && apt-get install -y -qq libavif-dev \
     && docker-php-ext-configure gd --with-avif --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install gd \
+    && MAKEFLAGS="-j1" docker-php-ext-install gd \
     && for pkg in $(apt-cache depends libavif-dev | grep '^\s*Depends:' | grep -o 'libavif[^, ]*'); do \
         apt-mark manual "$pkg"; \
     done \
@@ -55,7 +55,7 @@ COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
 
 # Copy Apache configuration for proxy and PHP proxy handler
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
-COPY config/settings.devpanel.php /usr/local/share/drupalforge/settings.devpanel.php
+COPY config/settings.devpanel.php /var/www/settings.devpanel.php
 COPY scripts/proxy-handler.php /var/www/drupalforge-proxy-handler.php
 
 # Enable Apache proxy and rewrite modules for conditional file serving

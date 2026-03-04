@@ -36,7 +36,8 @@ Deployment Entrypoint (deployment-entrypoint.sh)
     │   ├─→ Initialize Git submodules recursively
     │   ├─→ Run composer install (if composer.json exists)
     │   ├─→ Create settings.php from default.settings.php (if needed)
-    │   └─→ Ensure Drupal settings.php includes DevPanel configuration
+    │   ├─→ Ensure Drupal settings.php includes DevPanel configuration
+    │   └─→ Ensure Drupal config sync/private directories exist when configured
     │
     ├─→ Database Import (if S3_BUCKET + S3_DATABASE_PATH set)
     │   └─→ Download from S3 → MySQL import
@@ -89,7 +90,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 - Creating Drupal `settings.php` from `default.settings.php` if:
   - `default.settings.php` **did not exist** before bootstrap (likely was added via Git submodules or Composer)
   - `default.settings.php` **now exists** after bootstrap
-- Ensuring Drupal `settings.php` includes DevPanel configuration (from `/usr/local/share/drupalforge/settings.devpanel.php`) if the project has `web/sites/default/settings.php`
+- Ensuring Drupal `settings.php` includes DevPanel configuration from two levels above the Drupal `$app_root` variable (`dirname($app_root, 2) . '/settings.devpanel.php'`) if the project has `web/sites/default/settings.php`
 
 **Permission Handling:** The bootstrap script uses non-interactive `sudo` for settings file operations.
 - When `sites/default` or `settings.php` are read-only, operations are attempted via `sudo -n` only
@@ -138,12 +139,14 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 
 ### Drupal Settings Overrides (`settings.devpanel.php`)
 
-When `settings.php` includes `/usr/local/share/drupalforge/settings.devpanel.php`, the image configures Drupal database settings from environment variables and applies safe defaults for DevPanel environments.
+When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app_root, 2) . '/settings.devpanel.php'`), the image configures Drupal database settings from environment variables and applies safe defaults for DevPanel environments.
 
 - `hash_salt` is derived deterministically from the configured `$databases['default']['default']` connection values.
 - `config_sync_directory` defaults to `../config/sync` unless already defined.
 - If `config_sync_directory` does not exist, bootstrap creates it recursively after ensuring `settings.php` includes `settings.devpanel.php`.
 - `file_private_path` defaults to `../private` unless already defined.
+- If `file_private_path` is non-empty and the directory does not exist, bootstrap creates it recursively.
+- Bootstrap aligns non-empty `file_private_path` ownership to Apache runtime user/group (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, with Apache envvars fallback).
 - `trusted_host_patterns` includes `DP_HOSTNAME` when provided, otherwise `.*`.
 
 ### File Proxy Configuration

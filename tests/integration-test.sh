@@ -5,8 +5,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_COMPOSE_PROJECT="test-df-deployment"
 NOIMPORT_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-noimport-once"
+SECURE_PRIVATE_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-secure-private-once"
 
 # shellcheck source=lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
@@ -36,6 +38,7 @@ cleanup_compose_state() {
     local remove_orphans="${1:-no}"
     local compose_down_args="-v"
     local stale_containers
+    local stale_volume
 
     if [ "$remove_orphans" = "yes" ]; then
         compose_down_args="$compose_down_args --remove-orphans"
@@ -48,9 +51,48 @@ cleanup_compose_state() {
     if [ -n "$stale_containers" ]; then
         echo "$stale_containers" | xargs docker rm -f 2>/dev/null || true
     fi
+
+    # Remove known named volumes explicitly in case previous interrupted runs
+    # left volumes without compose metadata (which can break dependency startup).
+    for stale_volume in \
+        "${TEST_COMPOSE_PROJECT}_minio_data" \
+        "${TEST_COMPOSE_PROJECT}_mysql_data" \
+        "${TEST_COMPOSE_PROJECT}_secure_proxy_files"; do
+        docker volume rm -f "$stale_volume" >/dev/null 2>&1 || true
+    done
 }
 
-# shellcheck disable=SC2317  # Invoked indirectly via trap
+# shellcheck disable=SC2329  # Invoked indirectly via cleanup() from trap
+cleanup_gitignored_paths() {
+    local gitignore_file="$PROJECT_ROOT/.gitignore"
+    local ignore_path trimmed_path
+
+    if [ ! -f "$gitignore_file" ]; then
+        return 0
+    fi
+
+    while IFS= read -r ignore_path || [ -n "$ignore_path" ]; do
+        trimmed_path="${ignore_path#"${ignore_path%%[![:space:]]*}"}"
+        trimmed_path="${trimmed_path%"${trimmed_path##*[![:space:]]}"}"
+
+        if [ -z "$trimmed_path" ] || [[ "$trimmed_path" == \#* ]] || [[ "$trimmed_path" == \!* ]]; then
+            continue
+        fi
+
+        if [[ "$trimmed_path" == *"*"* ]] || [[ "$trimmed_path" == *"?"* ]] || [[ "$trimmed_path" == *"["* ]]; then
+            continue
+        fi
+
+        trimmed_path="${trimmed_path%/}"
+        if [ -z "$trimmed_path" ] || [[ "$trimmed_path" == /* ]] || [[ "$trimmed_path" == *".."* ]]; then
+            continue
+        fi
+
+        rm -rf "${PROJECT_ROOT:?}/$trimmed_path" 2>/dev/null || true
+    done < "$gitignore_file"
+}
+
+# shellcheck disable=SC2329  # Invoked indirectly via trap
 cleanup() {
     if [ "${KEEP_TEST_ENV:-no}" = "yes" ]; then
         echo ""
@@ -67,6 +109,7 @@ cleanup() {
 
     # Best-effort cleanup for one-off no-import validation container.
     docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
+    docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
     
     # Restore fixture ownership to the current (host) user before fixture cleanup
     docker run --rm \
@@ -88,8 +131,8 @@ cleanup() {
         echo "$test_images" | xargs docker rmi 2>/dev/null || true
     fi
 
-    # Remove integration fixture app directory.
-    rm -rf "$SCRIPT_DIR/fixtures/app" 2>/dev/null || true
+    # Remove generated paths listed in .gitignore.
+    cleanup_gitignored_paths
     
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
@@ -354,7 +397,7 @@ fi
 
 # Test 14: DevPanel settings template exists in image/container
 if run_test "DevPanel settings template exists in container" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /usr/local/share/drupalforge/settings.devpanel.php"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /var/www/settings.devpanel.php"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -362,13 +405,67 @@ fi
 
 # Test 15: Bootstrap injected DevPanel include into settings.php exactly once
 if run_test "Bootstrap injected DevPanel include into settings.php once" \
-    "grep -c \"/usr/local/share/drupalforge/settings.devpanel.php\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
+    "grep -c \"settings.devpanel.php\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 16: No-import installer flow skips DB setup and redirects to install start
+# Test 16: Private file path exists and matches Apache runtime user/group
+if run_test "Private file path exists and ownership matches Apache runtime user/group" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www:www$\"'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 17: Secure-mode one-off bootstrap aligns private path ownership with default Apache user/group
+echo -e "${YELLOW}Preparing secure-mode private path ownership scenario...${NC}"
+docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
+if ! docker run -d \
+    --platform linux/amd64 \
+    --rm \
+    --name "$SECURE_PRIVATE_CONTAINER_NAME" \
+    --network "${TEST_COMPOSE_PROJECT}_default" \
+    -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+    -v /var/www/html/private \
+    -e DB_HOST=mysql \
+    -e DB_PORT=3306 \
+    -e DB_USER=drupal \
+    -e DB_PASSWORD=drupal_password \
+    -e DB_NAME=drupaldb \
+    -e DB_DRIVER=mysql \
+    -e COMPOSER_INSTALL_FLAGS="--ignore-platform-req=php" \
+    -e WEB_ROOT=/var/www/html/web \
+    -e USE_STAGE_FILE_PROXY=no \
+    test-df-deployment:8.3 >/dev/null 2>&1; then
+    echo -e "${RED}✗ Failed to start secure-mode private path validation container${NC}"
+    ((failed=failed+1))
+else
+    for i in {1..60}; do
+        if docker exec "$SECURE_PRIVATE_CONTAINER_NAME" curl -s http://localhost/index.php >/dev/null 2>&1; then
+            break
+        fi
+        if [ "$i" -eq 60 ]; then
+            echo -e "${RED}✗ Timeout waiting for secure-mode private path validation container${NC}"
+            docker logs --tail=100 "$SECURE_PRIVATE_CONTAINER_NAME" || true
+            ((failed=failed+1))
+            break
+        fi
+        sleep 1
+    done
+
+    if run_test "Secure-mode private path owned by default Apache user/group" \
+        "docker exec $SECURE_PRIVATE_CONTAINER_NAME sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www-data:www-data$\"'"; then
+        ((passed=passed+1))
+    else
+        ((failed=failed+1))
+    fi
+
+    docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
+# Test 18: No-import installer flow skips DB setup and redirects to install start
 echo -e "${YELLOW}Preparing no-import installer flow scenario...${NC}"
 if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T mysql \
     mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS drupaldb_noimport; CREATE DATABASE drupaldb_noimport; GRANT ALL PRIVILEGES ON drupaldb_noimport.* TO 'drupal'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then

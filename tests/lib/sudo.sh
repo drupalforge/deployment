@@ -72,11 +72,11 @@ setup_sudo() {
     local temp_dir="${1:-}"
 
     # Reset potentially stale inherited sudo state from parent runners.
-    unset SUDO_PROBED SUDO_AVAILABLE SUDO_REFRESH_PID
+    unset SUDO_PROBED SUDO_AVAILABLE SUDO_REFRESH_PID SUDO_PROMPT_FAILED
 
     # Probe for sudo credentials.
     SUDO_AVAILABLE=0
-    if sudo -n true >/dev/null 2>&1; then
+    if sudo -n -v >/dev/null 2>&1; then
         SUDO_AVAILABLE=1
     elif [ -t 0 ] && [ -t 1 ] && [ -z "${CI:-}" ]; then
         # Both stdin and stdout are connected to a TTY - use interactive countdown prompt
@@ -91,7 +91,7 @@ setup_sudo() {
     
     # Re-validate runtime sudo state after the initial probe.
     # This handles stale SUDO_AVAILABLE=1 values after credential expiration.
-    if [ "${SUDO_AVAILABLE:-0}" = "1" ] && ! sudo -n true >/dev/null 2>&1; then
+    if [ "${SUDO_AVAILABLE:-0}" = "1" ] && ! sudo -n -v >/dev/null 2>&1; then
         SUDO_AVAILABLE=0
         export SUDO_AVAILABLE
     fi
@@ -111,7 +111,7 @@ setup_sudo() {
         SUDO_REFRESH_PID=""
         if [ "${SUDO_AVAILABLE:-0}" = "1" ]; then
             ( while true; do
-                sudo -n true >/dev/null 2>&1 || break
+                sudo -n -v >/dev/null 2>&1 || break
                 sleep 30
             done ) &
             SUDO_REFRESH_PID=$!
@@ -131,13 +131,37 @@ setup_sudo() {
 # Usage: ensure_active_sudo
 # Returns: 0 if sudo -n works, 1 otherwise
 ensure_active_sudo() {
-    if sudo -n true >/dev/null 2>&1; then
+    if sudo -n -v >/dev/null 2>&1; then
         SUDO_AVAILABLE=1
+        SUDO_PROMPT_FAILED=0
         export SUDO_AVAILABLE
+        export SUDO_PROMPT_FAILED
         return 0
     fi
 
+    # If cached credentials expired mid-run, attempt one interactive re-auth
+    # when a TTY is available so sudo-dependent tests can continue.
+    if [ "${SUDO_PROMPT_FAILED:-0}" != "1" ] && [ -t 0 ] && [ -t 1 ] && [ -z "${CI:-}" ]; then
+        local prompt_dir
+        prompt_dir=$(mktemp -d 2>/dev/null || true)
+        if [ -n "$prompt_dir" ] && _countdown_sudo_prompt "$prompt_dir"; then
+            rm -rf "$prompt_dir" >/dev/null 2>&1 || true
+            if sudo -n -v >/dev/null 2>&1; then
+                SUDO_AVAILABLE=1
+                SUDO_PROMPT_FAILED=0
+                export SUDO_AVAILABLE
+                export SUDO_PROMPT_FAILED
+                return 0
+            fi
+        else
+            [ -n "$prompt_dir" ] && rm -rf "$prompt_dir" >/dev/null 2>&1 || true
+            SUDO_PROMPT_FAILED=1
+            export SUDO_PROMPT_FAILED
+        fi
+    fi
+
     SUDO_AVAILABLE=0
+    export SUDO_PROMPT_FAILED
     export SUDO_AVAILABLE
     return 1
 }
@@ -149,8 +173,10 @@ _sudo_cleanup() {
     local temp_dir="$1"
     # shellcheck disable=SC2015  # A&&B||C is intentional: kill if PID set, ignore failure
     [ -n "$SUDO_REFRESH_PID" ] && kill "$SUDO_REFRESH_PID" >/dev/null 2>&1 || true
-    # shellcheck disable=SC2015  # A&&B||C is intentional: prefer sudo rm, fall back to plain rm
-    [ -d "$temp_dir" ] && sudo -n rm -rf "$temp_dir" >/dev/null 2>&1 || rm -rf "$temp_dir"
+    if [ -d "$temp_dir" ]; then
+        # Prefer sudo cleanup; if unavailable, try plain rm; never fail test teardown.
+        sudo -n rm -rf "$temp_dir" >/dev/null 2>&1 || rm -rf "$temp_dir" >/dev/null 2>&1 || true
+    fi
 }
 
 export -f setup_sudo

@@ -37,11 +37,13 @@ bash integration-test.sh
 This will:
 1. Start all services
 2. Build the deployment image
-3. Run 16 validation tests covering:
+3. Run 18 validation tests covering:
    - Database import from S3/MinIO
    - Application connectivity to database
    - Drupal install-state detection
-   - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
+  - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
+  - Private file path creation and ownership alignment with Apache runtime user/group
+  - Secure-mode private path ownership alignment with default Apache `www-data`
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence
@@ -87,7 +89,10 @@ The integration test validates:
 ✓ File proxy downloads from origin
 ✓ Proxied files persist locally
 ✓ S3/MinIO connectivity
+✓ Private file path exists and is owned by the Apache runtime user/group
+✓ Secure-mode private path is owned by default Apache user/group (`www-data`)
 ✓ DevPanel settings template and include injection
+✓ Private file path exists and is owned by the Apache runtime user/group
 
 ## Troubleshooting
 

@@ -3,7 +3,7 @@
 set -e
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_DIR="${TEST_DIR%/*}"
+PROJECT_ROOT="${TEST_DIR%/*}"
 TEMP_DIR=$(mktemp -d)
 
 # shellcheck source=lib/sudo.sh
@@ -13,6 +13,17 @@ echo -e "${BLUE}Testing bootstrap-app.sh...${NC}"
 
 # Setup sudo credentials and background refresh
 setup_sudo "$TEMP_DIR"
+
+write_devpanel_settings_for_repo() {
+    local test_repo="$1"
+    local source_settings
+    local target_settings
+
+    source_settings="$PROJECT_ROOT/config/settings.devpanel.php"
+    target_settings="$(dirname "$test_repo")/settings.devpanel.php"
+
+    cp "$source_settings" "$target_settings"
+}
 
 # Test 1: Git submodule initialization (mock)
 test_git_submodules() {
@@ -27,7 +38,7 @@ test_git_submodules() {
     
     # Run bootstrap with git installed
     if command -v git &> /dev/null; then
-        bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1 | grep -q "Git submodules" || true
+        bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" 2>&1 | grep -q "Git submodules" || true
         echo -e "${GREEN}✓ Git submodule detection works${NC}"
     else
         echo -e "${YELLOW}⊘ Git not found in PATH (skipping submodule test)${NC}"
@@ -44,7 +55,7 @@ test_composer_detection() {
     cd "$test_repo"
     
     # This will try to run composer install but that's expected
-    bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1 | grep -q "Composer" || true
+    bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" 2>&1 | grep -q "Composer" || true
     echo -e "${GREEN}✓ Composer detection logic works${NC}"
 }
 
@@ -75,7 +86,7 @@ EOF
 
         set +e
         PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" COMPOSER_INSTALL_FLAGS="--ignore-platform-req=php" \
-                bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+                bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
         local status=$?
         set -e
 
@@ -108,7 +119,7 @@ EOF
     chmod +x "$fake_bin/composer"
 
     set +e
-    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
     local status=$?
     set -e
 
@@ -140,7 +151,7 @@ EOF
     chmod +x "$fake_bin/composer"
 
     set +e
-    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    PATH="$fake_bin:$PATH" APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
     local status=$?
     set -e
 
@@ -164,11 +175,12 @@ test_devpanel_settings_include_added() {
     fi
 
     mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
     echo '<?php' > "$settings_file"
 
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
-    if grep -q "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file"; then
+    if grep -q "settings.devpanel.php" "$settings_file"; then
         echo -e "${GREEN}✓ DevPanel settings include block is added to settings.php${NC}"
     else
         echo -e "${RED}✗ DevPanel settings include block was not added${NC}"
@@ -188,13 +200,14 @@ test_devpanel_settings_include_not_duplicated() {
     fi
 
     mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
     echo '<?php' > "$settings_file"
 
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     local include_count
-    include_count=$(grep -c "/usr/local/share/drupalforge/settings.devpanel.php" "$settings_file")
+    include_count=$(grep -c "settings.devpanel.php" "$settings_file")
     if [ "$include_count" -eq 1 ]; then
         echo -e "${GREEN}✓ DevPanel settings include block is not duplicated${NC}"
     else
@@ -205,7 +218,7 @@ test_devpanel_settings_include_not_duplicated() {
 
 # Test 7: Script is executable
 test_script_executable() {
-    if [ -x "$SCRIPT_DIR/scripts/bootstrap-app.sh" ]; then
+    if [ -x "$PROJECT_ROOT/scripts/bootstrap-app.sh" ]; then
         echo -e "${GREEN}✓ bootstrap-app.sh is executable${NC}"
     else
         echo -e "${RED}✗ bootstrap-app.sh is not executable${NC}"
@@ -215,7 +228,7 @@ test_script_executable() {
 
 # Test 8: Script has error handling
 test_error_handling() {
-    if grep -q "set -e" "$SCRIPT_DIR/scripts/bootstrap-app.sh"; then
+    if grep -q "set -e" "$PROJECT_ROOT/scripts/bootstrap-app.sh"; then
         echo -e "${GREEN}✓ Script has error handling (set -e)${NC}"
     else
         echo -e "${YELLOW}⊘ Script missing 'set -e'${NC}"
@@ -235,13 +248,14 @@ test_settings_can_be_created_from_default() {
     fi
 
     mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
     echo '<?php' > "$default_settings"
 
-    # Simulate default.settings.php existing before bootstrap by creating both
-    # This tests that the copy mechanism works when both files are checked
-    touch "$settings_file"
+    # Simulate an existing valid settings.php file (Drupal settings files are PHP).
+    # This tests behavior when settings.php already exists before bootstrap.
+    echo '<?php' > "$settings_file"
     
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     # Since settings.php already existed, bootstrap shouldn't create it
     # This test just verifies the logic doesn't fail
@@ -259,7 +273,7 @@ test_settings_not_created_if_default_existed_before() {
     echo '<?php' > "$default_settings"
     # NB: settings.php does NOT exist
 
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     if [ ! -f "$settings_file" ]; then
         echo -e "${GREEN}✓ settings.php not auto-created when default.settings.php existed before bootstrap${NC}"
@@ -281,6 +295,7 @@ test_devpanel_config_readonly_settings() {
     fi
 
     mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
     echo '<?php' > "$settings_file"
 
     # Make settings.php read-only
@@ -288,7 +303,7 @@ test_devpanel_config_readonly_settings() {
 
     local output
     set +e
-    output=$(APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" 2>&1)
+    output=$(APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" 2>&1)
     local status=$?
     set -e
 
@@ -334,7 +349,7 @@ test_settings_copy_owner_matches_invoking_user() {
     sudo -n chmod 755 "$settings_dir" || true
 
     # Use a portable sed expression (avoids GNU/BSD `sed -i` differences).
-    script_source=$(sed '$d' "$SCRIPT_DIR/scripts/bootstrap-app.sh")
+    script_source=$(sed '$d' "$PROJECT_ROOT/scripts/bootstrap-app.sh")
     if [ -z "$script_source" ]; then
         echo -e "${RED}✗ Could not extract required functions from bootstrap-app.sh${NC}"
         cleanup_cp_owner_match_test
@@ -373,21 +388,27 @@ test_settings_copy_owner_matches_invoking_user() {
 
 # Test 12: Default config sync directory is created during bootstrap
 test_default_config_sync_directory_created() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: default config sync directory test requires sudo${NC}"
+        return 0
+    fi
+
     local test_repo="$TEMP_DIR/test-default-config-sync"
     local settings_dir="$test_repo/web/sites/default"
     local settings_file="$settings_dir/settings.php"
     local expected_dir="$test_repo/web/../config/sync"
 
     mkdir -p "$settings_dir"
+        write_devpanel_settings_for_repo "$test_repo"
     cat > "$settings_file" <<'EOF'
 <?php
-$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
+$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
 EOF
 
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     if [ -d "$expected_dir" ]; then
         echo -e "${GREEN}✓ Default config sync directory is created during bootstrap${NC}"
@@ -399,22 +420,28 @@ EOF
 
 # Test 13: Custom config sync directory in settings.php is respected
 test_custom_config_sync_directory_created() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: custom config sync directory test requires sudo${NC}"
+        return 0
+    fi
+
     local test_repo="$TEMP_DIR/test-custom-config-sync"
     local settings_dir="$test_repo/web/sites/default"
     local settings_file="$settings_dir/settings.php"
     local expected_dir="$test_repo/web/../custom/sync"
 
     mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
     cat > "$settings_file" <<'EOF'
 <?php
 $settings['config_sync_directory'] = '../custom/sync';
-$devpanel_settings = '/usr/local/share/drupalforge/settings.devpanel.php';
+$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
 EOF
 
-    APP_ROOT="$test_repo" bash "$SCRIPT_DIR/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
     if [ -d "$expected_dir" ]; then
         echo -e "${GREEN}✓ Custom config sync directory is respected during bootstrap${NC}"
@@ -424,23 +451,144 @@ EOF
     fi
 }
 
+# Test 14: Explicit settings.php file_private_path override is created during bootstrap
+test_file_private_path_directory_created() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: file_private_path directory test requires sudo${NC}"
+        return 0
+    fi
+
+    local test_repo="$TEMP_DIR/test-private-path"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local expected_dir="$test_repo/web/../private-files"
+
+    mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
+    cat > "$settings_file" <<'EOF'
+<?php
+// Override settings.devpanel.php default to ensure bootstrap respects settings.php value.
+$settings['file_private_path'] = '../private-files';
+$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+if (file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+EOF
+
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if [ -d "$expected_dir" ]; then
+        echo -e "${GREEN}✓ Non-empty file_private_path directory is created during bootstrap${NC}"
+    else
+        echo -e "${RED}✗ Non-empty file_private_path directory was not created during bootstrap${NC}"
+        exit 1
+    fi
+}
+
+# Test 15: Empty file_private_path value is treated as disabled
+test_empty_file_private_path_is_skipped() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: empty file_private_path test requires sudo${NC}"
+        return 0
+    fi
+
+    local test_repo="$TEMP_DIR/test-empty-private-path"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local default_private_dir="$test_repo/web/../private"
+
+    mkdir -p "$settings_dir"
+    write_devpanel_settings_for_repo "$test_repo"
+    cat > "$settings_file" <<'EOF'
+<?php
+$settings['file_private_path'] = '';
+$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+if (file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+EOF
+
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if [ ! -d "$default_private_dir" ]; then
+        echo -e "${GREEN}✓ Empty file_private_path value is skipped during bootstrap${NC}"
+    else
+        echo -e "${RED}✗ Empty file_private_path should not create a private files directory${NC}"
+        exit 1
+    fi
+}
+
+# Test 16: Private files path ownership aligns with Apache runtime user/group
+test_file_private_path_owner_matches_webserver() {
+    local test_repo="$TEMP_DIR/test-private-path-owner"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local private_dir="$test_repo/private-files"
+    local expected_spec current_spec
+
+    cleanup_private_owner_test() {
+        sudo -n chown -R "$(id -u):$(id -g)" "$test_repo" 2>/dev/null || true
+        chmod -R u+rwX "$test_repo" 2>/dev/null || true
+    }
+
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: private path ownership test requires sudo${NC}"
+        return 0
+    fi
+
+    mkdir -p "$settings_dir" "$private_dir"
+    write_devpanel_settings_for_repo "$test_repo"
+    cat > "$settings_file" <<'EOF'
+<?php
+$settings['file_private_path'] = '../private-files';
+$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+if (file_exists($devpanel_settings)) {
+  include $devpanel_settings;
+}
+EOF
+
+    sudo -n chown -R root "$private_dir" || {
+        echo -e "${YELLOW}⊘ Skipped: private path ownership test requires active sudo credentials${NC}"
+        return 0
+    }
+
+    APP_ROOT="$test_repo" APACHE_RUN_USER="$(id -u)" APACHE_RUN_GROUP="$(id -g)" \
+        bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    expected_spec="$(id -u):$(id -g)"
+    current_spec=$(stat -c '%u:%g' "$private_dir" 2>/dev/null || stat -f '%u:%g' "$private_dir" 2>/dev/null || echo "")
+
+    if [ -n "$expected_spec" ] && [ "$current_spec" = "$expected_spec" ]; then
+        echo -e "${GREEN}✓ Private files path ownership aligns with Apache runtime user/group${NC}"
+        cleanup_private_owner_test
+    else
+        echo -e "${RED}✗ Private files path ownership did not align with Apache runtime user/group${NC}"
+        cleanup_private_owner_test
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
 # Sudo-dependent tests first (shortest to longest expected runtime)
-test_devpanel_config_readonly_settings
-test_settings_copy_owner_matches_invoking_user
 test_devpanel_settings_include_added
-test_devpanel_settings_include_not_duplicated
 test_settings_can_be_created_from_default
+test_devpanel_config_readonly_settings
+test_devpanel_settings_include_not_duplicated
 test_default_config_sync_directory_created
 test_custom_config_sync_directory_created
+test_file_private_path_directory_created
+test_empty_file_private_path_is_skipped
+test_file_private_path_owner_matches_webserver
+test_settings_copy_owner_matches_invoking_user
 
 # Non-sudo tests
+test_settings_not_created_if_default_existed_before
+test_git_submodules
 test_composer_detection
 test_composer_install_flags
 test_composer_install_failure
 test_composer_lock_permission_without_vendor_fails
-test_settings_not_created_if_default_existed_before
 
 echo -e "${GREEN}✓ Bootstrap app tests passed${NC}"
