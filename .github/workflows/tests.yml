@@ -25,7 +25,17 @@ jobs:
         run: |
           # Install PHP for syntax checking
           sudo apt-get update
-          sudo apt-get install -y php-cli php-curl
+          sudo apt-get install -y php-cli php-curl jq
+          # Install the latest shellcheck release from GitHub to ensure consistency with
+          # local development environments (avoids version skew with the apt package).
+          SHELLCHECK_VERSION=$(curl -fsSL https://api.github.com/repos/koalaman/shellcheck/releases/latest \
+            | jq -r '.tag_name | ltrimstr("v")')
+          [ -z "$SHELLCHECK_VERSION" ] && { echo "Failed to fetch shellcheck version"; exit 1; }
+          SHELLCHECK_URL="https://github.com/koalaman/shellcheck/releases/download"
+          curl -fsSL "${SHELLCHECK_URL}/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJf -
+          sudo mv "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
 
       - name: Run unit tests
         run: |
