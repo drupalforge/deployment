@@ -165,6 +165,7 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 | `APP_ROOT_TIMEOUT` | Seconds to wait for `APP_ROOT` to be populated before proceeding (optional, default: `300`; set to `0` to disable) | `300` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
 | `COMPOSER_INSTALL_FLAGS` | Extra flags appended to `composer install` during bootstrap (optional) | `--ignore-platform-req=php` |
+| `DP_HOSTNAME` | Site hostname provided by DevPanel; sets `trusted_host_patterns` in Drupal and exports `DRUSH_OPTIONS_URI` for Drush (optional) | `mysite.drupalforge.org` |
 
 ### Conditional File Serving with On-Demand Download
 

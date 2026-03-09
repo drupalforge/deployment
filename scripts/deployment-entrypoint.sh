@@ -32,6 +32,11 @@ fi
 APP_ROOT="${APP_ROOT:-/var/www/html}"
 WEB_ROOT="${WEB_ROOT:-$APP_ROOT/web}"
 
+# Export DRUSH_OPTIONS_URI from DP_HOSTNAME so Drush commands use the correct site URI.
+if [ -n "${DP_HOSTNAME:-}" ]; then
+  export DRUSH_OPTIONS_URI="${DP_HOSTNAME}"
+fi
+
 # Wait for APP_ROOT to be non-empty before proceeding.
 # DevPanel clones the repository into APP_ROOT after the container starts,
 # so the directory may be empty on first boot until the clone completes.
