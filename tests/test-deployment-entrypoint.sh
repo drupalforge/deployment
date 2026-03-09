@@ -161,6 +161,53 @@ test_proxy_path_directory_creation() {
     fi
 }
 
+# Test 8: DRUSH_OPTIONS_URI is exported when DP_HOSTNAME is set
+test_drush_options_uri_exported_from_dp_hostname() {
+    local app_root="$TEMP_DIR/drush-uri-root"
+    local uri_file="$TEMP_DIR/drush-uri-value.txt"
+    mkdir -p "$app_root"
+    touch "$app_root/composer.json"
+
+    set +e
+    APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+        DP_HOSTNAME="example.drupalforge.org" \
+        bash "$ENTRYPOINT" bash -c "echo \"\$DRUSH_OPTIONS_URI\" > \"$uri_file\"" >/dev/null 2>&1
+    set -e
+
+    local uri
+    uri="$(cat "$uri_file" 2>/dev/null | tr -d '\r\n[:space:]')"
+
+    if [ "$uri" = "example.drupalforge.org" ]; then
+        echo -e "${GREEN}✓ DRUSH_OPTIONS_URI is exported from DP_HOSTNAME${NC}"
+    else
+        echo -e "${RED}✗ DRUSH_OPTIONS_URI was not set from DP_HOSTNAME (got: $uri)${NC}"
+        exit 1
+    fi
+}
+
+# Test 9: DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent
+test_drush_options_uri_unset_without_dp_hostname() {
+    local app_root="$TEMP_DIR/drush-uri-no-hostname-root"
+    local uri_file="$TEMP_DIR/drush-uri-no-hostname-value.txt"
+    mkdir -p "$app_root"
+    touch "$app_root/composer.json"
+
+    set +e
+    APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+        bash "$ENTRYPOINT" bash -c "echo \"\${DRUSH_OPTIONS_URI:-not_set}\" > \"$uri_file\"" >/dev/null 2>&1
+    set -e
+
+    local uri
+    uri="$(cat "$uri_file" 2>/dev/null | tr -d '\r\n[:space:]')"
+
+    if [ "$uri" = "not_set" ]; then
+        echo -e "${GREEN}✓ DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent${NC}"
+    else
+        echo -e "${RED}✗ DRUSH_OPTIONS_URI was unexpectedly set without DP_HOSTNAME (got: $uri)${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -173,5 +220,7 @@ test_app_root_wait_skipped_at_zero
 test_app_root_timeout_warning
 test_app_root_wait_present
 test_proxy_path_directory_creation
+test_drush_options_uri_exported_from_dp_hostname
+test_drush_options_uri_unset_without_dp_hostname
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"
