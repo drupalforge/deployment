@@ -170,7 +170,7 @@ configure_apache_proxy() {
       printf '\n'
       printf '    # Proxy handler: %s\n' "$path"
       printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
+      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [PT]\n'
       printf '\n'
     done
   } > "$block_file"
@@ -263,7 +263,7 @@ configure_apache_proxy() {
     # script), so the updated config is picked up automatically when Apache starts.
     # Calling 'apache2ctl graceful' when Apache is not running starts it prematurely
     # and conflicts with the normal startup sequence.
-    if pgrep -x apache2 >/dev/null 2>&1; then
+    if sudo -n apache2ctl status >/dev/null 2>&1; then
       if sudo -n apache2ctl graceful 2>/dev/null; then
         log "Apache configuration reloaded"
       else
