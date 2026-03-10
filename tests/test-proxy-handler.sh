@@ -70,72 +70,32 @@ test_permissions() {
     fi
 }
 
-# Test 7: Detects MIME types using extension map (not just finfo magic bytes)
-test_mime_detection() {
-    if grep -q "ext_mime_map" "$HANDLER" && \
-       grep -q "text/css" "$HANDLER" && \
-       grep -q "application/javascript" "$HANDLER"; then
-        echo -e "${GREEN}✓ Script uses extension-based MIME type map${NC}"
+# Test 7: Redirects after download so Apache serves the file with its own MIME detection
+test_redirects_after_download() {
+    if grep -q "header('Location:" "$HANDLER" && \
+       grep -q "http_response_code(302)" "$HANDLER" && \
+       grep -q "redirect_uri\|REDIRECT_QUERY_STRING" "$HANDLER"; then
+        echo -e "${GREEN}✓ Script redirects to original URL after download${NC}"
     else
-        echo -e "${RED}✗ Script is missing extension-based MIME type map${NC}"
+        echo -e "${RED}✗ Script does not redirect after download${NC}"
         exit 1
     fi
 }
 
-# Test 7b: CSS extension returns text/css, not text/plain
-test_css_mime_type() {
-    tmp_dir=$(mktemp -d)
-    trap 'rm -rf "${tmp_dir}"' EXIT
-
-    css_file="${tmp_dir}/style.css"
-    echo "body { color: red; }" > "$css_file"
-
-    # Run a minimal PHP snippet that replicates proxy-handler's MIME logic
-    mime=$(php -r "
-        \$ext_mime_map = [
-            'css'   => 'text/css',
-            'js'    => 'application/javascript',
-            'svg'   => 'image/svg+xml',
-            'webp'  => 'image/webp',
-            'woff'  => 'font/woff',
-            'woff2' => 'font/woff2',
-            'ttf'   => 'font/ttf',
-            'otf'   => 'font/otf',
-            'eot'   => 'application/vnd.ms-fontobject',
-        ];
-        \$requested_path = '/sites/default/files/css/style.css';
-        \$ext = strtolower(pathinfo(\$requested_path, PATHINFO_EXTENSION));
-        if (isset(\$ext_mime_map[\$ext])) {
-            echo \$ext_mime_map[\$ext];
-        } else {
-            \$finfo = finfo_open(FILEINFO_MIME_TYPE);
-            echo finfo_file(\$finfo, '$css_file') ?: 'application/octet-stream';
-            finfo_close(\$finfo);
-        }
-    ")
-
-    if [ "$mime" = "text/css" ]; then
-        echo -e "${GREEN}✓ CSS file with extension-map returns text/css${NC}"
-    else
-        echo -e "${RED}✗ CSS file returned '$mime' instead of text/css${NC}"
-        exit 1
-    fi
-}
-
-# Test 7c: strtok strips query string before pathinfo() so extension is always correct
-test_css_mime_type_query_string() {
-    # Reproduce the handler's own strtok + pathinfo chain from lines 13 and 125 of
-    # proxy-handler.php to confirm that a URL like style.css?v=123 still yields
-    # the extension 'css' after the query string is removed.
+# Test 7b: Query string is preserved in the redirect URI
+test_redirect_preserves_query_string() {
     result=$(php -r "
-        \$requested_uri = '/sites/default/files/css/style.css?v=123';
-        \$requested_path = strtok(\$requested_uri, '?');
-        echo strtolower(pathinfo(\$requested_path, PATHINFO_EXTENSION));
+        // Simulate Apache server variables for a request like style.css?v=123
+        \$_SERVER['REDIRECT_QUERY_STRING'] = 'v=123';
+        \$requested_path = '/sites/default/files/css/style.css';
+        \$query_string = \$_SERVER['REDIRECT_QUERY_STRING'] ?? (\$_SERVER['QUERY_STRING'] ?? '');
+        \$redirect_uri = \$requested_path . (\$query_string !== '' ? '?' . \$query_string : '');
+        echo \$redirect_uri;
     ")
-    if [ "$result" = "css" ]; then
-        echo -e "${GREEN}✓ CSS extension resolved correctly after query string removal${NC}"
+    if [ "$result" = "/sites/default/files/css/style.css?v=123" ]; then
+        echo -e "${GREEN}✓ Redirect URI preserves query string${NC}"
     else
-        echo -e "${RED}✗ Extension wrong after query string removal: '$result'${NC}"
+        echo -e "${RED}✗ Redirect URI wrong: '$result'${NC}"
         exit 1
     fi
 }
@@ -177,9 +137,8 @@ test_security_checks
 test_curl_usage
 test_directory_creation
 test_permissions
-test_mime_detection
-test_css_mime_type
-test_css_mime_type_query_string
+test_redirects_after_download
+test_redirect_preserves_query_string
 test_error_handling
 test_env_origin
 test_image_styles

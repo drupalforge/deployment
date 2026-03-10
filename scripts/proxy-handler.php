@@ -115,36 +115,11 @@ if (file_put_contents($target_path, $file_content) === false) {
 // Set standard file permissions
 chmod($target_path, 0644);
 
-// Serve the file
-if (file_exists($target_path) && is_file($target_path)) {
-    // Determine MIME type by extension first; finfo inspects magic bytes and
-    // misidentifies plain-text formats (CSS, JS) as text/plain.
-    $ext_mime_map = [
-        'css'   => 'text/css',
-        'js'    => 'application/javascript',
-        'svg'   => 'image/svg+xml',
-        'webp'  => 'image/webp',
-        'woff'  => 'font/woff',
-        'woff2' => 'font/woff2',
-        'ttf'   => 'font/ttf',
-        'otf'   => 'font/otf',
-        'eot'   => 'application/vnd.ms-fontobject',
-    ];
-    $ext = strtolower(pathinfo($requested_path, PATHINFO_EXTENSION));
-    if (isset($ext_mime_map[$ext])) {
-        $mime_type = $ext_mime_map[$ext];
-    } else {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $target_path) ?: 'application/octet-stream';
-        finfo_close($finfo);
-    }
-
-    header('Content-Type: ' . $mime_type);
-    header('Content-Length: ' . filesize($target_path));
-    readfile($target_path);
-    exit(0);
-}
-
-// Should not reach here
-http_response_code(500);
-die("Failed to serve file\n");
+// File is now on disk. Redirect to the original URL so Apache serves it directly.
+// Apache's mod_mime assigns the correct Content-Type (e.g. text/css for .css files)
+// without needing any MIME detection logic here.
+$query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
+$redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
+header('Location: ' . $redirect_uri);
+http_response_code(302);
+exit(0);
