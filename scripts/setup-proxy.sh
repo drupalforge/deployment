@@ -25,11 +25,9 @@ error() {
   return 1
 }
 
-# Unified rewrite helper for both .htaccess and Apache config targets.
-# Responsibilities:
-# 1) Remove stale drupalforge-proxy-handler rewrite blocks
-# 2) Reuse any existing file/dir bypass block if present; inject one if not
-# 3) Inject fresh per-path rewrite rules immediately after the bypass block
+# Update per-path proxy rewrite rules in the Apache config file.
+# Strips any stale drupalforge-proxy-handler blocks, then injects fresh
+# per-path proxy rules immediately after the anchor comment.
 update_proxy_rewrite_rules() {
   local file="$1"
   local insert_anchor_regex="$2"
@@ -39,15 +37,11 @@ update_proxy_rewrite_rules() {
     return 1
   fi
 
-  local bypass_file
-  local proxy_file
-  local full_block_file
+  local block_file
   local output_file
   local normalized_paths=()
   local path
-  bypass_file=$(mktemp)
-  proxy_file=$(mktemp)
-  full_block_file=$(mktemp)
+  block_file=$(mktemp)
   output_file=$(mktemp)
 
   for path in "$@"; do
@@ -61,53 +55,23 @@ update_proxy_rewrite_rules() {
     normalized_paths+=("/sites/default/files")
   fi
 
-  # Bypass block: stops rewriting for files/dirs that already exist on disk.
-  # This must come before the per-path proxy rules so existing files are served
-  # directly by Apache without going through the PHP handler.
+  # Build per-path proxy rules block.
   {
-    printf '  # Skip proxy for existing local files and directories.\n'
-    printf '  RewriteCond %%{REQUEST_FILENAME} -f [OR]\n'
-    printf '  RewriteCond %%{REQUEST_FILENAME} -d\n'
-    printf '  RewriteRule ^ - [END]\n'
-    printf '\n'
-  } > "$bypass_file"
-
-  # Per-path proxy rules only (bypass is handled separately).
-  : > "$proxy_file"
-  for path in "${normalized_paths[@]}"; do
-    {
-      printf '  # Proxy handler: %s\n' "$path"
-      printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
+    for path in "${normalized_paths[@]}"; do
+      printf '    # Proxy handler: %s\n' "$path"
+      printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
       printf '\n'
-    } >> "$proxy_file"
-  done
+    done
+  } > "$block_file"
 
-  # Full block: bypass + proxy rules, used when no bypass exists yet.
-  cat "$bypass_file" "$proxy_file" > "$full_block_file"
-
-  # Detect any existing file-existence bypass in the file:
-  # a RewriteCond checking %{REQUEST_FILENAME} -f or -d followed by RewriteRule ^ - [END].
-  local has_bypass=0
-  if awk '
-    /[Rr]ewrite[Cc]ond[[:space:]].*%\{REQUEST_FILENAME\}[[:space:]]+-[fd]/ { cond=1; next }
-    cond && /[Rr]ewrite[Rr]ule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ { found=1; exit }
-    { cond=0 }
-    END { exit (found ? 0 : 1) }
-  ' "$file" 2>/dev/null; then
-    has_bypass=1
-  fi
-
-  if awk -v bypass_file="$bypass_file" -v proxy_file="$proxy_file" \
-         -v full_block_file="$full_block_file" -v anchor="$insert_anchor_regex" \
-         -v has_bypass="$has_bypass" '
+  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" '
     BEGIN {
       inserted=0
       skip_proxy_block=0
-      in_bypass_range=0
     }
 
-    # Strip stale per-path proxy blocks everywhere; they are re-injected below.
+    # Strip stale per-path proxy blocks.
     /^[[:space:]]*# Proxy handler:/ {
       skip_proxy_block=1
       next
@@ -124,39 +88,13 @@ update_proxy_rewrite_rules() {
       next
     }
 
-    # Reuse existing bypass: track -f/-d RewriteCond lines and inject proxy
-    # rules immediately after the bypass closing RewriteRule ^ - [END].
-    has_bypass && !inserted && /[Rr]ewrite[Cc]ond[[:space:]].*%\{REQUEST_FILENAME\}[[:space:]]+-[fd]/ {
-      in_bypass_range=1
+    # Inject fresh per-path rules after the anchor.
+    !inserted && $0 ~ anchor {
       print
-      next
-    }
-
-    has_bypass && in_bypass_range && /[Rr]ewrite[Rr]ule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ {
-      print
-      print ""
-      while ((getline rule_line < proxy_file) > 0) {
+      while ((getline rule_line < block_file) > 0) {
         print rule_line
       }
-      close(proxy_file)
-      inserted=1
-      in_bypass_range=0
-      next
-    }
-
-    # Reset bypass range if a non-RewriteCond line appears before the closing rule.
-    in_bypass_range && !/^[[:space:]]*[Rr]ewrite[Cc]ond/ {
-      in_bypass_range=0
-    }
-
-    # No existing bypass: inject bypass + proxy rules at the anchor.
-    !has_bypass && !inserted && $0 ~ anchor {
-      print
-      while ((getline rule_line < full_block_file) > 0) {
-        print rule_line
-      }
-      close(full_block_file)
-      print ""
+      close(block_file)
       inserted=1
       next
     }
@@ -174,12 +112,12 @@ update_proxy_rewrite_rules() {
     # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes file with sudo
     if sudo -n tee "$file" < "$output_file" >/dev/null 2>&1 || \
        tee "$file" < "$output_file" >/dev/null 2>&1; then
-      rm -f "$bypass_file" "$proxy_file" "$full_block_file" "$output_file"
+      rm -f "$block_file" "$output_file"
       return 0
     fi
   fi
 
-  rm -f "$bypass_file" "$proxy_file" "$full_block_file" "$output_file"
+  rm -f "$block_file" "$output_file"
   return 1
 }
 
@@ -239,7 +177,6 @@ configure_apache_proxy() {
   local web_root="${3:-/var/www/html/web}"
   local apache_conf="/etc/apache2/conf-available/drupalforge-proxy.conf"
   local handler_source="/var/www/drupalforge-proxy-handler.php"
-  local htaccess_file
   local proxy_paths=()
 
   log "Configuring Apache proxy with on-demand download"
@@ -250,8 +187,6 @@ configure_apache_proxy() {
   if [ "$web_root" != "/" ]; then
     web_root="${web_root%/}"
   fi
-
-  htaccess_file="$web_root/.htaccess"
 
   # Ensure proxy handler exists at static path used by Apache Alias.
   if [ -f "$handler_source" ]; then
@@ -274,64 +209,38 @@ configure_apache_proxy() {
     proxy_paths+=("/sites/default/files")
   fi
 
-  # Configure rewrite rules in .htaccess first (closest to Drupal routing).
-  local htaccess_success=false
-  if [ -f "$htaccess_file" ]; then
-    if update_proxy_rewrite_rules "$htaccess_file" '^[[:space:]]*RewriteEngine[[:space:]]+[Oo]n[[:space:]]*$' "${proxy_paths[@]}"; then
-      log "Rewrite rules added to .htaccess"
-      htaccess_success=true
-    else
-      log "Warning: Could not update rewrite rules in .htaccess"
-    fi
+  if [ ! -f "$apache_conf" ]; then
+    error "Apache configuration file does not exist at $apache_conf"
+    return 1
+  fi
+
+  # Update the Directory scope to the current web root.
+  local temp_scope
+  temp_scope=$(mktemp)
+  # shellcheck disable=SC2024  # < redirect reads temp_scope (no elevated read needed); tee writes conf with sudo
+  if awk -v dir="$web_root" '
+    BEGIN { updated=0 }
+    /^<Directory / && updated==0 {
+      print "<Directory \"" dir "\">"
+      updated=1
+      next
+    }
+    { print }
+    END { if (updated==0) exit 1 }
+  ' "$apache_conf" > "$temp_scope" 2>/dev/null && \
+     sudo -n tee "$apache_conf" < "$temp_scope" >/dev/null 2>&1; then
+    log "Apache Directory scope set for rewrite rules: $web_root"
   else
-    log "No .htaccess found at $htaccess_file, using Apache config only"
-  fi
-
-  local apache_config_success=false
-  if ! $htaccess_success && [ -f "$apache_conf" ]; then
-    log "Using Apache global configuration for proxy rewrite rules"
-
-    # Use WEB_ROOT for rewrite scope so per-directory RewriteRule backreferences
-    # map to request paths under the site web root (without an extra web/ prefix).
-    local directory_scope="$web_root"
-    log "Using WEB_ROOT for rewrite scope: $directory_scope"
-
-    local temp_scope
-    temp_scope=$(mktemp)
-    # shellcheck disable=SC2024  # < redirect reads temp_scope (no elevated read needed); tee writes conf with sudo
-    if awk -v dir="$directory_scope" '
-      BEGIN { updated=0 }
-      /^<Directory / && updated==0 {
-        print "<Directory \"" dir "\">"
-        updated=1
-        next
-      }
-      { print }
-      END { if (updated==0) exit 1 }
-    ' "$apache_conf" > "$temp_scope" 2>/dev/null && \
-       sudo -n tee "$apache_conf" < "$temp_scope" >/dev/null 2>&1; then
-      log "Apache Directory scope set for rewrite rules: $directory_scope"
-    else
-      rm -f "$temp_scope"
-      log "Warning: Could not update Apache Directory scope in $apache_conf"
-      return 1
-    fi
     rm -f "$temp_scope"
-
-    if update_proxy_rewrite_rules "$apache_conf" '^[[:space:]]*RewriteEngine[[:space:]]+[Oo]n[[:space:]]*$' "${proxy_paths[@]}"; then
-      log "Rewrite rules added to Apache configuration"
-      apache_config_success=true
-    else
-      log "Warning: Could not update Apache rewrite rules in $apache_conf"
-      return 1
-    fi
-  elif ! $htaccess_success; then
-    log "Apache configuration file does not exist at $apache_conf"
+    log "Warning: Could not update Apache Directory scope in $apache_conf"
+    return 1
   fi
+  rm -f "$temp_scope"
 
-  # Ensure at least .htaccess or Apache config was successfully configured
-  if ! $htaccess_success && ! $apache_config_success; then
-    error "Failed to configure proxy rules in either .htaccess or Apache configuration"
+  if update_proxy_rewrite_rules "$apache_conf" '^[[:space:]]*# Per-path proxy rules configured by setup-proxy\.sh' "${proxy_paths[@]}"; then
+    log "Rewrite rules added to Apache configuration"
+  else
+    error "Failed to configure proxy rules in Apache configuration"
     return 1
   fi
 
