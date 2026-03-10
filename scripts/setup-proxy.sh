@@ -65,7 +65,7 @@ update_proxy_rewrite_rules() {
   } > "$block_file"
 
   if awk -v block_file="$block_file" '
-    # The anchor is the label comment that setup-proxy.sh writes in apache-proxy.conf;
+    # The anchor is the label comment hard-coded in apache-proxy.conf (config template);
     # it marks where per-path rules should be injected.
     BEGIN {
       anchor="^[[:space:]]*# Per-path proxy rules configured by setup-proxy\\.sh"
