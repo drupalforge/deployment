@@ -30,8 +30,7 @@ error() {
 # per-path proxy rules immediately after the anchor comment.
 update_proxy_rewrite_rules() {
   local file="$1"
-  local insert_anchor_regex="$2"
-  shift 2
+  shift
 
   if [ ! -f "$file" ]; then
     return 1
@@ -65,8 +64,11 @@ update_proxy_rewrite_rules() {
     done
   } > "$block_file"
 
-  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" '
+  if awk -v block_file="$block_file" '
+    # The anchor is the label comment that setup-proxy.sh writes in apache-proxy.conf;
+    # it marks where per-path rules should be injected.
     BEGIN {
+      anchor="^[[:space:]]*# Per-path proxy rules configured by setup-proxy\\.sh"
       inserted=0
       skip_proxy_block=0
     }
@@ -237,7 +239,7 @@ configure_apache_proxy() {
   fi
   rm -f "$temp_scope"
 
-  if update_proxy_rewrite_rules "$apache_conf" '^[[:space:]]*# Per-path proxy rules configured by setup-proxy\.sh' "${proxy_paths[@]}"; then
+  if update_proxy_rewrite_rules "$apache_conf" "${proxy_paths[@]}"; then
     log "Rewrite rules added to Apache configuration"
   else
     error "Failed to configure proxy rules in Apache configuration"
