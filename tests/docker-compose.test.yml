@@ -68,7 +68,6 @@ services:
 
   # Deployment container - runs the full initialization
   deployment:
-    platform: linux/amd64
     image: test-df-deployment:8.3
     build:
       context: ..
@@ -130,7 +129,6 @@ services:
   # A named volume is used for the proxy path so that chown to www-data works correctly on all
   # platforms, including macOS where bind-mount ownership changes may not persist reliably.
   deployment-secure:
-    platform: linux/amd64
     image: test-df-deployment:8.3
     depends_on:
       deployment:

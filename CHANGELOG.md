@@ -1,0 +1,291 @@
+# Changelog
+
+All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
+
+## Use cross-platform PHP base images
+
+### Remove platform specification from Dockerfile and tests
+
+**Context:**
+Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both `linux/amd64` and `linux/arm64`, we can remove platform-specific restrictions from the deployment image and tests. This enables native builds and tests on ARM64 systems without forcing amd64 emulation.
+
+**Done definition:**
+- [x] `Dockerfile` uses `devpanel/php:${PHP_VERSION}-base-rc` cross-platform base images
+- [x] `Dockerfile` removes `MAKEFLAGS="-j1"` single-thread GD compile workaround (was needed for QEMU multi-threaded stress)
+- [x] `tests/docker-build-test.sh` removes `--platform linux/amd64` flag from docker build command
+- [x] `tests/docker-compose.test.yml` removes `platform: linux/amd64` from both deployment services
+- [x] `bash tests/unit-test.sh` passes locally (8/9 suites, 1 pre-existing entrypoint failure unrelated to this work)
+- [x] `bash tests/docker-build-test.sh` passes locally on ARM64 system
+- [x] `bash tests/integration-test.sh` passes locally (16/18 assertions, 2 pre-existing one-off container failures unrelated to this work)
+
+**Status: ✅ Complete (2026-03-10)**
+
+**Notes:**
+- Tested on ARM64 system (macOS arm64); native builds work without platform forcing
+- Docker build and integration tests confirm cross-platform images build and run correctly
+- Removed `-base` and switched to `-rc` tagged images for verified cross-platform support
+- Single-thread GD compile workaround no longer needed with native ARM64 builds
+
+---
+
+## Ensure config sync directory exists
+
+### Create missing `$settings['config_sync_directory']` during DevPanel settings include
+
+**Context:**
+`config/settings.devpanel.php` sets a default `config_sync_directory` path, but deployments can fail when that directory does not exist yet.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` creates `$settings['config_sync_directory']` recursively when it is missing
+- [x] Existing values are respected (no override when already set)
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-02-27)**
+
+---
+
+## Remove insecure MySQL skip-verify flag
+
+### Stop adding `--skip-ssl-verify-server-cert` during database import
+
+**Context:**
+`scripts/import-database.sh` supports SSL mode controls. The goal is to avoid unconditional skip-verify usage while still allowing an explicit local/test fallback mode when self-signed certificates are unavoidable.
+
+**Done definition:**
+- [x] `scripts/import-database.sh` uses client defaults in `compat` and only applies skip-verify in explicit fallback mode
+- [x] `README.md` documents current SSL mode behavior clearly
+- [x] `bash tests/test-import-database.sh` and `bash tests/unit-test.sh` pass locally
+- [x] `bash tests/integration-test.sh` passes locally
+
+**Status: ✅ Complete (2026-02-26) - superseded by MySQL SSL Certificate Handling**
+
+---
+
+## Consolidate proxy rewrite helper
+
+### Use one helper for proxy rule lifecycle
+
+**Context:**
+`scripts/setup-proxy.sh` currently has fragmented and partially broken rewrite manipulation logic. We need one helper that removes existing `drupalforge-proxy-handler` rewrites, ensures a file/dir bypass exists, and injects per-path rewrite rules.
+
+**Done definition:**
+- [x] One helper in `scripts/setup-proxy.sh` performs cleanup + bypass ensure + per-path injection
+- [x] `configure_apache_proxy()` uses that helper for both `.htaccess` and Apache config targets
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] `bash tests/integration-test.sh` passes locally
+
+**Status: ✅ Complete (2026-02-26)**
+
+---
+
+## Stabilize failing test suites
+
+### Restore unit and integration test pass state
+
+**Context:**
+Current repository state has failing unit and integration tests. The goal is to identify regressions, apply minimal root-cause fixes, and restore green local test runs.
+
+**Done definition:**
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] `bash tests/integration-test.sh` passes locally
+- [x] Any required code changes include corresponding test/documentation updates
+
+**Local verification completed successfully:**
+- `bash tests/unit-test.sh` → all unit suites passed
+- `bash tests/integration-test.sh` → 15/15 integration assertions passed
+
+**Notes:**
+- Integration stack remains on MySQL 8.0 with low-memory tuning for Docker Desktop compatibility.
+- Secure proxy reliability was restored by preventing startup ordering from allowing later `.htaccess` overwrites in the shared fixture mount.
+- Test cleanup and stale-resource removal run before and after integration execution.
+
+**Status: ✅ Complete (2026-02-26)**
+
+---
+
+## Verify installer skips DB setup without import
+
+### Add integration coverage for install flow with settings.devpanel include and empty database
+
+**Context:**
+When `settings.php` includes the app-root-grandparent `settings.devpanel.php` path and no S3 database import runs, Drupal installer should skip the database setup form and proceed directly to install flow.
+
+**Done definition:**
+- [x] Integration suite includes a no-import deployment scenario using an empty database
+- [x] Integration test hits `/core/install.php?rewrite=ok&langcode=en&profile=minimal`
+- [x] Assertion confirms database setup step is skipped and install flow starts
+- [x] `bash tests/integration-test.sh` passes locally
+
+**Status: ✅ Complete (2026-02-27)**
+
+---
+
+## Ensure import uses DB_PORT consistently
+
+### Pass explicit MySQL port in all import script connections
+
+**Context:**
+`scripts/import-database.sh` logs `DB_PORT` but does not pass it to `mysql`, so deployments on non-default ports can fail.
+
+**Done definition:**
+- [x] `scripts/import-database.sh` passes `-P "${DB_PORT:-3306}"` for readiness, table checks, and import execution
+- [x] `README.md` documents `DB_PORT` default behavior for import connections
+- [x] `bash tests/test-import-database.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Normalize DB_PORT default assignment
+
+### Set DB_PORT fallback once before MySQL calls
+
+**Context:**
+`scripts/import-database.sh` currently repeats `${DB_PORT:-3306}` in each MySQL invocation. Set the default once for readability and consistency.
+
+**Done definition:**
+- [x] `scripts/import-database.sh` assigns `DB_PORT` default once before connection attempts
+- [x] All MySQL commands use `-P "$DB_PORT"`
+- [x] `tests/test-import-database.sh` validates the single-default + per-command port usage pattern
+- [x] `bash tests/test-import-database.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Ensure private path ownership matches webserver
+
+### Align `$settings['file_private_path']` ownership with Apache runtime user/group
+
+**Context:**
+The private files directory should be owned by the webserver user/group, matching how public files path ownership is handled.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` ensures non-empty `$settings['file_private_path']` is owned by the resolved Apache runtime user/group
+- [x] Ownership resolution follows existing Apache env behavior (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, `/etc/apache2/envvars` fallback)
+- [x] `tests/test-bootstrap-app.sh` covers private path ownership behavior
+- [x] `README.md` documents private path ownership behavior
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Ensure file private path exists
+
+### Create `$settings['file_private_path']` when configured
+
+**Context:**
+When Drupal config sets a non-empty `$settings['file_private_path']`, deployments can fail if that directory does not exist at startup.
+
+**Done definition:**
+- [x] `scripts/bootstrap-app.sh` resolves `$settings['file_private_path']` and creates it recursively when non-empty
+- [x] Empty `file_private_path` values are treated as disabled and do not create directories
+- [x] `README.md` documents the private files directory bootstrap behavior
+- [x] `bash tests/test-bootstrap-app.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Add integration coverage for private file path
+
+### Validate private path creation and ownership in integration environment
+
+**Context:**
+Unit tests cover private file path creation/ownership in bootstrap. Integration tests should also assert that the runtime container creates the private path and aligns ownership with the configured webserver user.
+
+**Done definition:**
+- [x] `tests/integration-test.sh` asserts the private file path exists in the integration deployment container
+- [x] Integration assertion validates ownership matches the Apache runtime user/group used by that container
+- [x] `tests/INTEGRATION_TESTING.md` documents the additional private path integration coverage
+- [x] `bash tests/integration-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Add AVIF/APCU/uploadprogress PHP extensions
+
+### Enable GD AVIF support and install APCU/uploadprogress in image build
+
+**Context:**
+Drupal Forge deployments need GD compiled with AVIF support and two additional PHP extensions (`apcu` and `uploadprogress`) available at runtime.
+
+**Done definition:**
+- [x] `Dockerfile` installs build deps and compiles GD with AVIF support
+- [x] `Dockerfile` installs `apcu` and `uploadprogress` via PECL and enables both extensions
+- [x] Build dependency cleanup is performed after installation (purge/autoremove/apt cache cleanup)
+- [x] `tests/test-dockerfile.sh` validates the new extension install and cleanup patterns
+- [x] `README.md` documents these bundled PHP extension capabilities
+- [x] `bash tests/test-dockerfile.sh` and `bash tests/unit-test.sh` pass locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## Add secure-mode private path integration check
+
+### Validate private path ownership with default Apache `www-data`
+
+**Context:**
+Current integration coverage validates private path ownership in the main deployment container (`APACHE_RUN_USER=www`). We also need a secure-mode check that validates bootstrap behavior when Apache runs with defaults (`www-data`).
+
+**Done definition:**
+- [x] `tests/integration-test.sh` includes a one-off secure-mode container assertion for private path ownership
+- [x] Assertion validates `/var/www/html/private` ownership resolves to `www-data:www-data`
+- [x] `tests/INTEGRATION_TESTING.md` reflects the added secure-mode private path check and updated test count
+- [x] `bash tests/integration-test.sh` passes locally
+
+**Status: ✅ Complete (2026-03-03)**
+
+---
+
+## MySQL SSL Certificate Handling
+
+### Root cause identified and fixed
+
+**Problem:**
+The MariaDB client in the image failed with:
+```
+ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
+```
+when connecting to MySQL 8.0 (integration tests) and cloud-managed databases (e.g. DigitalOcean).
+
+**Root cause (confirmed by comparison with `drupalforge/drupal-11:latest`):**
+`devpanel/php:8.3-base` uses **MariaDB 11.8.3**, which changed the default of
+`ssl-verify-server-cert` from `FALSE` (MariaDB 10.x) to `TRUE`. The
+`drupalforge/drupal-11:latest` image uses MariaDB 10.11.11 and connects to
+MySQL 8.0 without any configuration because `ssl-verify-server-cert` still
+defaults to `FALSE` in that version.
+
+Both images have `ssl = TRUE` (SSL required for TCP connections). The only
+difference is whether the server certificate chain is validated. Neither image
+can connect if SSL is disabled on the server side — the client rejects that too.
+
+**Fix:**
+Added `config/mariadb-client.cnf` (copied via Dockerfile to
+`/etc/mysql/conf.d/drupalforge.cnf`) with `ssl-verify-server-cert = off` under
+`[client]`. This restores the MariaDB 10.x default: SSL encryption is kept
+active but certificate chain validation is disabled, which is appropriate for
+MySQL 8.0 (self-signed cert) and cloud-managed databases (private CA).
+
+**Done definition:**
+- [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
+- [x] `config/mariadb-client.cnf` sets `ssl-verify-server-cert = off` under `[client]`
+- [x] `Dockerfile` copies `config/mariadb-client.cnf` to `/etc/mysql/conf.d/drupalforge.cnf`
+- [x] `MYSQL_SSL_MODE`/`MYSQL_SSL_CA` workaround removed from `scripts/import-database.sh`
+- [x] `--skip-ssl-verify-server-cert` flags removed from `scripts/import-database.sh`
+- [x] Corresponding workaround tests removed from `tests/test-import-database.sh`
+- [x] `README.md` no longer documents `MYSQL_SSL_MODE`/`MYSQL_SSL_CA`
+- [x] `tests/test-dockerfile.sh` verifies the COPY directive and config file content
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Status: ✅ Complete (2026-02-27)**
+

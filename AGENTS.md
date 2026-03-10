@@ -80,17 +80,19 @@ trap 'rm -rf "${TMPDIR}"' EXIT
 
 **Fixture note:** Integration tests create a temporary `tests/fixtures/app/.gitignore` to ignore generated fixture files. Do not add a permanent `.gitignore` in that directory or move generated files outside the repo to avoid dirty status.
 
-## Plans and Progress in TODO.md
+## Plans and Progress in TODO.md and CHANGELOG.md
 
 - Track ongoing work, open questions, and deferred improvements in `TODO.md` at the repository root.
 - Each item should include: context, action items as a checklist, and references.
-- Mark items complete (`[x]`) or remove them when they are resolved.
+- **When a task is complete,** move it from `TODO.md` to `CHANGELOG.md` with its full context, done definition, and completion date.
+- Do not remove completed items from the repository — move them to the changelog for historical record.
 - Do not track ephemeral in-flight notes anywhere else in the repository.
 
 ## Clean Up Documentation When Done
 
 When a task is finished:
 
+- Move the completed section from `TODO.md` to `CHANGELOG.md` with full context, done definition, and completion status/date.
 - Remove or update any temporary notes, placeholder text, or stale documentation.
 - Ensure `README.md` accurately reflects the current behavior.
 - Ensure `TODO.md` no longer lists items that are already resolved.

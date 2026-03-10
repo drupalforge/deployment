@@ -1,5 +1,5 @@
 ARG PHP_VERSION=8.3
-FROM devpanel/php:${PHP_VERSION}-base
+FROM devpanel/php:${PHP_VERSION}-base-rc
 
 # Accept the base image's CMD as a build argument
 # Extract before build using: ./extract-base-cmd.sh
@@ -14,7 +14,7 @@ USER root
 RUN apt-get update -qq \
     && apt-get install -y -qq libavif-dev \
     && docker-php-ext-configure gd --with-avif --with-freetype --with-jpeg --with-webp \
-    && MAKEFLAGS="-j1" docker-php-ext-install gd \
+    && docker-php-ext-install gd \
     && for pkg in $(apt-cache depends libavif-dev | grep '^\s*Depends:' | grep -o 'libavif[^, ]*'); do \
         apt-mark manual "$pkg"; \
     done \
