@@ -7,10 +7,11 @@
  */
 
 // Get the requested path from Apache rewrite context.
-// PROXY_ORIG_PATH is set explicitly by the RewriteRule [E=PROXY_ORIG_PATH:/$1] flag,
-// capturing the relative request path and prepending a slash. This is the most reliable
-// source when PHP runs via PHP-FPM FastCGI, where REQUEST_URI may contain the rewritten
-// URL rather than the original. REDIRECT_URL is a fallback for other configurations.
+// After the [END] rewrite to /drupalforge-proxy-handler.php, Apache sets REDIRECT_URL
+// to the original request URL (e.g. /sites/default/files/test-file.txt). This is the
+// most reliable source in both mod_php and PHP-FPM FastCGI contexts.
+// PROXY_ORIG_PATH is kept as a first-try check for forward-compatibility should callers
+// ever pass it explicitly; REQUEST_URI is the last-resort fallback.
 $requested_uri = $_SERVER['PROXY_ORIG_PATH']
     ?? ($_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/'));
 

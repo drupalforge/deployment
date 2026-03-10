@@ -170,8 +170,7 @@ configure_apache_proxy() {
       printf '\n'
       printf '    # Proxy handler: %s\n' "$path"
       printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      # shellcheck disable=SC2016
-      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [PT,E=PROXY_ORIG_PATH:/$1]\n'
+      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
       printf '\n'
     done
   } > "$block_file"
@@ -240,17 +239,12 @@ configure_apache_proxy() {
     return 1
   fi
 
-  # Enable the drupalforge-proxy conf if not already enabled, so setup-proxy.sh
-  # is self-contained regardless of whether the Dockerfile already ran a2enconf.
-  local conf_symlink="/etc/apache2/conf-enabled/drupalforge-proxy.conf"
-  if [ -e "$conf_symlink" ]; then
-    log "Apache conf drupalforge-proxy already enabled"
+  # Enable the drupalforge-proxy conf (a2enconf is idempotent so always safe to call).
+  # setup-proxy.sh owns the full conf lifecycle so that re-runs reliably reload the config.
+  if sudo -n a2enconf drupalforge-proxy 2>/dev/null; then
+    log "Apache conf drupalforge-proxy enabled"
   else
-    if sudo -n a2enconf drupalforge-proxy 2>/dev/null; then
-      log "Apache conf drupalforge-proxy enabled"
-    else
-      log "Warning: Failed to enable Apache conf drupalforge-proxy"
-    fi
+    log "Warning: Failed to enable Apache conf drupalforge-proxy"
   fi
 
   # Enable mod_rewrite
@@ -264,16 +258,14 @@ configure_apache_proxy() {
   if sudo -n apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
 
-    # Reload only if Apache is already running.
-    # In container startup flow, Apache starts after this script via CMD.
-    if pgrep -x apache2 >/dev/null 2>&1; then
-      if sudo -n apache2ctl graceful 2>/dev/null; then
-        log "Apache reloaded successfully"
-      else
-        log "Warning: Could not reload Apache (may require manual reload)"
-      fi
+    # Always attempt graceful reload so any config change takes effect immediately
+    # when Apache is already running. If Apache is not yet started (container startup
+    # flow, where CMD starts it after this script), the graceful call fails safely and
+    # Apache will read the updated config when it starts.
+    if sudo -n apache2ctl graceful 2>/dev/null; then
+      log "Apache reloaded successfully"
     else
-      log "Apache not running yet; reload skipped"
+      log "Apache not running yet; config will be applied on startup"
     fi
 
     return 0
