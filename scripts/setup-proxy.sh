@@ -25,104 +25,6 @@ error() {
   return 1
 }
 
-# Update per-path proxy rewrite rules in the Apache config file.
-# Strips any stale drupalforge-proxy-handler blocks, then injects fresh
-# per-path proxy rules immediately after the anchor comment.
-update_proxy_rewrite_rules() {
-  local file="$1"
-  shift
-
-  if [ ! -f "$file" ]; then
-    return 1
-  fi
-
-  local block_file
-  local output_file
-  local normalized_paths=()
-  local path
-  block_file=$(mktemp)
-  output_file=$(mktemp)
-
-  for path in "$@"; do
-    path=$(echo "$path" | xargs)
-    [ -z "$path" ] && continue
-    [[ "$path" != /* ]] && path="/$path"
-    normalized_paths+=("$path")
-  done
-
-  if [ ${#normalized_paths[@]} -eq 0 ]; then
-    normalized_paths+=("/sites/default/files")
-  fi
-
-  # Build per-path proxy rules block.
-  {
-    for path in "${normalized_paths[@]}"; do
-      printf '    # Proxy handler: %s\n' "$path"
-      printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
-      printf '\n'
-    done
-  } > "$block_file"
-
-  if awk -v block_file="$block_file" '
-    # The anchor is the label comment hard-coded in apache-proxy.conf (config template);
-    # it marks where per-path rules should be injected.
-    BEGIN {
-      anchor="^[[:space:]]*# Per-path proxy rules configured by setup-proxy\\.sh"
-      inserted=0
-      skip_proxy_block=0
-    }
-
-    # Strip stale per-path proxy blocks.
-    /^[[:space:]]*# Proxy handler:/ {
-      skip_proxy_block=1
-      next
-    }
-
-    skip_proxy_block {
-      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/) {
-        skip_proxy_block=0
-      }
-      next
-    }
-
-    !skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
-      next
-    }
-
-    # Inject fresh per-path rules after the anchor.
-    !inserted && $0 ~ anchor {
-      print
-      while ((getline rule_line < block_file) > 0) {
-        print rule_line
-      }
-      close(block_file)
-      inserted=1
-      next
-    }
-
-    !skip_proxy_block {
-      print
-    }
-
-    END {
-      if (inserted == 0) {
-        exit 1
-      }
-    }
-  ' "$file" > "$output_file"; then
-    # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes file with sudo
-    if sudo -n tee "$file" < "$output_file" >/dev/null 2>&1 || \
-       tee "$file" < "$output_file" >/dev/null 2>&1; then
-      rm -f "$block_file" "$output_file"
-      return 0
-    fi
-  fi
-
-  rm -f "$block_file" "$output_file"
-  return 1
-}
-
 # Check if Stage File Proxy module is installed
 has_stage_file_proxy() {
   local drupal_root="${1:-.}"
@@ -239,9 +141,92 @@ configure_apache_proxy() {
   fi
   rm -f "$temp_scope"
 
-  if update_proxy_rewrite_rules "$apache_conf" "${proxy_paths[@]}"; then
-    log "Rewrite rules added to Apache configuration"
+  # Normalize proxied paths and inject per-path rewrite rules into the Apache config.
+  local normalized_paths=()
+  local block_file output_file
+  block_file=$(mktemp)
+  output_file=$(mktemp)
+
+  for path in "${proxy_paths[@]}"; do
+    path=$(echo "$path" | xargs)
+    [ -z "$path" ] && continue
+    [[ "$path" != /* ]] && path="/$path"
+    normalized_paths+=("$path")
+  done
+
+  if [ ${#normalized_paths[@]} -eq 0 ]; then
+    normalized_paths+=("/sites/default/files")
+  fi
+
+  # Build per-path proxy rules block.
+  {
+    for path in "${normalized_paths[@]}"; do
+      printf '    # Proxy handler: %s\n' "$path"
+      printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
+      printf '\n'
+    done
+  } > "$block_file"
+
+  if awk -v block_file="$block_file" '
+    # The anchor is the label comment hard-coded in apache-proxy.conf (config template);
+    # it marks where per-path rules should be injected.
+    BEGIN {
+      anchor="^[[:space:]]*# Per-path proxy rules configured by setup-proxy\\.sh"
+      inserted=0
+      skip_proxy_block=0
+    }
+
+    # Strip stale per-path proxy blocks.
+    /^[[:space:]]*# Proxy handler:/ {
+      skip_proxy_block=1
+      next
+    }
+
+    skip_proxy_block {
+      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/) {
+        skip_proxy_block=0
+      }
+      next
+    }
+
+    !skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
+      next
+    }
+
+    # Inject fresh per-path rules after the anchor.
+    !inserted && $0 ~ anchor {
+      print
+      while ((getline rule_line < block_file) > 0) {
+        print rule_line
+      }
+      close(block_file)
+      inserted=1
+      next
+    }
+
+    !skip_proxy_block {
+      print
+    }
+
+    END {
+      if (inserted == 0) {
+        exit 1
+      }
+    }
+  ' "$apache_conf" > "$output_file"; then
+    # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes conf with sudo
+    if sudo -n tee "$apache_conf" < "$output_file" >/dev/null 2>&1 || \
+       tee "$apache_conf" < "$output_file" >/dev/null 2>&1; then
+      rm -f "$block_file" "$output_file"
+      log "Rewrite rules added to Apache configuration"
+    else
+      rm -f "$block_file" "$output_file"
+      error "Failed to write rewrite rules to Apache configuration"
+      return 1
+    fi
   else
+    rm -f "$block_file" "$output_file"
     error "Failed to configure proxy rules in Apache configuration"
     return 1
   fi

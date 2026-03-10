@@ -90,15 +90,15 @@ test_default_paths() {
     fi
 }
 
-# Test 9: Unified helper performs rewrite lifecycle operations
+# Test 9: Inline awk manages rewrite lifecycle; bypass is in Apache config
 test_unified_rewrite_helper() {
-    if grep -q "update_proxy_rewrite_rules()" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    if grep -q "Per-path proxy rules configured by setup-proxy" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "REQUEST_FILENAME" "$SCRIPT_DIR/config/apache-proxy.conf" && \
        grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Unified helper manages cleanup and injection; bypass is in Apache config${NC}"
+        echo -e "${GREEN}✓ Inline awk manages cleanup and injection; bypass is in Apache config${NC}"
     else
-        echo -e "${RED}✗ Unified helper lifecycle behavior not found${NC}"
+        echo -e "${RED}✗ Inline awk lifecycle behavior not found${NC}"
         exit 1
     fi
 }
