@@ -117,11 +117,28 @@ chmod($target_path, 0644);
 
 // Serve the file
 if (file_exists($target_path) && is_file($target_path)) {
-    // Determine MIME type
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime_type = finfo_file($finfo, $target_path) ?: 'application/octet-stream';
-    finfo_close($finfo);
-    
+    // Determine MIME type by extension first; finfo inspects magic bytes and
+    // misidentifies plain-text formats (CSS, JS) as text/plain.
+    $ext_mime_map = [
+        'css'   => 'text/css',
+        'js'    => 'application/javascript',
+        'svg'   => 'image/svg+xml',
+        'webp'  => 'image/webp',
+        'woff'  => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf'   => 'font/ttf',
+        'otf'   => 'font/otf',
+        'eot'   => 'application/vnd.ms-fontobject',
+    ];
+    $ext = strtolower(pathinfo($requested_path, PATHINFO_EXTENSION));
+    if (isset($ext_mime_map[$ext])) {
+        $mime_type = $ext_mime_map[$ext];
+    } else {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $target_path) ?: 'application/octet-stream';
+        finfo_close($finfo);
+    }
+
     header('Content-Type: ' . $mime_type);
     header('Content-Length: ' . filesize($target_path));
     readfile($target_path);
