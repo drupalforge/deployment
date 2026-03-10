@@ -28,7 +28,7 @@ error() {
 # Unified rewrite helper for both .htaccess and Apache config targets.
 # Responsibilities:
 # 1) Remove stale drupalforge-proxy-handler rewrite blocks
-# 2) Reuse an existing file/dir bypass block if present; add one if not
+# 2) Reuse any existing file/dir bypass block if present; inject one if not
 # 3) Inject fresh per-path rewrite rules immediately after the bypass block
 update_proxy_rewrite_rules() {
   local file="$1"
@@ -72,7 +72,7 @@ update_proxy_rewrite_rules() {
     printf '\n'
   } > "$bypass_file"
 
-  # Per-path proxy rules (no bypass conditions; the shared bypass above covers it).
+  # Per-path proxy rules only (bypass is handled separately).
   : > "$proxy_file"
   for path in "${normalized_paths[@]}"; do
     {
@@ -83,11 +83,18 @@ update_proxy_rewrite_rules() {
     } >> "$proxy_file"
   done
 
-  # Full block used when no bypass exists yet (bypass + proxy rules together).
+  # Full block: bypass + proxy rules, used when no bypass exists yet.
   cat "$bypass_file" "$proxy_file" > "$full_block_file"
 
+  # Detect any existing file-existence bypass in the file:
+  # a RewriteCond checking %{REQUEST_FILENAME} -f or -d followed by RewriteRule ^ - [END].
   local has_bypass=0
-  if grep -q '# Skip proxy for existing local files and directories\.' "$file" 2>/dev/null; then
+  if awk '
+    /[Rr]ewrite[Cc]ond[[:space:]].*%\{REQUEST_FILENAME\}[[:space:]]+-[fd]/ { cond=1; next }
+    cond && /[Rr]ewrite[Rr]ule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ { found=1; exit }
+    { cond=0 }
+    END { exit (found ? 0 : 1) }
+  ' "$file" 2>/dev/null; then
     has_bypass=1
   fi
 
@@ -97,32 +104,10 @@ update_proxy_rewrite_rules() {
     BEGIN {
       inserted=0
       skip_proxy_block=0
-      in_bypass_block=0
+      in_bypass_range=0
     }
 
-    # Reuse an existing bypass block: keep all its lines in place, then
-    # inject fresh proxy rules immediately after the closing RewriteRule line.
-    /^[[:space:]]*# Skip proxy for existing local files and directories\./ {
-      in_bypass_block=1
-      print
-      next
-    }
-
-    in_bypass_block {
-      print
-      if (/^[[:space:]]*RewriteRule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/) {
-        in_bypass_block=0
-        print ""
-        while ((getline rule_line < proxy_file) > 0) {
-          print rule_line
-        }
-        close(proxy_file)
-        inserted=1
-      }
-      next
-    }
-
-    # Remove stale per-path proxy blocks (they were re-injected above).
+    # Strip stale per-path proxy blocks everywhere; they are re-injected below.
     /^[[:space:]]*# Proxy handler:/ {
       skip_proxy_block=1
       next
@@ -139,16 +124,39 @@ update_proxy_rewrite_rules() {
       next
     }
 
-    # No bypass block in the file: insert bypass + proxy rules at the anchor line.
-    !skip_proxy_block && has_bypass==0 && inserted==0 && $0 ~ anchor {
+    # Reuse existing bypass: track -f/-d RewriteCond lines and inject proxy
+    # rules immediately after the bypass closing RewriteRule ^ - [END].
+    has_bypass && !inserted && /[Rr]ewrite[Cc]ond[[:space:]].*%\{REQUEST_FILENAME\}[[:space:]]+-[fd]/ {
+      in_bypass_range=1
       print
+      next
+    }
 
+    has_bypass && in_bypass_range && /[Rr]ewrite[Rr]ule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ {
+      print
+      print ""
+      while ((getline rule_line < proxy_file) > 0) {
+        print rule_line
+      }
+      close(proxy_file)
+      inserted=1
+      in_bypass_range=0
+      next
+    }
+
+    # Reset bypass range if a non-RewriteCond line appears before the closing rule.
+    in_bypass_range && !/^[[:space:]]*[Rr]ewrite[Cc]ond/ {
+      in_bypass_range=0
+    }
+
+    # No existing bypass: inject bypass + proxy rules at the anchor.
+    !has_bypass && !inserted && $0 ~ anchor {
+      print
       while ((getline rule_line < full_block_file) > 0) {
         print rule_line
       }
       close(full_block_file)
       print ""
-
       inserted=1
       next
     }
