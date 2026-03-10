@@ -161,15 +161,26 @@ test_proxy_path_directory_creation() {
     fi
 }
 
-# Test 8: DRUSH_OPTIONS_URI is exported when DP_HOSTNAME is set
+# Test 8: DRUSH_OPTIONS_URI is exported when DP_HOSTNAME is set.
+# Requires sudo because the entrypoint unconditionally runs `sudo -n chown` on
+# the proxy path directories. Uses the invoking user's identity instead of
+# www-data so the test works on macOS where www-data does not exist.
 test_drush_options_uri_exported_from_dp_hostname() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: DRUSH_OPTIONS_URI export test requires sudo${NC}"
+        return 0
+    fi
+
     local app_root="$TEMP_DIR/drush-uri-root"
+    local web_root="$TEMP_DIR/drush-uri-web"
     local uri_file="$TEMP_DIR/drush-uri-value.txt"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
 
     set +e
     APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+        WEB_ROOT="$web_root" \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         DP_HOSTNAME="example.drupalforge.org" \
         bash "$ENTRYPOINT" bash -c "echo \"\$DRUSH_OPTIONS_URI\" > \"$uri_file\"" >/dev/null 2>&1
     set -e
@@ -185,15 +196,24 @@ test_drush_options_uri_exported_from_dp_hostname() {
     fi
 }
 
-# Test 9: DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent
+# Test 9: DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent.
+# Requires sudo for the same reason as test 8.
 test_drush_options_uri_unset_without_dp_hostname() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: DRUSH_OPTIONS_URI absent test requires sudo${NC}"
+        return 0
+    fi
+
     local app_root="$TEMP_DIR/drush-uri-no-hostname-root"
+    local web_root="$TEMP_DIR/drush-uri-no-hostname-web"
     local uri_file="$TEMP_DIR/drush-uri-no-hostname-value.txt"
     mkdir -p "$app_root"
     touch "$app_root/composer.json"
 
     set +e
     APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+        WEB_ROOT="$web_root" \
+        APACHE_RUN_USER="$(id -un)" APACHE_RUN_GROUP="$(id -gn)" \
         bash "$ENTRYPOINT" bash -c "echo \"\${DRUSH_OPTIONS_URI:-not_set}\" > \"$uri_file\"" >/dev/null 2>&1
     set -e
 
@@ -212,6 +232,8 @@ test_drush_options_uri_unset_without_dp_hostname() {
 test_script_executable
 test_error_handling
 # Sudo-dependent tests first (shortest to longest expected runtime)
+test_drush_options_uri_exported_from_dp_hostname
+test_drush_options_uri_unset_without_dp_hostname
 test_app_root_ignores_root_owned_entries
 
 # Non-sudo tests
@@ -220,7 +242,5 @@ test_app_root_wait_skipped_at_zero
 test_app_root_timeout_warning
 test_app_root_wait_present
 test_proxy_path_directory_creation
-test_drush_options_uri_exported_from_dp_hostname
-test_drush_options_uri_unset_without_dp_hostname
 
 echo -e "${GREEN}✓ Deployment entrypoint tests passed${NC}"

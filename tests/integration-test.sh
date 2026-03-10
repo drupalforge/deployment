@@ -113,7 +113,6 @@ cleanup() {
     
     # Restore fixture ownership to the current (host) user before fixture cleanup
     docker run --rm \
-      --platform linux/amd64 \
       -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
       --user root \
       --entrypoint "" \
@@ -220,7 +219,6 @@ $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
 # Ensure fixture app directory is owned by the container user (www=uid 1000)
 # so that Composer can create the vendor/ directory during bootstrap
 docker run --rm \
-  --platform linux/amd64 \
   -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
   --user root \
   --entrypoint "" \
@@ -423,7 +421,6 @@ fi
 echo -e "${YELLOW}Preparing secure-mode private path ownership scenario...${NC}"
 docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
 if ! docker run -d \
-    --platform linux/amd64 \
     --rm \
     --name "$SECURE_PRIVATE_CONTAINER_NAME" \
     --network "${TEST_COMPOSE_PROJECT}_default" \
@@ -477,7 +474,6 @@ else
     # the primary deployment service state. This keeps proxy/import assertions
     # deterministic and isolates no-import installer validation.
     if ! docker run -d \
-        --platform linux/amd64 \
         --name "$NOIMPORT_CONTAINER_NAME" \
         --network "${TEST_COMPOSE_PROJECT}_default" \
         -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \

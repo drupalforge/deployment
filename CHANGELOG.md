@@ -2,6 +2,31 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Re-run and restore full test matrix
+
+### Run all suites and fix regressions without sudo skips
+
+**Context:**
+Previous session context was lost. Re-ran the complete test matrix and fixed regressions. Sudo-dependent tests were kept as real checks (no broad skip strategy).
+
+**Done definition:**
+- [x] `bash tests/unit-test.sh` passes locally with sudo-dependent checks executing (not skipped)
+- [x] `bash tests/docker-build-test.sh` passes locally
+- [x] `bash tests/integration-test.sh` passes locally
+- [x] `bash tests/run-all-tests.sh` passes locally end-to-end
+- [x] Regressions were fixed with corresponding test/doc updates
+- [x] Completed task moved from `TODO.md` to `CHANGELOG.md`
+
+**Implementation notes:**
+- Removed hardcoded `--platform linux/amd64` from one-off integration validation containers in `tests/integration-test.sh` so those checks run on native Docker platform (macOS ARM + Linux compatible).
+- Updated integration docs in `tests/INTEGRATION_TESTING.md` to document native-platform one-off validation behavior.
+- Kept root-owned APP_ROOT coverage in `tests/test-deployment-entrypoint.sh` as a true sudo-required check.
+- Refactored DRUSH URI unit checks in `tests/test-deployment-entrypoint.sh` to use a local `sudo` stub, so URI behavior is validated deterministically without depending on host sudo state.
+
+**Status: ✅ Complete (2026-03-10)**
+
+---
+
 ## Use cross-platform PHP base images
 
 ### Remove platform specification from Dockerfile and tests

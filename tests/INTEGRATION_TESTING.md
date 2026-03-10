@@ -44,6 +44,7 @@ This will:
   - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
   - Private file path creation and ownership alignment with Apache runtime user/group
   - Secure-mode private path ownership alignment with default Apache `www-data`
+  - One-off validation containers run on the host's native Docker platform (no forced amd64)
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence
