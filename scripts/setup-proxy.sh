@@ -28,8 +28,8 @@ error() {
 # Unified rewrite helper for both .htaccess and Apache config targets.
 # Responsibilities:
 # 1) Remove stale drupalforge-proxy-handler rewrite blocks
-# 2) Add file/dir bypass if not already present
-# 3) Inject fresh per-path rewrite rules at the requested anchor
+# 2) Reuse an existing file/dir bypass block if present; add one if not
+# 3) Inject fresh per-path rewrite rules immediately after the bypass block
 update_proxy_rewrite_rules() {
   local file="$1"
   local insert_anchor_regex="$2"
@@ -39,11 +39,15 @@ update_proxy_rewrite_rules() {
     return 1
   fi
 
-  local block_file
+  local bypass_file
+  local proxy_file
+  local full_block_file
   local output_file
   local normalized_paths=()
   local path
-  block_file=$(mktemp)
+  bypass_file=$(mktemp)
+  proxy_file=$(mktemp)
+  full_block_file=$(mktemp)
   output_file=$(mktemp)
 
   for path in "$@"; do
@@ -57,47 +61,68 @@ update_proxy_rewrite_rules() {
     normalized_paths+=("/sites/default/files")
   fi
 
-  # Build the block: one shared bypass rule first, then per-path proxy rules.
-  # Ordering matters: the bypass check must come before the proxy rules so that
-  # files already on disk are served directly without going through PHP.
-  : > "$block_file"
+  # Bypass block: stops rewriting for files/dirs that already exist on disk.
+  # This must come before the per-path proxy rules so existing files are served
+  # directly by Apache without going through the PHP handler.
   {
     printf '  # Skip proxy for existing local files and directories.\n'
     printf '  RewriteCond %%{REQUEST_FILENAME} -f [OR]\n'
     printf '  RewriteCond %%{REQUEST_FILENAME} -d\n'
     printf '  RewriteRule ^ - [END]\n'
     printf '\n'
-  } >> "$block_file"
+  } > "$bypass_file"
+
+  # Per-path proxy rules (no bypass conditions; the shared bypass above covers it).
+  : > "$proxy_file"
   for path in "${normalized_paths[@]}"; do
     {
       printf '  # Proxy handler: %s\n' "$path"
       printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
       printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
       printf '\n'
-    } >> "$block_file"
+    } >> "$proxy_file"
   done
 
-  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" '
+  # Full block used when no bypass exists yet (bypass + proxy rules together).
+  cat "$bypass_file" "$proxy_file" > "$full_block_file"
+
+  local has_bypass=0
+  if grep -q '# Skip proxy for existing local files and directories\.' "$file" 2>/dev/null; then
+    has_bypass=1
+  fi
+
+  if awk -v bypass_file="$bypass_file" -v proxy_file="$proxy_file" \
+         -v full_block_file="$full_block_file" -v anchor="$insert_anchor_regex" \
+         -v has_bypass="$has_bypass" '
     BEGIN {
       inserted=0
       skip_proxy_block=0
-      skip_bypass_block=0
+      in_bypass_block=0
     }
 
-    /^[[:space:]]*# Skip proxy for existing/ {
-      skip_bypass_block=1
+    # Reuse an existing bypass block: keep all its lines in place, then
+    # inject fresh proxy rules immediately after the closing RewriteRule line.
+    /^[[:space:]]*# Skip proxy for existing local files and directories\./ {
+      in_bypass_block=1
+      print
       next
     }
 
-    skip_bypass_block && /^[[:space:]]*RewriteRule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ {
-      skip_bypass_block=0
+    in_bypass_block {
+      print
+      if (/^[[:space:]]*RewriteRule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/) {
+        in_bypass_block=0
+        print ""
+        while ((getline rule_line < proxy_file) > 0) {
+          print rule_line
+        }
+        close(proxy_file)
+        inserted=1
+      }
       next
     }
 
-    skip_bypass_block {
-      next
-    }
-
+    # Remove stale per-path proxy blocks (they were re-injected above).
     /^[[:space:]]*# Proxy handler:/ {
       skip_proxy_block=1
       next
@@ -114,13 +139,14 @@ update_proxy_rewrite_rules() {
       next
     }
 
-    !skip_proxy_block && inserted==0 && $0 ~ anchor {
+    # No bypass block in the file: insert bypass + proxy rules at the anchor line.
+    !skip_proxy_block && has_bypass==0 && inserted==0 && $0 ~ anchor {
       print
 
-      while ((getline rule_line < block_file) > 0) {
+      while ((getline rule_line < full_block_file) > 0) {
         print rule_line
       }
-      close(block_file)
+      close(full_block_file)
       print ""
 
       inserted=1
@@ -140,12 +166,12 @@ update_proxy_rewrite_rules() {
     # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes file with sudo
     if sudo -n tee "$file" < "$output_file" >/dev/null 2>&1 || \
        tee "$file" < "$output_file" >/dev/null 2>&1; then
-      rm -f "$block_file" "$output_file"
+      rm -f "$bypass_file" "$proxy_file" "$full_block_file" "$output_file"
       return 0
     fi
   fi
 
-  rm -f "$block_file" "$output_file"
+  rm -f "$bypass_file" "$proxy_file" "$full_block_file" "$output_file"
   return 1
 }
 
