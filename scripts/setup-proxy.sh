@@ -43,7 +43,6 @@ update_proxy_rewrite_rules() {
   local output_file
   local normalized_paths=()
   local path
-  local has_bypass=0
   block_file=$(mktemp)
   output_file=$(mktemp)
 
@@ -58,21 +57,19 @@ update_proxy_rewrite_rules() {
     normalized_paths+=("/sites/default/files")
   fi
 
-  if grep -qE "^[[:space:]]*RewriteCond[[:space:]]+%\{REQUEST_FILENAME\}[[:space:]]+-f([[:space:]]|$)|^[[:space:]]*RewriteCond[[:space:]]+%\{REQUEST_FILENAME\}[[:space:]]+-d([[:space:]]|$)" "$file"; then
-    has_bypass=1
-  fi
-
   : > "$block_file"
   for path in "${normalized_paths[@]}"; do
     {
       printf '  # Proxy handler: %s\n' "$path"
       printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      printf '  RewriteCond %%{REQUEST_FILENAME} !-f\n'
+      printf '  RewriteCond %%{REQUEST_FILENAME} !-d\n'
       printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
       printf '\n'
     } >> "$block_file"
   done
 
-  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" -v has_bypass="$has_bypass" '
+  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" '
     BEGIN {
       inserted=0
       skip_proxy_block=0
@@ -83,12 +80,10 @@ update_proxy_rewrite_rules() {
       next
     }
 
-    skip_proxy_block && /^[[:space:]]*RewriteCond.*REQUEST_URI/ {
-      next
-    }
-
-    skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
-      skip_proxy_block=0
+    skip_proxy_block {
+      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/) {
+        skip_proxy_block=0
+      }
       next
     }
 
@@ -98,14 +93,6 @@ update_proxy_rewrite_rules() {
 
     !skip_proxy_block && inserted==0 && $0 ~ anchor {
       print
-
-      if (has_bypass == 0) {
-        print "  # Skip proxy for existing local files and directories."
-        print "  RewriteCond %{REQUEST_FILENAME} -f [OR]"
-        print "  RewriteCond %{REQUEST_FILENAME} -d"
-        print "  RewriteRule ^ - [END]"
-        print ""
-      }
 
       while ((getline rule_line < block_file) > 0) {
         print rule_line
