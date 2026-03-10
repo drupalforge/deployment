@@ -163,7 +163,7 @@ configure_apache_proxy() {
     for path in "${normalized_paths[@]}"; do
       printf '    # Proxy handler: %s\n' "$path"
       printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
+      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [PT]\n'
       printf '\n'
     done
   } > "$block_file"
@@ -229,6 +229,13 @@ configure_apache_proxy() {
     rm -f "$block_file" "$output_file"
     error "Failed to configure proxy rules in Apache configuration"
     return 1
+  fi
+
+  # Ensure the drupalforge-proxy conf is enabled (belt-and-suspenders: also done at image build time).
+  if sudo -n a2enconf drupalforge-proxy 2>/dev/null; then
+    log "drupalforge-proxy conf enabled"
+  else
+    log "drupalforge-proxy conf already enabled (or enabling failed; verify if proxy is not working)"
   fi
 
   # Enable mod_rewrite

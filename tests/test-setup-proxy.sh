@@ -53,7 +53,7 @@ test_apache_proxy_fallback() {
 test_rewrite_rules() {
     if grep -q "%{REQUEST_FILENAME} -f" "$SCRIPT_DIR/config/apache-proxy.conf" && \
        grep -q "%{REQUEST_FILENAME} -d" "$SCRIPT_DIR/config/apache-proxy.conf" && \
-       grep -q '/drupalforge-proxy-handler.php \[END\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+       grep -q '/drupalforge-proxy-handler.php \[PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Script generates rewrite rules with file-existence bypass in Apache config${NC}"
     else
         echo -e "${RED}✗ Script doesn't generate rewrite rules${NC}"
@@ -91,7 +91,7 @@ test_default_paths() {
 }
 
 # Test 9: Inline awk manages rewrite lifecycle; bypass is in Apache config
-test_unified_rewrite_helper() {
+test_inline_rewrite_awk() {
     if grep -q "Per-path proxy rules configured by setup-proxy" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "REQUEST_FILENAME" "$SCRIPT_DIR/config/apache-proxy.conf" && \
@@ -112,6 +112,6 @@ test_rewrite_rules
 test_handler_setup
 test_env_variables
 test_default_paths
-test_unified_rewrite_helper
+test_inline_rewrite_awk
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"
