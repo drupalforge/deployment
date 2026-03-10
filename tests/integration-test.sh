@@ -353,9 +353,11 @@ else
     ((failed=failed+1))
 fi
 
-# Test 9: Request a file through proxy (it should be downloaded from origin)
+# Test 9: Request a file through proxy (it should be downloaded from origin).
+# Use -L so curl follows the 302 redirect that the proxy handler issues after saving the file;
+# Apache then serves the file directly on the second request with correct MIME detection.
 if run_test "File proxy downloads from origin" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -sL http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -387,7 +389,7 @@ fi
 
 # Test 13: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
 if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -sL http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
