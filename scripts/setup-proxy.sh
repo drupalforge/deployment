@@ -258,12 +258,17 @@ configure_apache_proxy() {
   if sudo -n apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
 
-    # Always attempt graceful reload so any config change takes effect immediately
-    # when Apache is already running. If Apache is not yet started (container startup
-    # flow, where CMD starts it after this script), the graceful call fails safely and
-    # Apache will read the updated config when it starts.
-    if sudo -n apache2ctl graceful 2>/dev/null; then
-      log "Apache reloaded successfully"
+    # Reload Apache only if it is already running so changes take effect immediately.
+    # On normal container startup Apache has not started yet (CMD fires after this
+    # script), so the updated config is picked up automatically when Apache starts.
+    # Calling 'apache2ctl graceful' when Apache is not running starts it prematurely
+    # and conflicts with the normal startup sequence.
+    if pgrep -x apache2 >/dev/null 2>&1; then
+      if sudo -n apache2ctl graceful 2>/dev/null; then
+        log "Apache configuration reloaded"
+      else
+        log "Warning: Apache reload failed; config may need manual restart"
+      fi
     else
       log "Apache not running yet; config will be applied on startup"
     fi
