@@ -161,8 +161,16 @@ configure_apache_proxy() {
   # Build per-path proxy rules block.
   {
     for path in "${normalized_paths[@]}"; do
+      # Image style bypass: if original exists, stop proxy and let Drupal generate the derivative.
+      # Pattern: {path}/styles/{style}/public/{file} → check {path}/{file} exists.
+      printf '    # Image style bypass: %s\n' "$path"
+      printf '    RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '    RewriteCond %%{DOCUMENT_ROOT}%s/%%1 -f\n' "$path"
+      printf '    RewriteRule ^ - [L]\n'
+      printf '\n'
       printf '    # Proxy handler: %s\n' "$path"
       printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      # shellcheck disable=SC2016
       printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [PT,E=PROXY_ORIG_PATH:/$1]\n'
       printf '\n'
     done
@@ -177,14 +185,15 @@ configure_apache_proxy() {
       skip_proxy_block=0
     }
 
-    # Strip stale per-path proxy blocks.
-    /^[[:space:]]*# Proxy handler:/ {
+    # Strip stale per-path proxy blocks (image style bypass and proxy handler).
+    /^[[:space:]]*# (Image style bypass|Proxy handler):/ {
       skip_proxy_block=1
       next
     }
 
     skip_proxy_block {
-      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/) {
+      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ || \
+          /^[[:space:]]*RewriteRule \^ - \[L\]/) {
         skip_proxy_block=0
       }
       next
@@ -229,6 +238,19 @@ configure_apache_proxy() {
     rm -f "$block_file" "$output_file"
     error "Failed to configure proxy rules in Apache configuration"
     return 1
+  fi
+
+  # Enable the drupalforge-proxy conf if not already enabled, so setup-proxy.sh
+  # is self-contained regardless of whether the Dockerfile already ran a2enconf.
+  local conf_symlink="/etc/apache2/conf-enabled/drupalforge-proxy.conf"
+  if [ -e "$conf_symlink" ]; then
+    log "Apache conf drupalforge-proxy already enabled"
+  else
+    if sudo -n a2enconf drupalforge-proxy 2>/dev/null; then
+      log "Apache conf drupalforge-proxy enabled"
+    else
+      log "Warning: Failed to enable Apache conf drupalforge-proxy"
+    fi
   fi
 
   # Enable mod_rewrite

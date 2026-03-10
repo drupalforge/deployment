@@ -76,15 +76,6 @@ if ($real_save_parent === false || strpos($real_save_parent, $real_web_root) !==
     die("Target path outside web root\n");
 }
 
-// For image style URLs: if the original file is already on disk, redirect back to
-// the styled URL so Drupal can generate the derivative without re-downloading.
-if ($is_image_style && file_exists($save_path)) {
-    $query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
-    $redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
-    header('Location: ' . $redirect_uri, true, 302);
-    exit(0);
-}
-
 // Create parent directory if needed
 if (!is_dir($save_dir)) {
     if (!mkdir($save_dir, 0755, true)) {
