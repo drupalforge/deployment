@@ -178,7 +178,7 @@ When using Apache reverse proxy (fallback when Stage File Proxy not available), 
    - **If it doesn't exist:** Routes to PHP handler for download
 3. Handler downloads file from origin to its real path
 4. File is now stored at the expected location under `WEB_ROOT` (e.g., `${WEB_ROOT}/sites/default/files/image.jpg`)
-5. File is served to the user
+5. Handler issues a `302` redirect back to the original URL so Apache serves it directly via `mod_mime`, assigning the correct `Content-Type` (e.g., `text/css` for `.css` files) without any PHP MIME detection
 6. Subsequent requests for the same file:
    - **Always served from disk** (file now exists locally)
 7. Users can add/modify files locally at any time—local files always take precedence

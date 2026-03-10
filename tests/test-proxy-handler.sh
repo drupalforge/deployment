@@ -73,7 +73,7 @@ test_permissions() {
 # Test 7: Redirects after download so Apache serves the file with its own MIME detection
 test_redirects_after_download() {
     if grep -q "header('Location:" "$HANDLER" && \
-       grep -q "http_response_code(302)" "$HANDLER" && \
+       grep -q "true, 302" "$HANDLER" && \
        grep -q "redirect_uri\|REDIRECT_QUERY_STRING" "$HANDLER"; then
         echo -e "${GREEN}✓ Script redirects to original URL after download${NC}"
     else
@@ -83,19 +83,14 @@ test_redirects_after_download() {
 }
 
 # Test 7b: Query string is preserved in the redirect URI
+# Grep the handler itself to confirm it reads REDIRECT_QUERY_STRING and includes
+# it when building the redirect URI (rather than re-implementing the logic inline).
 test_redirect_preserves_query_string() {
-    result=$(php -r "
-        // Simulate Apache server variables for a request like style.css?v=123
-        \$_SERVER['REDIRECT_QUERY_STRING'] = 'v=123';
-        \$requested_path = '/sites/default/files/css/style.css';
-        \$query_string = \$_SERVER['REDIRECT_QUERY_STRING'] ?? (\$_SERVER['QUERY_STRING'] ?? '');
-        \$redirect_uri = \$requested_path . (\$query_string !== '' ? '?' . \$query_string : '');
-        echo \$redirect_uri;
-    ")
-    if [ "$result" = "/sites/default/files/css/style.css?v=123" ]; then
+    if grep -q "REDIRECT_QUERY_STRING" "$HANDLER" && \
+       grep -q "redirect_uri.*query_string" "$HANDLER"; then
         echo -e "${GREEN}✓ Redirect URI preserves query string${NC}"
     else
-        echo -e "${RED}✗ Redirect URI wrong: '$result'${NC}"
+        echo -e "${RED}✗ Redirect URI does not preserve query string${NC}"
         exit 1
     fi
 }

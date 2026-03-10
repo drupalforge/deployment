@@ -120,6 +120,5 @@ chmod($target_path, 0644);
 // without needing any MIME detection logic here.
 $query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
 $redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
-header('Location: ' . $redirect_uri);
-http_response_code(302);
+header('Location: ' . $redirect_uri, true, 302);
 exit(0);
