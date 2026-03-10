@@ -82,7 +82,7 @@ test_redirects_after_download() {
     fi
 }
 
-# Test 11: Query string is preserved in the redirect URI
+# Test 8: Query string is preserved in the redirect URI
 # Grep the handler itself to confirm it reads REDIRECT_QUERY_STRING and includes
 # it when building the redirect URI (rather than re-implementing the logic inline).
 test_redirect_preserves_query_string() {
@@ -95,7 +95,7 @@ test_redirect_preserves_query_string() {
     fi
 }
 
-# Test 8: Handles errors gracefully
+# Test 9: Handles errors gracefully
 test_error_handling() {
     if grep -q "http_response_code\|curl_error\|400\|502\|500" "$HANDLER"; then
         echo -e "${GREEN}✓ Script handles errors with HTTP codes${NC}"
@@ -105,7 +105,7 @@ test_error_handling() {
     fi
 }
 
-# Test 9: Gets origin URL from environment
+# Test 10: Gets origin URL from environment
 test_env_origin() {
     if grep -q "getenv.*ORIGIN_URL" "$HANDLER"; then
         echo -e "${GREEN}✓ Script reads ORIGIN_URL from environment${NC}"
@@ -115,7 +115,7 @@ test_env_origin() {
     fi
 }
 
-# Test 10: Handles Drupal image styles
+# Test 11: Handles Drupal image styles
 test_image_styles() {
     if grep -q "styles.*public\|image.*styles" "$HANDLER"; then
         echo -e "${GREEN}✓ Script handles Drupal image styles${NC}"
