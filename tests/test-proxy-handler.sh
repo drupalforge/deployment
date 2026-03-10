@@ -83,14 +83,16 @@ test_redirects_after_download() {
 }
 
 # Test 8: Query string is preserved in the redirect URI
-# Grep the handler itself to confirm it reads REDIRECT_QUERY_STRING and includes
-# it when building the redirect URI (rather than re-implementing the logic inline).
+# Grep the handler itself to confirm it reads PROXY_ORIG_PATH (set by the Apache
+# RewriteRule [E=...] flag) and REDIRECT_QUERY_STRING, and includes the query string
+# when building the redirect URI (rather than re-implementing the logic inline).
 test_redirect_preserves_query_string() {
-    if grep -q "REDIRECT_QUERY_STRING" "$HANDLER" && \
+    if grep -q "PROXY_ORIG_PATH" "$HANDLER" && \
+       grep -q "REDIRECT_QUERY_STRING" "$HANDLER" && \
        grep -q "redirect_uri.*query_string" "$HANDLER"; then
-        echo -e "${GREEN}✓ Redirect URI preserves query string${NC}"
+        echo -e "${GREEN}✓ Redirect URI preserves query string and uses PROXY_ORIG_PATH${NC}"
     else
-        echo -e "${RED}✗ Redirect URI does not preserve query string${NC}"
+        echo -e "${RED}✗ Redirect URI does not preserve query string or PROXY_ORIG_PATH missing${NC}"
         exit 1
     fi
 }

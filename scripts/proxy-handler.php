@@ -7,7 +7,12 @@
  */
 
 // Get the requested path from Apache rewrite context.
-$requested_uri = $_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/');
+// PROXY_ORIG_PATH is set explicitly by the RewriteRule [E=PROXY_ORIG_PATH:/$1] flag,
+// capturing the relative request path and prepending a slash. This is the most reliable
+// source when PHP runs via PHP-FPM FastCGI, where REQUEST_URI may contain the rewritten
+// URL rather than the original. REDIRECT_URL is a fallback for other configurations.
+$requested_uri = $_SERVER['PROXY_ORIG_PATH']
+    ?? ($_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/'));
 
 // Remove query string if present
 $requested_path = strtok($requested_uri, '?');
@@ -29,19 +34,24 @@ if (!$origin_url) {
 $web_root = getenv('WEB_ROOT') ?: ($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html');
 $web_root = rtrim($web_root, '/');
 
-// Build paths
-$target_path = $web_root . $requested_path;
-
 // Handle Drupal image styles: if requesting a styled image that doesn't exist,
-// fetch the original file instead so Drupal can generate the style
+// fetch the original file instead so Drupal can generate the style.
 // Pattern: /sites/default/files/styles/{style_name}/public/{original_path}
 // Original: /sites/default/files/{original_path}
+// Always redirect back to the styled URL so Drupal can generate the derivative;
+// only download the original from origin when it is not already on disk.
 $download_path = $requested_path;
+$is_image_style = false;
 if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_path, $matches)) {
     $download_path = $matches[1] . '/' . $matches[2];
+    $is_image_style = true;
 }
 
-// Security check: ensure target is within web root.
+// Derive save path from download_path (original path, not styled image path).
+$save_path = $web_root . $download_path;
+$save_dir  = dirname($save_path);
+
+// Security check: ensure save target is within web root.
 // For first-time proxy requests, target directories may not exist yet, so resolve
 // the nearest existing parent path and validate that parent against web root.
 $real_web_root = realpath($web_root);
@@ -50,34 +60,42 @@ if ($real_web_root === false) {
     die("Web root path is invalid\n");
 }
 
-$target_dir = dirname($target_path);
-$probe_dir = $target_dir;
-$real_target_parent = false;
+$probe_dir = $save_dir;
+$real_save_parent = false;
 while ($probe_dir !== '/' && $probe_dir !== '' && $probe_dir !== '.') {
     $resolved = realpath($probe_dir);
     if ($resolved !== false) {
-        $real_target_parent = $resolved;
+        $real_save_parent = $resolved;
         break;
     }
     $probe_dir = dirname($probe_dir);
 }
 
-if ($real_target_parent === false || strpos($real_target_parent, $real_web_root) !== 0) {
+if ($real_save_parent === false || strpos($real_save_parent, $real_web_root) !== 0) {
     http_response_code(400);
     die("Target path outside web root\n");
 }
 
-// Create parent directory if needed
-if (!is_dir($target_dir)) {
-    if (!mkdir($target_dir, 0755, true)) {
-        http_response_code(500);
-        die("Failed to create directory: $target_dir\n");
-    }
-    // Ensure directory is group-writable for Apache
-    @chmod($target_dir, 0775);
+// For image style URLs: if the original file is already on disk, redirect back to
+// the styled URL so Drupal can generate the derivative without re-downloading.
+if ($is_image_style && file_exists($save_path)) {
+    $query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
+    $redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
+    header('Location: ' . $redirect_uri, true, 302);
+    exit(0);
 }
 
-// Build origin URL (remove trailing slash from origin, add leading slash to requested path)
+// Create parent directory if needed
+if (!is_dir($save_dir)) {
+    if (!mkdir($save_dir, 0755, true)) {
+        http_response_code(500);
+        die("Failed to create directory: $save_dir\n");
+    }
+    // Ensure directory is group-writable for Apache
+    @chmod($save_dir, 0775);
+}
+
+// Build origin URL (remove trailing slash from origin, add leading slash to download path)
 $origin_url = rtrim($origin_url, '/');
 $full_url = $origin_url . $download_path;
 
@@ -106,18 +124,18 @@ if ($http_code >= 400) {
     die("Origin returned HTTP $http_code\n");
 }
 
-// Write file to disk
-if (file_put_contents($target_path, $file_content) === false) {
+// Write file to disk at the original (non-styled) path
+if (file_put_contents($save_path, $file_content) === false) {
     http_response_code(500);
-    die("Failed to write file to $target_path\n");
+    die("Failed to write file to $save_path\n");
 }
 
 // Set standard file permissions
-chmod($target_path, 0644);
+chmod($save_path, 0644);
 
-// File is now on disk. Redirect to the original URL so Apache serves it directly.
-// Apache's mod_mime assigns the correct Content-Type (e.g. text/css for .css files)
-// without needing any MIME detection logic here.
+// File is now on disk. Redirect so Apache serves it directly with correct MIME detection
+// via mod_mime. For image styles the redirect returns to the styled URL so Drupal can
+// generate the derivative from the original that is now on disk.
 $query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
 $redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
 header('Location: ' . $redirect_uri, true, 302);
