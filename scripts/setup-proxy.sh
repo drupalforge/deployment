@@ -262,8 +262,9 @@ configure_apache_proxy() {
     # On normal container startup Apache has not started yet (CMD fires after this
     # script), so the updated config is picked up automatically when Apache starts.
     # Calling 'apache2ctl graceful' when Apache is not running starts it prematurely
-    # and conflicts with the normal startup sequence.
-    if sudo -n apache2ctl status >/dev/null 2>&1; then
+    # and conflicts with the normal startup sequence. Use pgrep to check for the
+    # apache2 process without any side effects (no connection to port 80 needed).
+    if pgrep -x apache2 >/dev/null 2>&1; then
       if sudo -n apache2ctl graceful 2>/dev/null; then
         log "Apache configuration reloaded"
       else
