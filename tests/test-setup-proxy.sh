@@ -51,8 +51,8 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-    if grep -q "%{REQUEST_FILENAME} !-f" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "%{REQUEST_FILENAME} !-d" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    if grep -q "%{REQUEST_FILENAME} -f" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "%{REQUEST_FILENAME} -d" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q '/drupalforge-proxy-handler.php \[END\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Script generates rewrite rules with file-existence bypass${NC}"
     else

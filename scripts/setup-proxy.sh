@@ -57,13 +57,21 @@ update_proxy_rewrite_rules() {
     normalized_paths+=("/sites/default/files")
   fi
 
+  # Build the block: one shared bypass rule first, then per-path proxy rules.
+  # Ordering matters: the bypass check must come before the proxy rules so that
+  # files already on disk are served directly without going through PHP.
   : > "$block_file"
+  {
+    printf '  # Skip proxy for existing local files and directories.\n'
+    printf '  RewriteCond %%{REQUEST_FILENAME} -f [OR]\n'
+    printf '  RewriteCond %%{REQUEST_FILENAME} -d\n'
+    printf '  RewriteRule ^ - [END]\n'
+    printf '\n'
+  } >> "$block_file"
   for path in "${normalized_paths[@]}"; do
     {
       printf '  # Proxy handler: %s\n' "$path"
       printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '  RewriteCond %%{REQUEST_FILENAME} !-f\n'
-      printf '  RewriteCond %%{REQUEST_FILENAME} !-d\n'
       printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
       printf '\n'
     } >> "$block_file"
@@ -73,6 +81,21 @@ update_proxy_rewrite_rules() {
     BEGIN {
       inserted=0
       skip_proxy_block=0
+      skip_bypass_block=0
+    }
+
+    /^[[:space:]]*# Skip proxy for existing/ {
+      skip_bypass_block=1
+      next
+    }
+
+    skip_bypass_block && /^[[:space:]]*RewriteRule[[:space:]]+\^[[:space:]]*-[[:space:]]*\[END\]/ {
+      skip_bypass_block=0
+      next
+    }
+
+    skip_bypass_block {
+      next
     }
 
     /^[[:space:]]*# Proxy handler:/ {

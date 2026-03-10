@@ -82,7 +82,7 @@ test_redirects_after_download() {
     fi
 }
 
-# Test 7b: Query string is preserved in the redirect URI
+# Test 11: Query string is preserved in the redirect URI
 # Grep the handler itself to confirm it reads REDIRECT_QUERY_STRING and includes
 # it when building the redirect URI (rather than re-implementing the logic inline).
 test_redirect_preserves_query_string() {
