@@ -118,6 +118,19 @@ test_vhost_rewrite_scope() {
     fi
 }
 
+# Test 11: Image style bypass uses [OR] so image style URLs reach the proxy handler
+# when the original file is missing (the first condition is negated and joined with [OR]
+# to the file-existence check, so image style URLs are proxied when the original is
+# missing, and other URLs are proxied when the file doesn't exist locally).
+test_image_style_proxied_when_original_missing() {
+    if grep -q 'RewriteCond %%{REQUEST_URI} !.*styles.*/public/.* \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Image style bypass condition uses [OR] so missing originals are proxied${NC}"
+    else
+        echo -e "${RED}✗ Image style bypass condition is missing [OR] — image style URLs will not be proxied${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -129,5 +142,6 @@ test_env_variables
 test_default_paths
 test_inline_rewrite_awk
 test_vhost_rewrite_scope
+test_image_style_proxied_when_original_missing
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"

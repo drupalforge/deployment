@@ -153,7 +153,7 @@ configure_apache_proxy() {
 
     for path in "${normalized_paths[@]}"; do
       printf '        # Image style bypass: %s\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/[^/]+/public/(.+)$ [OR]\n' "$path"
       printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
       printf '        # Proxy handler: %s\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
