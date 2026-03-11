@@ -81,7 +81,6 @@ test_redirects_after_download() {
         exit 1
     fi
 }
-
 # Test 8: Query string is preserved in the redirect URI
 # Grep the handler itself to confirm it reconstructs original request metadata
 # from Apache redirect/server vars and preserves the query string in redirect URI.
@@ -189,6 +188,18 @@ PHPEOF
     fi
 }
 
+# Test 13: Handler skips re-download when the original file already exists on disk.
+# This prevents redundant origin fetches and breaks any redirect loop that could
+# arise if the rewrite rules fire again before Drupal has generated the derivative.
+test_skip_download_if_exists() {
+    if grep -q "file_exists.*save_path" "$HANDLER"; then
+        echo -e "${GREEN}✓ Handler skips download when original already exists on disk${NC}"
+    else
+        echo -e "${RED}✗ Handler does not short-circuit when original already exists${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_file_exists
 test_php_syntax
@@ -202,5 +213,6 @@ test_error_handling
 test_env_origin
 test_image_styles
 test_image_style_regex
+test_skip_download_if_exists
 
 echo -e "${GREEN}✓ PHP handler tests passed${NC}"

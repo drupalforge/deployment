@@ -51,13 +51,13 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
+    # Shared file-existence bypass and per-path handler routing (full per-path structure in tests 9/11)
     if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteCond %%{REQUEST_URI} !\^' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteCond %%{DOCUMENT_ROOT}.* !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-    grep -q 'drupalforge-proxy-handler\.php.*\[END,PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-                echo -e "${GREEN}✓ Script generates rewrite rules with shared file-existence bypass and handler routing${NC}"
+        grep -q 'RewriteCond %%{DOCUMENT_ROOT}.*%%1 !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+        grep -q 'drupalforge-proxy-handler\.php.*\[END,PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Script generates rewrite rules with shared file-existence bypass and handler routing${NC}"
     else
         echo -e "${RED}✗ Script doesn't generate rewrite rules with bypass and handler routing${NC}"
         exit 1
@@ -93,16 +93,17 @@ test_default_paths() {
     fi
 }
 
-# Test 9: Inline awk manages rewrite lifecycle; image style bypass is per path
+# Test 9: Two separate per-path rules — image style uses positive match; regular files exclude styles/
 test_inline_rewrite_awk() {
     if grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-    grep -q "\[END,PT\]" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "# Image style bypass:" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "\[END,PT\]" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "# Image style proxy:" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "# File proxy:" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "BEGIN DRUPALFORGE PROXY RULES" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Inline awk manages rewrite generation and injects simplified handler routing rules${NC}"
+        echo -e "${GREEN}✓ Script generates two per-path rules: image style proxy and regular file proxy${NC}"
     else
-        echo -e "${RED}✗ Inline awk lifecycle behavior not found${NC}"
+        echo -e "${RED}✗ Two per-path rule structure not found${NC}"
         exit 1
     fi
 }
@@ -118,15 +119,16 @@ test_vhost_rewrite_scope() {
     fi
 }
 
-# Test 11: Image style bypass uses [OR] so image style URLs reach the proxy handler
-# when the original file is missing (the first condition is negated and joined with [OR]
-# to the file-existence check, so image style URLs are proxied when the original is
-# missing, and other URLs are proxied when the file doesn't exist locally).
+# Test 11: Image style rule uses a POSITIVE (non-negated) match so %1 is correctly set;
+# the regular-file rule excludes the styles/ subtree so existing originals fall through to Drupal.
 test_image_style_proxied_when_original_missing() {
-    if grep -q 'RewriteCond %%{REQUEST_URI} !.*styles.*/public/.* \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Image style bypass condition uses [OR] so missing originals are proxied${NC}"
+    # Image style rule: positive match captures the original subpath into %1
+    if grep -q 'RewriteCond %%{REQUEST_URI} \^.*styles.*/public/(.+)' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{DOCUMENT_ROOT}.*%%1 !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{REQUEST_URI} !.*styles/' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Image style rule uses positive match (%1 set correctly); regular-file rule excludes styles/ subtree${NC}"
     else
-        echo -e "${RED}✗ Image style bypass condition is missing [OR] — image style URLs will not be proxied${NC}"
+        echo -e "${RED}✗ Per-path rule structure incorrect — image style or regular-file rule missing${NC}"
         exit 1
     fi
 }

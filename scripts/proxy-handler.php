@@ -89,6 +89,16 @@ if (!is_dir($save_dir)) {
     @chmod($save_dir, 0775);
 }
 
+// If the original file is already on disk, skip the download and redirect immediately.
+// This keeps the handler idempotent: a second call (e.g., if rewrite rules fire again
+// before Drupal has generated the derivative) does not re-fetch from origin.
+if (file_exists($save_path)) {
+    $query_string = $_SERVER['REDIRECT_QUERY_STRING'] ?? ($_SERVER['QUERY_STRING'] ?? '');
+    $redirect_uri = $requested_path . ($query_string !== '' ? '?' . $query_string : '');
+    header('Location: ' . $redirect_uri, true, 302);
+    exit(0);
+}
+
 // Build origin URL (remove trailing slash from origin, add leading slash to download path)
 $origin_url = rtrim($origin_url, '/');
 $full_url = $origin_url . $download_path;

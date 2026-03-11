@@ -34,7 +34,7 @@ has_stage_file_proxy() {
     # Validate drupal_root exists and is accessible before using composer
     if [ -d "$drupal_root" ]; then
       # Use composer to check if stage_file_proxy package is installed
-      if (cd "$drupal_root" && composer show drupal/stage_file_proxy &> /dev/null); then
+      if (cd "$drupal_root" && composer show drupal/stage_file_proxy < /dev/null &> /dev/null); then
         return 0
       fi
     fi
@@ -152,14 +152,20 @@ configure_apache_proxy() {
     printf '\n'
 
     for path in "${normalized_paths[@]}"; do
-      printf '        # Image style bypass: %s\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/[^/]+/public/(.+)$ [OR]\n' "$path"
+      # Rule 1: image style proxy — fires only when the original source file is missing.
+      # Condition 1 is a POSITIVE (non-negated) match so that %1 is correctly set to the
+      # original file's subpath; condition 2 can then test that path against disk.
+      printf '        # Image style proxy: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
       printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
-      printf '        # Proxy handler: %s\n' "$path"
+      printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
+      printf '\n'
+      # Rule 2: regular file proxy — handles non-image-style files under the proxy path.
+      # Excludes styles/ subtree so that when the original exists and Drupal needs to
+      # generate a derivative, the request falls through to Drupal's own routing.
+      printf '        # File proxy: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      # Keep PT so Alias remapping to /var/www/drupalforge-proxy-handler.php is
-      # reapplied after rewrite in all integration scenarios; END alone regressed
-      # to 404s in clean integration runs.
       printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
       printf '\n'
     done
