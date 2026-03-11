@@ -51,7 +51,7 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-    # Shared file-existence bypass and per-path handler routing (full per-path structure in tests 9/11)
+    # Shared file-existence bypass and per-path handler routing (full per-path structure in tests 9 and 11)
     if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
@@ -147,6 +147,75 @@ test_setenv_in_vhost_block() {
     fi
 }
 
+# Test 13: Proxy rules are injected at the BEGINNING of the VirtualHost block
+# (immediately after the opening <VirtualHost ...> tag), not at the end.
+# Rules injected at the end would run AFTER any catch-all PHP routing rule
+# already in the base image's VirtualHost (e.g. RewriteRule ^ index.php [L]),
+# which would send image-style requests to Drupal before our proxy rules run.
+test_proxy_rules_injected_at_vhost_start() {
+    # Simulate a vhost file that has a catch-all PHP routing rule before </VirtualHost>
+    local tmp_vhost
+    tmp_vhost=$(mktemp)
+    cat > "$tmp_vhost" <<'EOF'
+<VirtualHost *:80>
+    DocumentRoot /var/www/html/web
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</VirtualHost>
+EOF
+
+    local tmp_out
+    tmp_out=$(mktemp)
+
+    # Run the same awk used by setup-proxy.sh (extract from the script)
+    local tmp_block
+    tmp_block=$(mktemp)
+    printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n' > "$tmp_block"
+    printf '    RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n' >> "$tmp_block"
+    printf '    # END DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n' >> "$tmp_block"
+
+    awk -v block_file="$tmp_block" '
+    BEGIN {
+      inserted=0
+      skip=0
+      start_marker="^[[:space:]]*# BEGIN DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+      end_marker="^[[:space:]]*# END DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+    }
+    skip {
+      if ($0 ~ end_marker) { skip=0 }
+      next
+    }
+    $0 ~ start_marker { skip=1; next }
+    /^[[:space:]]*<VirtualHost[[:space:]>]/ {
+      print
+      if (inserted==0) {
+        while ((getline block_line < block_file) > 0) { print block_line }
+        close(block_file)
+        inserted=1
+      }
+      next
+    }
+    { print }
+    END { if (inserted==0) { exit 1 } }
+    ' "$tmp_vhost" > "$tmp_out"
+
+    # Proxy block must appear BEFORE the catch-all RewriteRule ^ index.php
+    local proxy_line catchall_line
+    proxy_line=$(grep -n 'drupalforge-proxy-handler' "$tmp_out" | head -1 | cut -d: -f1)
+    catchall_line=$(grep -n 'RewriteRule \^ index.php' "$tmp_out" | head -1 | cut -d: -f1)
+
+    rm -f "$tmp_vhost" "$tmp_out" "$tmp_block"
+
+    if [ -n "$proxy_line" ] && [ -n "$catchall_line" ] && [ "$proxy_line" -lt "$catchall_line" ]; then
+        echo -e "${GREEN}✓ Proxy rules are injected at the start of VirtualHost (before catch-all PHP routing rule)${NC}"
+    else
+        echo -e "${RED}✗ Proxy rules not injected at start of VirtualHost — catch-all rule would shadow them${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -160,5 +229,6 @@ test_inline_rewrite_awk
 test_vhost_rewrite_scope
 test_image_style_proxied_when_original_missing
 test_setenv_in_vhost_block
+test_proxy_rules_injected_at_vhost_start
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"

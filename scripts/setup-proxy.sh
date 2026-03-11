@@ -159,8 +159,9 @@ configure_apache_proxy() {
 
     for path in "${normalized_paths[@]}"; do
       # Rule 1: image style proxy — fires only when the original source file is missing.
-      # Condition 1 is a POSITIVE (non-negated) match so that %1 is correctly set to the
-      # original file's subpath; condition 2 can then test that path against disk.
+      # Condition 1 is a POSITIVE (non-negated) match so that the capture group
+      # sets %1 to the original file's subpath (the portion after /public/).
+      # Condition 2 then uses %1 to test that the original file is absent on disk.
       printf '        # Image style proxy: %s\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
       printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
@@ -211,7 +212,14 @@ configure_apache_proxy() {
       next
     }
 
-    /^[[:space:]]*<\/VirtualHost>[[:space:]]*$/ {
+    # Inject proxy rules immediately after the opening <VirtualHost ...> tag so
+    # they are evaluated FIRST — before any catch-all PHP routing rules that the
+    # base image may already have in the VirtualHost block (e.g. RewriteRule ^
+    # index.php [L]).  Injecting at the end (before </VirtualHost>) would allow
+    # those catch-all rules to intercept image-style requests before our proxy
+    # rules ever run.
+    /^[[:space:]]*<VirtualHost[[:space:]>]/ {
+      print
       if (inserted==0) {
         while ((getline block_line < block_file) > 0) {
           print block_line
@@ -219,7 +227,6 @@ configure_apache_proxy() {
         close(block_file)
         inserted=1
       }
-      print
       next
     }
 
