@@ -140,6 +140,12 @@ configure_apache_proxy() {
 
   {
     printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
+    # Make ORIGIN_URL and WEB_ROOT available to the PHP handler at request time.
+    # PHP running under Apache does not inherit shell environment variables; these
+    # SetEnv directives are the standard Apache mechanism to pass values to PHP.
+    printf '    SetEnv ORIGIN_URL "%s"\n' "$origin_url"
+    printf '    SetEnv WEB_ROOT "%s"\n' "$web_root"
+    printf '\n'
     printf '    <IfModule mod_rewrite.c>\n'
     printf '        RewriteEngine On\n'
     printf '\n'

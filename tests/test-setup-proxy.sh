@@ -133,6 +133,20 @@ test_image_style_proxied_when_original_missing() {
     fi
 }
 
+# Test 12: SetEnv directives are written into the injected vhost block so that
+# ORIGIN_URL and WEB_ROOT are available to proxy-handler.php at request time.
+# PHP running under Apache does not inherit shell environment variables; without
+# these SetEnv lines the handler returns 503 on every request.
+test_setenv_in_vhost_block() {
+    if grep -q 'SetEnv ORIGIN_URL' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'SetEnv WEB_ROOT' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Script writes SetEnv ORIGIN_URL and WEB_ROOT into injected vhost block${NC}"
+    else
+        echo -e "${RED}✗ SetEnv ORIGIN_URL / WEB_ROOT not found — handler will return 503 at runtime${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -145,5 +159,6 @@ test_default_paths
 test_inline_rewrite_awk
 test_vhost_rewrite_scope
 test_image_style_proxied_when_original_missing
+test_setenv_in_vhost_block
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"
