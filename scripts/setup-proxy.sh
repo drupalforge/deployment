@@ -79,7 +79,6 @@ configure_apache_proxy() {
   local origin_url="$1"
   local file_paths="$2"
   local web_root="${3:-/var/www/html/web}"
-  local apache_conf="/etc/apache2/conf-available/drupalforge-proxy.conf"
   local handler_source="/var/www/drupalforge-proxy-handler.php"
   local proxy_paths=()
 
@@ -113,39 +112,14 @@ configure_apache_proxy() {
     proxy_paths+=("/sites/default/files")
   fi
 
-  if [ ! -f "$apache_conf" ]; then
-    error "Apache configuration file does not exist at $apache_conf"
+  if [ ! -f "/etc/apache2/sites-available/000-default.conf" ] && \
+     [ ! -f "/templates/000-default.conf" ]; then
+    error "Apache vhost configuration file does not exist at /etc/apache2/sites-available/000-default.conf or /templates/000-default.conf"
     return 1
   fi
 
-  # Update the Directory scope to the current web root.
-  local temp_scope
-  temp_scope=$(mktemp)
-  # shellcheck disable=SC2024  # < redirect reads temp_scope (no elevated read needed); tee writes conf with sudo
-  if awk -v dir="$web_root" '
-    BEGIN { updated=0 }
-    /^<Directory / && updated==0 {
-      print "<Directory \"" dir "\">"
-      updated=1
-      next
-    }
-    { print }
-    END { if (updated==0) exit 1 }
-  ' "$apache_conf" > "$temp_scope" 2>/dev/null && \
-     sudo -n tee "$apache_conf" < "$temp_scope" >/dev/null 2>&1; then
-    log "Apache Directory scope set for rewrite rules: $web_root"
-  else
-    rm -f "$temp_scope"
-    log "Warning: Could not update Apache Directory scope in $apache_conf"
-    return 1
-  fi
-  rm -f "$temp_scope"
-
-  # Normalize proxied paths and inject per-path rewrite rules into the Apache config.
+  # Normalize proxied paths and inject per-path rewrite rules into vhost config.
   local normalized_paths=()
-  local block_file output_file
-  block_file=$(mktemp)
-  output_file=$(mktemp)
 
   for path in "${proxy_paths[@]}"; do
     path=$(echo "$path" | xargs)
@@ -158,86 +132,113 @@ configure_apache_proxy() {
     normalized_paths+=("/sites/default/files")
   fi
 
-  # Build per-path proxy rules block.
+  # Inject managed rewrite rules into the active vhost scope.
+  local vhost_block
+  local vhost_output
+  vhost_block=$(mktemp)
+  vhost_output=$(mktemp)
+
   {
+    printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
+    printf '    <IfModule mod_rewrite.c>\n'
+    printf '        RewriteEngine On\n'
+    printf '\n'
+    printf '        # Existing files/dirs should be served directly by Apache.\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f [OR]\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d\n'
+    printf '        RewriteRule ^ - [L]\n'
+    printf '\n'
     for path in "${normalized_paths[@]}"; do
-      # Image style bypass: if original exists, stop proxy and let Drupal generate the derivative.
-      # Pattern: {path}/styles/{style}/public/{file} → check {path}/{file} exists.
-      printf '    # Image style bypass: %s\n' "$path"
-      printf '    RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
-      printf '    RewriteCond %%{DOCUMENT_ROOT}%s/%%1 -f\n' "$path"
-      printf '    RewriteRule ^ - [L]\n'
+      printf '        # Image style bypass: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 -f\n' "$path"
+      printf '        RewriteRule ^ - [L]\n'
       printf '\n'
-      printf '    # Proxy handler: %s\n' "$path"
-      printf '    RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '    RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [PT]\n'
+
+      printf '        # Proxy handler: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      # Keep PT so Alias remapping to /var/www/drupalforge-proxy-handler.php is
+      # reapplied after rewrite in all integration scenarios; END alone regressed
+      # to 404s in clean integration runs.
+      printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
       printf '\n'
     done
-  } > "$block_file"
+    printf '    </IfModule>\n'
+    printf '    # END DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
+  } > "$vhost_block"
 
-  if awk -v block_file="$block_file" '
-    # The anchor is the label comment hard-coded in apache-proxy.conf (config template);
-    # it marks where per-path rules should be injected.
+  local vhost_applied=0
+  local vhost_target
+  local -a vhost_targets=()
+
+  # Write to both template and sites-available so rules persist across restarts.
+  # The loop below skips files that don't exist, so it's safe to list both.
+  vhost_targets+=("/templates/000-default.conf")
+  vhost_targets+=("/etc/apache2/sites-available/000-default.conf")
+
+  for vhost_target in "${vhost_targets[@]}"; do
+    [ -f "$vhost_target" ] || continue
+
+    if awk -v block_file="$vhost_block" '
     BEGIN {
-      anchor="^[[:space:]]*# Per-path proxy rules configured by setup-proxy\\.sh"
       inserted=0
-      skip_proxy_block=0
+      skip=0
+      start_marker="^[[:space:]]*# BEGIN DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+      end_marker="^[[:space:]]*# END DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
     }
 
-    # Strip stale per-path proxy blocks (image style bypass and proxy handler).
-    /^[[:space:]]*# (Image style bypass|Proxy handler):/ {
-      skip_proxy_block=1
-      next
-    }
-
-    skip_proxy_block {
-      if (/^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ || \
-          /^[[:space:]]*RewriteRule \^ - \[L\]/) {
-        skip_proxy_block=0
+    skip {
+      if ($0 ~ end_marker) {
+        skip=0
       }
       next
     }
 
-    !skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
+    $0 ~ start_marker {
+      skip=1
       next
     }
 
-    # Inject fresh per-path rules after the anchor.
-    !inserted && $0 ~ anchor {
-      print
-      while ((getline rule_line < block_file) > 0) {
-        print rule_line
+    /^[[:space:]]*<\/VirtualHost>[[:space:]]*$/ {
+      if (inserted==0) {
+        while ((getline block_line < block_file) > 0) {
+          print block_line
+        }
+        close(block_file)
+        inserted=1
       }
-      close(block_file)
-      inserted=1
+      print
       next
     }
 
-    !skip_proxy_block {
-      print
-    }
+    { print }
 
     END {
-      if (inserted == 0) {
+      if (inserted==0) {
         exit 1
       }
     }
-  ' "$apache_conf" > "$output_file"; then
-    # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes conf with sudo
-    if sudo -n tee "$apache_conf" < "$output_file" >/dev/null 2>&1 || \
-       tee "$apache_conf" < "$output_file" >/dev/null 2>&1; then
-      rm -f "$block_file" "$output_file"
-      log "Rewrite rules added to Apache configuration"
+  ' "$vhost_target" > "$vhost_output"; then
+      # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
+      if sudo -n tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1 || \
+         tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1; then
+        log "Rewrite rules added to Apache vhost configuration: $vhost_target"
+        vhost_applied=1
+      else
+        log "Warning: Failed to write rewrite rules to Apache vhost configuration: $vhost_target"
+      fi
     else
-      rm -f "$block_file" "$output_file"
-      error "Failed to write rewrite rules to Apache configuration"
-      return 1
+      log "Warning: Failed to configure proxy rules in Apache vhost configuration: $vhost_target"
     fi
-  else
-    rm -f "$block_file" "$output_file"
-    error "Failed to configure proxy rules in Apache configuration"
+  done
+
+  if [ "$vhost_applied" -eq 0 ]; then
+    rm -f "$vhost_block" "$vhost_output"
+    error "Failed to configure proxy rules in Apache vhost configuration"
     return 1
   fi
+
+  rm -f "$vhost_block" "$vhost_output"
 
   # Enable the drupalforge-proxy conf (a2enconf is idempotent so always safe to call).
   # setup-proxy.sh owns the full conf lifecycle so that re-runs reliably reload the config.

@@ -6,14 +6,9 @@
  * Subsequent requests serve the file directly from disk.
  */
 
-// Get the requested path from Apache rewrite context.
-// After the [END] rewrite to /drupalforge-proxy-handler.php, Apache sets REDIRECT_URL
-// to the original request URL (e.g. /sites/default/files/test-file.txt). This is the
-// most reliable source in both mod_php and PHP-FPM FastCGI contexts.
-// PROXY_ORIG_PATH is kept as a first-try check for forward-compatibility should callers
-// ever pass it explicitly; REQUEST_URI is the last-resort fallback.
-$requested_uri = $_SERVER['PROXY_ORIG_PATH']
-    ?? ($_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/'));
+// Get the original request path from Apache rewrite context.
+// REDIRECT_URL is set by internal rewrites; REQUEST_URI is a fallback.
+$requested_uri = $_SERVER['REDIRECT_URL'] ?? ($_SERVER['REQUEST_URI'] ?? '/');
 
 // Remove query string if present
 $requested_path = strtok($requested_uri, '?');
@@ -103,7 +98,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 $file_content = curl_exec($ch);
 $curl_error = curl_error($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+unset($ch);
 
 // Check for download errors
 if ($file_content === false) {
