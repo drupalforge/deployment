@@ -25,120 +25,6 @@ error() {
   return 1
 }
 
-# Unified rewrite helper for both .htaccess and Apache config targets.
-# Responsibilities:
-# 1) Remove stale drupalforge-proxy-handler rewrite blocks
-# 2) Add file/dir bypass if not already present
-# 3) Inject fresh per-path rewrite rules at the requested anchor
-update_proxy_rewrite_rules() {
-  local file="$1"
-  local insert_anchor_regex="$2"
-  shift 2
-
-  if [ ! -f "$file" ]; then
-    return 1
-  fi
-
-  local block_file
-  local output_file
-  local normalized_paths=()
-  local path
-  local has_bypass=0
-  block_file=$(mktemp)
-  output_file=$(mktemp)
-
-  for path in "$@"; do
-    path=$(echo "$path" | xargs)
-    [ -z "$path" ] && continue
-    [[ "$path" != /* ]] && path="/$path"
-    normalized_paths+=("$path")
-  done
-
-  if [ ${#normalized_paths[@]} -eq 0 ]; then
-    normalized_paths+=("/sites/default/files")
-  fi
-
-  if grep -qE "^[[:space:]]*RewriteCond[[:space:]]+%\{REQUEST_FILENAME\}[[:space:]]+-f([[:space:]]|$)|^[[:space:]]*RewriteCond[[:space:]]+%\{REQUEST_FILENAME\}[[:space:]]+-d([[:space:]]|$)" "$file"; then
-    has_bypass=1
-  fi
-
-  : > "$block_file"
-  for path in "${normalized_paths[@]}"; do
-    {
-      printf '  # Proxy handler: %s\n' "$path"
-      printf '  RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
-      printf '  RewriteRule ^(.*)$ /drupalforge-proxy-handler.php [END]\n'
-      printf '\n'
-    } >> "$block_file"
-  done
-
-  if awk -v block_file="$block_file" -v anchor="$insert_anchor_regex" -v has_bypass="$has_bypass" '
-    BEGIN {
-      inserted=0
-      skip_proxy_block=0
-    }
-
-    /^[[:space:]]*# Proxy handler:/ {
-      skip_proxy_block=1
-      next
-    }
-
-    skip_proxy_block && /^[[:space:]]*RewriteCond.*REQUEST_URI/ {
-      next
-    }
-
-    skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
-      skip_proxy_block=0
-      next
-    }
-
-    !skip_proxy_block && /^[[:space:]]*RewriteRule.*drupalforge-proxy-handler/ {
-      next
-    }
-
-    !skip_proxy_block && inserted==0 && $0 ~ anchor {
-      print
-
-      if (has_bypass == 0) {
-        print "  # Skip proxy for existing local files and directories."
-        print "  RewriteCond %{REQUEST_FILENAME} -f [OR]"
-        print "  RewriteCond %{REQUEST_FILENAME} -d"
-        print "  RewriteRule ^ - [END]"
-        print ""
-      }
-
-      while ((getline rule_line < block_file) > 0) {
-        print rule_line
-      }
-      close(block_file)
-      print ""
-
-      inserted=1
-      next
-    }
-
-    !skip_proxy_block {
-      print
-    }
-
-    END {
-      if (inserted == 0) {
-        exit 1
-      }
-    }
-  ' "$file" > "$output_file"; then
-    # shellcheck disable=SC2024  # < redirect reads output_file (no elevated read needed); tee writes file with sudo
-    if sudo -n tee "$file" < "$output_file" >/dev/null 2>&1 || \
-       tee "$file" < "$output_file" >/dev/null 2>&1; then
-      rm -f "$block_file" "$output_file"
-      return 0
-    fi
-  fi
-
-  rm -f "$block_file" "$output_file"
-  return 1
-}
-
 # Check if Stage File Proxy module is installed
 has_stage_file_proxy() {
   local drupal_root="${1:-.}"
@@ -193,9 +79,7 @@ configure_apache_proxy() {
   local origin_url="$1"
   local file_paths="$2"
   local web_root="${3:-/var/www/html/web}"
-  local apache_conf="/etc/apache2/conf-available/drupalforge-proxy.conf"
   local handler_source="/var/www/drupalforge-proxy-handler.php"
-  local htaccess_file
   local proxy_paths=()
 
   log "Configuring Apache proxy with on-demand download"
@@ -206,8 +90,6 @@ configure_apache_proxy() {
   if [ "$web_root" != "/" ]; then
     web_root="${web_root%/}"
   fi
-
-  htaccess_file="$web_root/.htaccess"
 
   # Ensure proxy handler exists at static path used by Apache Alias.
   if [ -f "$handler_source" ]; then
@@ -230,65 +112,140 @@ configure_apache_proxy() {
     proxy_paths+=("/sites/default/files")
   fi
 
-  # Configure rewrite rules in .htaccess first (closest to Drupal routing).
-  local htaccess_success=false
-  if [ -f "$htaccess_file" ]; then
-    if update_proxy_rewrite_rules "$htaccess_file" '^[[:space:]]*RewriteEngine[[:space:]]+[Oo]n[[:space:]]*$' "${proxy_paths[@]}"; then
-      log "Rewrite rules added to .htaccess"
-      htaccess_success=true
-    else
-      log "Warning: Could not update rewrite rules in .htaccess"
-    fi
-  else
-    log "No .htaccess found at $htaccess_file, using Apache config only"
-  fi
-
-  local apache_config_success=false
-  if ! $htaccess_success && [ -f "$apache_conf" ]; then
-    log "Using Apache global configuration for proxy rewrite rules"
-
-    # Use WEB_ROOT for rewrite scope so per-directory RewriteRule backreferences
-    # map to request paths under the site web root (without an extra web/ prefix).
-    local directory_scope="$web_root"
-    log "Using WEB_ROOT for rewrite scope: $directory_scope"
-
-    local temp_scope
-    temp_scope=$(mktemp)
-    # shellcheck disable=SC2024  # < redirect reads temp_scope (no elevated read needed); tee writes conf with sudo
-    if awk -v dir="$directory_scope" '
-      BEGIN { updated=0 }
-      /^<Directory / && updated==0 {
-        print "<Directory \"" dir "\">"
-        updated=1
-        next
-      }
-      { print }
-      END { if (updated==0) exit 1 }
-    ' "$apache_conf" > "$temp_scope" 2>/dev/null && \
-       sudo -n tee "$apache_conf" < "$temp_scope" >/dev/null 2>&1; then
-      log "Apache Directory scope set for rewrite rules: $directory_scope"
-    else
-      rm -f "$temp_scope"
-      log "Warning: Could not update Apache Directory scope in $apache_conf"
-      return 1
-    fi
-    rm -f "$temp_scope"
-
-    if update_proxy_rewrite_rules "$apache_conf" '^[[:space:]]*RewriteEngine[[:space:]]+[Oo]n[[:space:]]*$' "${proxy_paths[@]}"; then
-      log "Rewrite rules added to Apache configuration"
-      apache_config_success=true
-    else
-      log "Warning: Could not update Apache rewrite rules in $apache_conf"
-      return 1
-    fi
-  elif ! $htaccess_success; then
-    log "Apache configuration file does not exist at $apache_conf"
-  fi
-
-  # Ensure at least .htaccess or Apache config was successfully configured
-  if ! $htaccess_success && ! $apache_config_success; then
-    error "Failed to configure proxy rules in either .htaccess or Apache configuration"
+  if [ ! -f "/etc/apache2/sites-available/000-default.conf" ] && \
+     [ ! -f "/templates/000-default.conf" ]; then
+    error "Apache vhost configuration file does not exist at /etc/apache2/sites-available/000-default.conf or /templates/000-default.conf"
     return 1
+  fi
+
+  # Normalize proxied paths and inject per-path rewrite rules into vhost config.
+  local normalized_paths=()
+
+  for path in "${proxy_paths[@]}"; do
+    path=$(echo "$path" | xargs)
+    [ -z "$path" ] && continue
+    [[ "$path" != /* ]] && path="/$path"
+    normalized_paths+=("$path")
+  done
+
+  if [ ${#normalized_paths[@]} -eq 0 ]; then
+    normalized_paths+=("/sites/default/files")
+  fi
+
+  # Inject managed rewrite rules into the active vhost scope.
+  local vhost_block
+  local vhost_output
+  vhost_block=$(mktemp)
+  vhost_output=$(mktemp)
+
+  {
+    printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
+    printf '    <IfModule mod_rewrite.c>\n'
+    printf '        RewriteEngine On\n'
+    printf '\n'
+    # In VirtualHost context %{REQUEST_FILENAME} equals REQUEST_URI (not a
+    # filesystem path), so use %{DOCUMENT_ROOT}%{REQUEST_URI} for -f/-d checks.
+    printf '        # Existing files/dirs should be served directly by Apache.\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f [OR]\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d\n'
+    printf '        RewriteRule ^ - [L]\n'
+    printf '\n'
+
+    for path in "${normalized_paths[@]}"; do
+      printf '        # Image style bypass: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
+      printf '        # Proxy handler: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      # Keep PT so Alias remapping to /var/www/drupalforge-proxy-handler.php is
+      # reapplied after rewrite in all integration scenarios; END alone regressed
+      # to 404s in clean integration runs.
+      printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
+      printf '\n'
+    done
+    printf '    </IfModule>\n'
+    printf '    # END DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
+  } > "$vhost_block"
+
+  local vhost_applied=0
+  local vhost_target
+  local -a vhost_targets=()
+
+  # Write to both template and sites-available so rules persist across restarts.
+  # The loop below skips files that don't exist, so it's safe to list both.
+  vhost_targets+=("/templates/000-default.conf")
+  vhost_targets+=("/etc/apache2/sites-available/000-default.conf")
+
+  for vhost_target in "${vhost_targets[@]}"; do
+    [ -f "$vhost_target" ] || continue
+
+    if awk -v block_file="$vhost_block" '
+    BEGIN {
+      inserted=0
+      skip=0
+      start_marker="^[[:space:]]*# BEGIN DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+      end_marker="^[[:space:]]*# END DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+    }
+
+    skip {
+      if ($0 ~ end_marker) {
+        skip=0
+      }
+      next
+    }
+
+    $0 ~ start_marker {
+      skip=1
+      next
+    }
+
+    /^[[:space:]]*<\/VirtualHost>[[:space:]]*$/ {
+      if (inserted==0) {
+        while ((getline block_line < block_file) > 0) {
+          print block_line
+        }
+        close(block_file)
+        inserted=1
+      }
+      print
+      next
+    }
+
+    { print }
+
+    END {
+      if (inserted==0) {
+        exit 1
+      }
+    }
+  ' "$vhost_target" > "$vhost_output"; then
+      # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
+      if sudo -n tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1 || \
+         tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1; then
+        log "Rewrite rules added to Apache vhost configuration: $vhost_target"
+        vhost_applied=1
+      else
+        log "Warning: Failed to write rewrite rules to Apache vhost configuration: $vhost_target"
+      fi
+    else
+      log "Warning: Failed to configure proxy rules in Apache vhost configuration: $vhost_target"
+    fi
+  done
+
+  if [ "$vhost_applied" -eq 0 ]; then
+    rm -f "$vhost_block" "$vhost_output"
+    error "Failed to configure proxy rules in Apache vhost configuration"
+    return 1
+  fi
+
+  rm -f "$vhost_block" "$vhost_output"
+
+  # Enable the drupalforge-proxy conf (a2enconf is idempotent so always safe to call).
+  # setup-proxy.sh owns the full conf lifecycle so that re-runs reliably reload the config.
+  if sudo -n a2enconf drupalforge-proxy 2>/dev/null; then
+    log "Apache conf drupalforge-proxy enabled"
+  else
+    log "Warning: Failed to enable Apache conf drupalforge-proxy"
   fi
 
   # Enable mod_rewrite
@@ -302,16 +259,20 @@ configure_apache_proxy() {
   if sudo -n apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     log "Apache configuration is valid"
 
-    # Reload only if Apache is already running.
-    # In container startup flow, Apache starts after this script via CMD.
+    # Reload Apache only if it is already running so changes take effect immediately.
+    # On normal container startup Apache has not started yet (CMD fires after this
+    # script), so the updated config is picked up automatically when Apache starts.
+    # Calling 'apache2ctl graceful' when Apache is not running starts it prematurely
+    # and conflicts with the normal startup sequence. Use pgrep to check for the
+    # apache2 process without any side effects (no connection to port 80 needed).
     if pgrep -x apache2 >/dev/null 2>&1; then
       if sudo -n apache2ctl graceful 2>/dev/null; then
-        log "Apache reloaded successfully"
+        log "Apache configuration reloaded"
       else
-        log "Warning: Could not reload Apache (may require manual reload)"
+        log "Warning: Apache reload failed; config may need manual restart"
       fi
     else
-      log "Apache not running yet; reload skipped"
+      log "Apache not running yet; config will be applied on startup"
     fi
 
     return 0

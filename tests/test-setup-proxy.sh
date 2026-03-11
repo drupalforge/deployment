@@ -51,12 +51,15 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-    if grep -q "%{REQUEST_FILENAME} -f" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "%{REQUEST_FILENAME} -d" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q '/drupalforge-proxy-handler.php \[END\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Script generates rewrite rules${NC}"
+    if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+        grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+        grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+         grep -q 'RewriteCond %%{REQUEST_URI} !\^' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+         grep -q 'RewriteCond %%{DOCUMENT_ROOT}.* !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    grep -q 'drupalforge-proxy-handler\.php.*\[END,PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+                echo -e "${GREEN}✓ Script generates rewrite rules with shared file-existence bypass and handler routing${NC}"
     else
-        echo -e "${RED}✗ Script doesn't generate rewrite rules${NC}"
+        echo -e "${RED}✗ Script doesn't generate rewrite rules with bypass and handler routing${NC}"
         exit 1
     fi
 }
@@ -90,15 +93,27 @@ test_default_paths() {
     fi
 }
 
-# Test 9: Unified helper performs rewrite lifecycle operations
-test_unified_rewrite_helper() {
-    if grep -q "update_proxy_rewrite_rules()" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-    grep -q "REQUEST_FILENAME" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Unified helper manages cleanup, bypass, and injection${NC}"
+# Test 9: Inline awk manages rewrite lifecycle; image style bypass is per path
+test_inline_rewrite_awk() {
+    if grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    grep -q "\[END,PT\]" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "# Image style bypass:" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "BEGIN DRUPALFORGE PROXY RULES" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Inline awk manages rewrite generation and injects simplified handler routing rules${NC}"
     else
-        echo -e "${RED}✗ Unified helper lifecycle behavior not found${NC}"
+        echo -e "${RED}✗ Inline awk lifecycle behavior not found${NC}"
+        exit 1
+    fi
+}
+
+# Test 10: Script targets vhost-scoped rewrite injection for live requests
+test_vhost_rewrite_scope() {
+    if grep -q '/templates/000-default.conf\|/etc/apache2/sites-available/000-default.conf' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'BEGIN DRUPALFORGE PROXY RULES' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+        echo -e "${GREEN}✓ Script injects managed rewrite rules into active vhost scope${NC}"
+    else
+        echo -e "${RED}✗ Script does not manage vhost-scoped rewrite injection${NC}"
         exit 1
     fi
 }
@@ -112,6 +127,7 @@ test_rewrite_rules
 test_handler_setup
 test_env_variables
 test_default_paths
-test_unified_rewrite_helper
+test_inline_rewrite_awk
+test_vhost_rewrite_scope
 
 echo -e "${GREEN}✓ Setup proxy tests passed${NC}"

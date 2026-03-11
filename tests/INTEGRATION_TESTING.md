@@ -41,10 +41,11 @@ This will:
    - Database import from S3/MinIO
    - Application connectivity to database
    - Drupal install-state detection
-  - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
-  - Private file path creation and ownership alignment with Apache runtime user/group
-  - Secure-mode private path ownership alignment with default Apache `www-data`
-  - One-off validation containers run on the host's native Docker platform (no forced amd64)
+   - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image)
+   - Private file path creation and ownership alignment with Apache runtime user/group
+   - Secure-mode private path ownership alignment with default Apache `www-data`
+   - One-off validation containers run on the host's native Docker platform (no forced amd64)
+   - Apache proxy rewrites are injected into the active virtual host scope so missing-file requests are intercepted before Drupal's front controller fallback
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence
@@ -89,6 +90,7 @@ The integration test validates:
 ✓ Origin server connectivity
 ✓ File proxy downloads from origin
 ✓ Proxied files persist locally
+✓ Apache proxy rewrites preserve the original request path when dispatching to the handler alias
 ✓ S3/MinIO connectivity
 ✓ Private file path exists and is owned by the Apache runtime user/group
 ✓ Secure-mode private path is owned by default Apache user/group (`www-data`)

@@ -70,16 +70,33 @@ test_permissions() {
     fi
 }
 
-# Test 7: Detects MIME types
-test_mime_detection() {
-    if grep -q "finfo\|MIME" "$HANDLER"; then
-        echo -e "${GREEN}✓ Script detects MIME types${NC}"
+# Test 7: Redirects after download so Apache serves the file with its own MIME detection
+test_redirects_after_download() {
+    if grep -q "header('Location:" "$HANDLER" && \
+       grep -q "true, 302" "$HANDLER" && \
+       grep -q "redirect_uri\|REDIRECT_QUERY_STRING" "$HANDLER"; then
+        echo -e "${GREEN}✓ Script redirects to original URL after download${NC}"
     else
-        echo -e "${YELLOW}⊘ Script may not detect MIME types${NC}"
+        echo -e "${RED}✗ Script does not redirect after download${NC}"
+        exit 1
     fi
 }
 
-# Test 8: Handles errors gracefully
+# Test 8: Query string is preserved in the redirect URI
+# Grep the handler itself to confirm it reconstructs original request metadata
+# from Apache redirect/server vars and preserves the query string in redirect URI.
+test_redirect_preserves_query_string() {
+    if grep -q "REDIRECT_URL" "$HANDLER" && \
+       grep -q "REDIRECT_QUERY_STRING" "$HANDLER" && \
+       grep -q "redirect_uri.*query_string" "$HANDLER"; then
+        echo -e "${GREEN}✓ Redirect URI preserves query string from Apache rewrite/server metadata${NC}"
+    else
+        echo -e "${RED}✗ Redirect URI does not preserve query string or original request metadata is missing${NC}"
+        exit 1
+    fi
+}
+
+# Test 9: Handles errors gracefully
 test_error_handling() {
     if grep -q "http_response_code\|curl_error\|400\|502\|500" "$HANDLER"; then
         echo -e "${GREEN}✓ Script handles errors with HTTP codes${NC}"
@@ -89,7 +106,7 @@ test_error_handling() {
     fi
 }
 
-# Test 9: Gets origin URL from environment
+# Test 10: Gets origin URL from environment
 test_env_origin() {
     if grep -q "getenv.*ORIGIN_URL" "$HANDLER"; then
         echo -e "${GREEN}✓ Script reads ORIGIN_URL from environment${NC}"
@@ -99,7 +116,7 @@ test_env_origin() {
     fi
 }
 
-# Test 10: Handles Drupal image styles
+# Test 11: Handles Drupal image styles
 test_image_styles() {
     if grep -q "styles.*public\|image.*styles" "$HANDLER"; then
         echo -e "${GREEN}✓ Script handles Drupal image styles${NC}"
@@ -116,7 +133,8 @@ test_security_checks
 test_curl_usage
 test_directory_creation
 test_permissions
-test_mime_detection
+test_redirects_after_download
+test_redirect_preserves_query_string
 test_error_handling
 test_env_origin
 test_image_styles
