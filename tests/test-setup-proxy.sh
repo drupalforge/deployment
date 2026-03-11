@@ -51,11 +51,10 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-     if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+     if grep -q 'RewriteCond %%{REQUEST_FILENAME} !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+         grep -q 'RewriteCond %%{REQUEST_FILENAME} !-d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
     grep -q 'drupalforge-proxy-handler\.php.*\[END,PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-                echo -e "${GREEN}✓ Script generates rewrite rules with file-existence bypass and handler routing${NC}"
+                echo -e "${GREEN}✓ Script generates rewrite rules with negative file-existence conditions and handler routing${NC}"
     else
         echo -e "${RED}✗ Script doesn't generate simplified rewrite rules for handler routing${NC}"
         exit 1
@@ -91,12 +90,12 @@ test_default_paths() {
     fi
 }
 
-# Test 9: Inline awk manages rewrite lifecycle; bypass is in Apache config
+# Test 9: Inline awk manages rewrite lifecycle; bypass is via negative conditions
 test_inline_rewrite_awk() {
     if grep -q "drupalforge-proxy-handler" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "RewriteCond %%{REQUEST_URI}" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
     grep -q "\[END,PT\]" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q "# Image style bypass:" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q "REQUEST_FILENAME.*!-f" "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q "BEGIN DRUPALFORGE PROXY RULES" "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Inline awk manages rewrite generation and injects simplified handler routing rules${NC}"
     else
