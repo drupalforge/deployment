@@ -143,18 +143,18 @@ configure_apache_proxy() {
     printf '    <IfModule mod_rewrite.c>\n'
     printf '        RewriteEngine On\n'
     printf '\n'
+    # In VirtualHost context %{REQUEST_FILENAME} equals REQUEST_URI (not a
+    # filesystem path), so use %{DOCUMENT_ROOT}%{REQUEST_URI} for -f/-d checks.
     printf '        # Existing files/dirs should be served directly by Apache.\n'
-    printf '        RewriteCond %%{REQUEST_FILENAME} -f [OR]\n'
-    printf '        RewriteCond %%{REQUEST_FILENAME} -d\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f [OR]\n'
+    printf '        RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d\n'
     printf '        RewriteRule ^ - [L]\n'
     printf '\n'
+
     for path in "${normalized_paths[@]}"; do
       printf '        # Image style bypass: %s\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
-      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 -f\n' "$path"
-      printf '        RewriteRule ^ - [L]\n'
-      printf '\n'
-
+      printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
       printf '        # Proxy handler: %s\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
       # Keep PT so Alias remapping to /var/www/drupalforge-proxy-handler.php is

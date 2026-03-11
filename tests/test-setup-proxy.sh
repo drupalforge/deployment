@@ -51,9 +51,11 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-     if grep -q 'RewriteCond %%{REQUEST_FILENAME} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteCond %%{REQUEST_FILENAME} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-         grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+        grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+        grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+         grep -q 'RewriteCond %%{REQUEST_URI} !\^' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+         grep -q 'RewriteCond %%{DOCUMENT_ROOT}.* !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
     grep -q 'drupalforge-proxy-handler\.php.*\[END,PT\]' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
                 echo -e "${GREEN}✓ Script generates rewrite rules with shared file-existence bypass and handler routing${NC}"
     else
