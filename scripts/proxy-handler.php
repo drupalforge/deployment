@@ -37,10 +37,8 @@ $web_root = rtrim($web_root, '/');
 // Always redirect back to the styled URL so Drupal can generate the derivative;
 // only download the original from origin when it is not already on disk.
 $download_path = $requested_path;
-$is_image_style = false;
 if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_path, $matches)) {
     $download_path = $matches[1] . '/' . $matches[2];
-    $is_image_style = true;
 }
 
 // Derive save path from download_path (original path, not styled image path).
@@ -67,7 +65,16 @@ while ($probe_dir !== '/' && $probe_dir !== '' && $probe_dir !== '.') {
     $probe_dir = dirname($probe_dir);
 }
 
-if ($real_save_parent === false || strpos($real_save_parent, $real_web_root) !== 0) {
+if ($real_save_parent === false) {
+    http_response_code(400);
+    die("Target path outside web root\n");
+}
+
+// Use a path-boundary-safe containment check to prevent prefix-sharing bypasses
+// (e.g., /var/www/html vs /var/www/html2).
+$real_web_root_sep = rtrim($real_web_root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+$real_save_parent_sep = rtrim($real_save_parent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+if (strpos($real_save_parent_sep, $real_web_root_sep) !== 0) {
     http_response_code(400);
     die("Target path outside web root\n");
 }
