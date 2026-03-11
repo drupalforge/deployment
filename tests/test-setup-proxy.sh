@@ -51,7 +51,7 @@ test_apache_proxy_fallback() {
 
 # Test 5: Rewrite rules generation
 test_rewrite_rules() {
-    # Shared file-existence bypass and per-path handler routing (full per-path structure in tests 9 and 11)
+    # Shared file-existence bypass and per-path handler routing (detailed per-path structure validated in test_inline_rewrite_awk and test_image_style_proxied_when_original_missing)
     if grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -f \[OR\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteCond %%{DOCUMENT_ROOT}%%{REQUEST_URI} -d' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
         grep -q 'RewriteRule \^ - \[L\]' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
@@ -149,20 +149,42 @@ test_setenv_in_vhost_block() {
 
 # Test 13: Proxy rules are injected at the BEGINNING of the VirtualHost block
 # (immediately after the opening <VirtualHost ...> tag), not at the end.
-# Rules injected at the end would run AFTER any catch-all PHP routing rule
-# already in the base image's VirtualHost (e.g. RewriteRule ^ index.php [L]),
-# which would send image-style requests to Drupal before our proxy rules run.
+#
+# The DevPanel base image's VirtualHost has a specific routing rule for Drupal
+# image styles that routes those URLs directly to index.php for on-the-fly
+# derivative generation:
+#   RewriteCond %{REQUEST_URI} ^/sites/default/files/styles/[^/]+/public/
+#   RewriteRule ^ index.php [L]
+#
+# Regular file proxy works because the base image's general catch-all typically
+# excludes /sites/default/files/ paths from PHP routing (they would 404 rather
+# than be generated).  The image-style rule, however, fires unconditionally for
+# all styles/ URLs.  When proxy rules were injected at the END of the VirtualHost,
+# this image-style routing rule ran first and sent every request for a missing
+# styled image straight to Drupal — which reported "Error generating image,
+# missing source file" because the original had never been downloaded.
+#
+# Injecting at the START ensures our proxy rules are evaluated first for every
+# request, regardless of what catch-all or image-style routing rules the base
+# image provides.
 test_proxy_rules_injected_at_vhost_start() {
-    # Simulate a vhost file that has a catch-all PHP routing rule before </VirtualHost>
+    # Simulate the DevPanel base image VirtualHost: a dedicated image-style routing
+    # rule (the root cause) followed by a general catch-all.
     local tmp_vhost
     tmp_vhost=$(mktemp)
     cat > "$tmp_vhost" <<'EOF'
 <VirtualHost *:80>
     DocumentRoot /var/www/html/web
-    RewriteEngine On
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [L]
+    <IfModule mod_rewrite.c>
+        RewriteEngine on
+        # Dedicated image-style generation route (DevPanel base image pattern)
+        RewriteCond %{REQUEST_URI} ^/sites/default/files/styles/[^/]+/public/
+        RewriteRule ^ index.php [L]
+        # General catch-all for missing files/directories
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ index.php [L]
+    </IfModule>
 </VirtualHost>
 EOF
 
@@ -201,17 +223,19 @@ EOF
     END { if (inserted==0) { exit 1 } }
     ' "$tmp_vhost" > "$tmp_out"
 
-    # Proxy block must appear BEFORE the catch-all RewriteRule ^ index.php
-    local proxy_line catchall_line
+    # Proxy block must appear BEFORE both the image-style routing rule and the
+    # general catch-all.  We check against the first occurrence of index.php
+    # routing (whichever it is — image-style or generic).
+    local proxy_line imagestyle_line
     proxy_line=$(grep -n 'drupalforge-proxy-handler' "$tmp_out" | head -1 | cut -d: -f1)
-    catchall_line=$(grep -n 'RewriteRule \^ index.php' "$tmp_out" | head -1 | cut -d: -f1)
+    imagestyle_line=$(grep -n 'RewriteRule \^ index\.php' "$tmp_out" | head -1 | cut -d: -f1)
 
     rm -f "$tmp_vhost" "$tmp_out" "$tmp_block"
 
-    if [ -n "$proxy_line" ] && [ -n "$catchall_line" ] && [ "$proxy_line" -lt "$catchall_line" ]; then
-        echo -e "${GREEN}✓ Proxy rules are injected at the start of VirtualHost (before catch-all PHP routing rule)${NC}"
+    if [ -n "$proxy_line" ] && [ -n "$imagestyle_line" ] && [ "$proxy_line" -lt "$imagestyle_line" ]; then
+        echo -e "${GREEN}✓ Proxy rules are injected at the start of VirtualHost (before image-style and catch-all routing)${NC}"
     else
-        echo -e "${RED}✗ Proxy rules not injected at start of VirtualHost — catch-all rule would shadow them${NC}"
+        echo -e "${RED}✗ Proxy rules not injected at start of VirtualHost — Drupal image-style routing would shadow them${NC}"
         exit 1
     fi
 }
