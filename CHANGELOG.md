@@ -2,6 +2,67 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Fix image-style proxy: correct RewriteCond and refactor PHP handler
+
+### Ensure image-style URLs are correctly proxied
+
+**Context:**
+Drupal image-style URLs contain a `?itok=…` cache-buster. The existing image-style `RewriteCond` was negated (`!^…`), so it never set `%1` to the original file's subpath. As a result, proxy rules never fired for styled images; Drupal received requests with no source file on disk and returned "Error generating image, missing source file."
+
+Regular file proxy was unaffected because no negation existed for non-`styles/` paths.
+
+**Done definition:**
+- [x] `setup-proxy.sh` image-style `RewriteCond` uses `(.+)$` capture group; the condition is a POSITIVE (non-negated) match so that `%1` is correctly set to the original file's subpath
+- [x] `setup-proxy.sh` regular file proxy `RewriteCond` simplified from `^%s(/|$)` to `^%s/` (no reason to proxy just the directory)
+- [x] `setup-proxy.sh` injects the managed rewrite block into both `/templates/000-default.conf` and `/etc/apache2/sites-enabled/000-default.conf` (direct vhost); `/etc/apache2/sites-available` remains untouched
+- [x] `proxy-handler.php` 302 redirect logic extracted into a reusable `redirect_to_requested_uri()` function shared by both early-exit and post-download paths
+- [x] `tests/integration-test.sh` "File proxy setup (rewrite rules)" assertion updated to grep `sites-enabled/000-default.conf`
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/test-proxy-handler.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] CI integration tests pass
+
+**Implementation notes:**
+- Apache's `%{REQUEST_URI}` is the path component of the URL only; the query string (`?itok=…`) is provided separately via `%{QUERY_STRING}`. The original `(.+)$` capture group is correct — the `$` end-anchor matches the end of the path since `%{REQUEST_URI}` never contains a `?`. The primary fix was ensuring the condition is a positive (non-negated) match so that `%1` is correctly set to the image subpath.
+- The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
+## Fix integration test failures (apache-start.sh template overwrite)
+
+### Ensure proxy rules survive apache-start.sh template copy before Apache starts
+
+**Context:**
+`deployment-entrypoint.sh` calls `setup-proxy.sh` which injects rewrite rules into
+`/etc/apache2/sites-enabled/000-default.conf`. However, `apache-start.sh` (the DevPanel
+base image startup script) runs `sudo cp /templates/000-default.conf /etc/apache2/sites-enabled/000-default.conf`
+AFTER the entrypoint finishes, overwriting the injected rules. Apache then starts with no proxy rules.
+
+The fix: `setup-proxy.sh` now injects rules into BOTH `/etc/apache2/sites-enabled/000-default.conf`
+(live config) and `/templates/000-default.conf` (always present in the DevPanel base image).
+When `apache-start.sh` copies the template over the live config, the rules are already in the
+template so they are preserved.
+
+**Done definition:**
+- [x] `setup-proxy.sh` injects rules into both `/etc/apache2/sites-enabled/000-default.conf` and `/templates/000-default.conf`
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] CI integration tests pass
+
+**Action items:**
+- [x] Update `setup-proxy.sh` to inject into both files
+- [x] Remove `scripts/apache2-foreground-wrapper.sh`
+- [x] Revert Dockerfile to remove the wrapper COPY
+- [x] Update test-setup-proxy.sh test 10 to assert both targets
+- [x] Run unit tests
+- [x] Verify CI
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
 ## Fix CSS/MIME detection and simplify proxy setup
 
 ### Replace PHP MIME serving with 302 redirect; inject rewrite rules into vhost config

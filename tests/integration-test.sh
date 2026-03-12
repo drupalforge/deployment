@@ -331,7 +331,7 @@ fi
 
 # Test 6: File proxy - request missing file from origin
 if run_test "File proxy setup (rewrite rules)" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc \"grep -q 'RewriteRule.*proxy-handler' /etc/apache2/sites-available/000-default.conf\""; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc \"grep -q 'RewriteRule.*proxy-handler' /etc/apache2/sites-enabled/000-default.conf\""; then
     ((passed=passed+1))
 else
     ((failed=failed+1))

@@ -81,7 +81,6 @@ test_redirects_after_download() {
         exit 1
     fi
 }
-
 # Test 8: Query string is preserved in the redirect URI
 # Grep the handler itself to confirm it reconstructs original request metadata
 # from Apache redirect/server vars and preserves the query string in redirect URI.
@@ -126,6 +125,81 @@ test_image_styles() {
     fi
 }
 
+# Test 12: Image style path regex correctly maps a styled image URL to the original path.
+# Extracts the regex from the handler at test time so the test stays in sync with
+# any future changes to the pattern.
+test_image_style_regex() {
+    if ! command -v php > /dev/null 2>&1; then
+        echo -e "${YELLOW}⊘ Skipped: image style regex test requires PHP${NC}"
+        return 0
+    fi
+
+    local tmpfile
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test_proxy_regex_XXXXXX.php")
+    # shellcheck disable=SC2064
+    trap "rm -f '$tmpfile'" EXIT
+
+    cat > "$tmpfile" << 'PHPEOF'
+<?php
+$src = file_get_contents($argv[1]);
+// Extract the preg_match pattern used for image style path detection.
+// Handles both single- and double-quoted pattern strings.
+if (!preg_match("/preg_match\(['\"]+(#[^'\"]+#)/", $src, $pm)) {
+    fwrite(STDERR, "Cannot extract image style regex from handler\n");
+    exit(2);
+}
+$pat = $pm[1];
+
+// Test cases: [input path, expected download path]
+$cases = [
+    // Styled image URL → original file path (example from the bug report)
+    ['/sites/default/files/styles/medium/public/2026-02/photo.jpg',
+     '/sites/default/files/2026-02/photo.jpg'],
+    // Nested original path is preserved
+    ['/sites/default/files/styles/thumbnail/public/subdir/image.png',
+     '/sites/default/files/subdir/image.png'],
+    // Non-styled path is unchanged
+    ['/sites/default/files/direct/image.jpg',
+     '/sites/default/files/direct/image.jpg'],
+];
+
+$fail = 0;
+foreach ($cases as [$input, $expected]) {
+    $download = $input;
+    if (preg_match($pat, $input, $m)) {
+        $download = $m[1] . '/' . $m[2];
+    }
+    if ($download !== $expected) {
+        fwrite(STDERR, "FAIL input=$input expected=$expected got=$download\n");
+        $fail = 1;
+    }
+}
+exit($fail);
+PHPEOF
+
+    local output
+    output=$(php "$tmpfile" "$HANDLER" 2>&1)
+    local exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo -e "${GREEN}✓ Image style regex correctly maps styled paths to original file paths${NC}"
+    else
+        echo -e "${RED}✗ Image style regex: $output${NC}"
+        exit 1
+    fi
+}
+
+# Test 13: Handler skips re-download when the original file already exists on disk.
+# This prevents redundant origin fetches and breaks any redirect loop that could
+# arise if the rewrite rules fire again before Drupal has generated the derivative.
+test_skip_download_if_exists() {
+    if grep -q "file_exists.*save_path" "$HANDLER"; then
+        echo -e "${GREEN}✓ Handler skips download when original already exists on disk${NC}"
+    else
+        echo -e "${RED}✗ Handler does not short-circuit when original already exists${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_file_exists
 test_php_syntax
@@ -138,5 +212,7 @@ test_redirect_preserves_query_string
 test_error_handling
 test_env_origin
 test_image_styles
+test_image_style_regex
+test_skip_download_if_exists
 
 echo -e "${GREEN}✓ PHP handler tests passed${NC}"
