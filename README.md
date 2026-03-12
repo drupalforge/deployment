@@ -114,12 +114,14 @@ Digital assets are retrieved on-demand from the origin site using one of two met
    - No additional configuration needed if installed
 
 2. **Apache Reverse Proxy with Conditional Serving** (fallback):
-   - Serves local files if they exist at the requested path
-   - Proxies to origin only if the file doesn't exist locally
-   - Allows users to add/modify files locally that are served directly
-   - Works for any paths specified by `FILE_PROXY_PATHS`
-   - Useful for sites without Stage File Proxy module
-   - Rewrite rules must run in the configured web root directory context (`<Directory "${WEB_ROOT}">`) so proxy routing applies to vhost-served requests
+  - Serves local files if they exist at the requested path
+  - Proxies to origin only if the file doesn't exist locally
+  - Allows users to add/modify files locally that are served directly
+  - Works for any paths specified by `FILE_PROXY_PATHS`
+  - Excludes `${FILE_PROXY_PATHS}/css/*` and `${FILE_PROXY_PATHS}/js/*` from regular file proxying so site-specific aggregated asset filenames are resolved by the local Drupal site
+  - Handles `${FILE_PROXY_PATHS}/styles/*` as image-style requests by downloading the original source image and letting Drupal generate the derivative locally
+  - Useful for sites without Stage File Proxy module
+  - Rewrite rules are injected into the Apache VirtualHost configuration managed by `setup-proxy.sh`
 
 ## Environment Variables
 
@@ -186,7 +188,10 @@ When using Apache reverse proxy (fallback when Stage File Proxy not available), 
 **Result:** Origin files are downloaded on first access and saved to their real paths. Users can add new local files anytime. Downloaded files are discoverable and editable in the filesystem.
 
 **Drupal Image Styles Support:**
-The proxy handler has special support for Drupal image styles. When a styled image is requested (e.g., `/sites/default/files/styles/thumbnail/public/image.jpg`) and doesn't exist locally, the handler automatically retrieves the original file (e.g., `/sites/default/files/image.jpg`) from the origin server. This allows Drupal to generate the styled version on-demand. The original file is saved to disk for future use, and Drupal can create all necessary image style derivatives from it.
+The proxy handler has special support for Drupal image styles. When a styled image is requested (e.g., `/sites/default/files/styles/thumbnail/public/image.jpg`) and doesn't exist locally, the handler does not proxy the styled derivative from origin. Instead, it retrieves the original file (e.g., `/sites/default/files/image.jpg`) from the origin server. This allows Drupal to generate the styled version on-demand. The original file is saved to disk for future use, and Drupal can create all necessary image style derivatives from it.
+
+**Generated CSS/JS Exclusions:**
+For each configured `FILE_PROXY_PATHS` entry, Apache fallback proxy rules intentionally skip `${path}/css/` and `${path}/js/`. Drupal aggregated CSS/JS filenames are environment-specific, so proxying those paths to origin commonly returns 404s for valid local requests.
 
 - `APP_ROOT` - Application root directory
 - `PHP_MEMORY_LIMIT` - PHP memory limit

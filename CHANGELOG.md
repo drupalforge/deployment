@@ -2,6 +2,30 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Exclude generated CSS/JS from Apache file proxy
+
+### Prevent proxy misses for per-site asset filenames
+
+**Context:**
+Drupal aggregated CSS/JS asset filenames differ across sites and environments. Proxying `${FILE_PROXY_PATHS}/css/*` and `${FILE_PROXY_PATHS}/js/*` to origin causes unnecessary misses because those generated filenames often do not exist on origin for the current site.
+
+**Done definition:**
+- [x] `scripts/setup-proxy.sh` excludes `${path}/css/` and `${path}/js/` from regular file-proxy RewriteConds for every configured file proxy path
+- [x] `tests/test-setup-proxy.sh` validates the generated rewrite rules include CSS/JS exclusions
+- [x] `README.md` documents that Apache fallback proxy excludes generated CSS/JS paths and why
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Implementation notes:**
+- Added explicit regular-file rewrite exclusions for `${path}/css/` and `${path}/js/` in `configure_apache_proxy()` so generated aggregated assets are handled by the local Drupal runtime instead of being fetched from origin.
+- Clarified docs that image-style requests under `${path}/styles/` do not proxy derivatives from origin; they trigger original-image download so Drupal generates styles locally.
+- Extended `tests/test-setup-proxy.sh` per-path rewrite checks to assert CSS/JS/style subtree exclusions.
+- Updated README proxy behavior notes to document why CSS/JS paths are excluded under Apache fallback mode.
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
 ## Fix image-style proxy: correct RewriteCond and refactor PHP handler
 
 ### Ensure image-style URLs are correctly proxied
