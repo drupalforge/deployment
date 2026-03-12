@@ -52,6 +52,9 @@ COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
 COPY scripts/setup-proxy.sh /usr/local/bin/setup-proxy
 COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
+# Wrap apache2-foreground so setup-proxy runs after apache-start.sh copies the
+# DevPanel vhost template (which overwrites any rules written by the entrypoint).
+COPY scripts/apache2-foreground-wrapper.sh /usr/local/bin/apache2-foreground
 
 # Copy Apache configuration for proxy and PHP proxy handler
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
