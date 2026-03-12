@@ -139,12 +139,6 @@ configure_apache_proxy() {
 
   {
     printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
-    # Make ORIGIN_URL and WEB_ROOT available to the PHP handler at request time.
-    # PHP running under Apache does not inherit shell environment variables; these
-    # SetEnv directives are the standard Apache mechanism to pass values to PHP.
-    printf '    SetEnv ORIGIN_URL "%s"\n' "$origin_url"
-    printf '    SetEnv WEB_ROOT "%s"\n' "$web_root"
-    printf '\n'
     printf '    <IfModule mod_rewrite.c>\n'
     printf '        RewriteEngine On\n'
     printf '\n'
@@ -171,7 +165,7 @@ configure_apache_proxy() {
       # generate a derivative, the request falls through to Drupal's own routing.
       printf '        # File proxy: %s\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} ^%s(/|$)\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/\n' "$path"
       printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
       printf '\n'
     done
@@ -210,14 +204,7 @@ configure_apache_proxy() {
       next
     }
 
-    # Inject proxy rules immediately after the opening <VirtualHost ...> tag so
-    # they are evaluated FIRST — before any catch-all PHP routing rules that the
-    # base image may already have in the VirtualHost block (e.g. RewriteRule ^
-    # index.php [L]).  Injecting at the end (before </VirtualHost>) would allow
-    # those catch-all rules to intercept image-style requests before our proxy
-    # rules ever run.
-    /^[[:space:]]*<VirtualHost[[:space:]>]/ {
-      print
+    /^[[:space:]]*<\/VirtualHost>/ {
       if (inserted==0) {
         while ((getline block_line < block_file) > 0) {
           print block_line
@@ -225,6 +212,7 @@ configure_apache_proxy() {
         close(block_file)
         inserted=1
       }
+      print
       next
     }
 
