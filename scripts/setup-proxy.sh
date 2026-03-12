@@ -112,9 +112,8 @@ configure_apache_proxy() {
     proxy_paths+=("/sites/default/files")
   fi
 
-  if [ ! -f "/etc/apache2/sites-available/000-default.conf" ] && \
-     [ ! -f "/templates/000-default.conf" ]; then
-    error "Apache vhost configuration file does not exist at /etc/apache2/sites-available/000-default.conf or /templates/000-default.conf"
+  if [ ! -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
+    error "Apache vhost configuration file does not exist at /etc/apache2/sites-enabled/000-default.conf"
     return 1
   fi
 
@@ -180,19 +179,18 @@ configure_apache_proxy() {
     printf '    # END DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
   } > "$vhost_block"
 
-  local vhost_applied=0
-  local vhost_target
-  local -a vhost_targets=()
+  local vhost_target="/etc/apache2/sites-enabled/000-default.conf"
 
-  # Write to both template and sites-available so rules persist across restarts.
-  # The loop below skips files that don't exist, so it's safe to list both.
-  vhost_targets+=("/templates/000-default.conf")
-  vhost_targets+=("/etc/apache2/sites-available/000-default.conf")
+  # sites-enabled/000-default.conf is the live file Apache reads.
+  # On DevPanel it is not a symlink — it must be updated directly.
+  # We do not touch /templates or sites-available.
+  if [ ! -f "$vhost_target" ]; then
+    rm -f "$vhost_block" "$vhost_output"
+    error "Apache vhost configuration file not found: $vhost_target"
+    return 1
+  fi
 
-  for vhost_target in "${vhost_targets[@]}"; do
-    [ -f "$vhost_target" ] || continue
-
-    if awk -v block_file="$vhost_block" '
+  if awk -v block_file="$vhost_block" '
     BEGIN {
       inserted=0
       skip=0
@@ -238,22 +236,18 @@ configure_apache_proxy() {
       }
     }
   ' "$vhost_target" > "$vhost_output"; then
-      # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
-      if sudo -n tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1 || \
-         tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1; then
-        log "Rewrite rules added to Apache vhost configuration: $vhost_target"
-        vhost_applied=1
-      else
-        log "Warning: Failed to write rewrite rules to Apache vhost configuration: $vhost_target"
-      fi
+    # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
+    if sudo -n tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1 || \
+       tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1; then
+      log "Rewrite rules added to Apache vhost configuration: $vhost_target"
     else
-      log "Warning: Failed to configure proxy rules in Apache vhost configuration: $vhost_target"
+      rm -f "$vhost_block" "$vhost_output"
+      error "Failed to write rewrite rules to Apache vhost configuration: $vhost_target"
+      return 1
     fi
-  done
-
-  if [ "$vhost_applied" -eq 0 ]; then
+  else
     rm -f "$vhost_block" "$vhost_output"
-    error "Failed to configure proxy rules in Apache vhost configuration"
+    error "Failed to configure proxy rules in Apache vhost configuration: $vhost_target"
     return 1
   fi
 
