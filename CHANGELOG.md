@@ -2,6 +2,35 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Fix image-style proxy: correct RewriteCond regex to handle query strings
+
+### Ensure `?itok=…` query strings do not break the image-style proxy rule
+
+**Context:**
+Drupal image-style URLs contain a `?itok=…` cache-buster. The existing image-style `RewriteCond` used a `(.+)$` capture group with a `$` end-anchor, which failed to match when Apache's `%{REQUEST_URI}` included that query string. As a result, proxy rules never fired for styled images; Drupal received requests with no source file on disk and returned "Error generating image, missing source file."
+
+Regular file proxy was unaffected because no `$` end-anchor or image-style intercept existed for non-`styles/` paths.
+
+**Done definition:**
+- [x] `setup-proxy.sh` image-style `RewriteCond` uses `([^?]+)` capture group (stops at `?`; no `$` end-anchor)
+- [x] `setup-proxy.sh` regular file proxy `RewriteCond` simplified from `^%s(/|$)` to `^%s/` (no reason to proxy just the directory)
+- [x] `setup-proxy.sh` targets `/etc/apache2/sites-enabled/000-default.conf` directly (not a symlink on DevPanel); `/templates` and `sites-available` untouched
+- [x] `proxy-handler.php` 302 redirect logic extracted into a reusable `redirect_to_requested_uri()` function shared by both early-exit and post-download paths
+- [x] `tests/integration-test.sh` "File proxy setup (rewrite rules)" assertion updated to grep `sites-enabled/000-default.conf`
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/test-proxy-handler.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] CI integration tests pass
+
+**Implementation notes:**
+- `%{REQUEST_URI}` in Apache mod_rewrite includes the query string. Using `(.+)$` meant the pattern required the string to end immediately after the filename, which is false when `?itok=…` is present.
+- `([^?]+)` captures any character except `?`, stopping cleanly at the query string boundary.
+- The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
 ## Fix CSS/MIME detection and simplify proxy setup
 
 ### Replace PHP MIME serving with 302 redirect; inject rewrite rules into vhost config
