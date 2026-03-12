@@ -2,6 +2,36 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Add and require markdownlint with baseline tracking
+
+### Validate Markdown formatting without blocking legacy doc debt
+
+**Context:**
+The suite initially had no Markdown lint coverage. Then `markdownlint` was made required, which exposed many existing repository violations. To avoid masking rules globally while still keeping CI actionable, Markdown lint now enforces "no new violations" via a baseline file.
+
+**Done definition:**
+- [x] Add Markdown lint configuration at repository root
+- [x] Add `tests/test-markdown-lint.sh` using repository output conventions
+- [x] Make `markdownlint` required for markdown lint unit tests
+- [x] Install `markdownlint-cli` in unit-test CI setup
+- [x] Track existing violations in `tests/markdownlint-baseline.txt`
+- [x] Compare current lint results against baseline so new violations fail
+- [x] Add `tests/update-markdownlint-baseline.sh` to regenerate baseline after intentional cleanup
+- [x] Update `tests/README.md` to document required tool + baseline workflow
+- [x] `bash tests/test-markdown-lint.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Implementation notes:**
+- `tests/test-markdown-lint.sh` fails if `markdownlint` is missing and compares lint output to baseline entries.
+- Baseline entries are stored as `<file> <rule> <count>` (not line-based), reducing churn from line movement.
+- `.github/workflows/tests.yml` installs `markdownlint-cli` for deterministic CI unit-test runs.
+- Install guidance now links to official `markdownlint-cli` installation docs rather than prescribing one local install method.
+- Added TODO tracking for baseline burn-down until `tests/markdownlint-baseline.txt` is empty/removed.
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
 ## Exclude generated CSS/JS from Apache file proxy
 
 ### Prevent proxy misses for per-site asset filenames

@@ -84,6 +84,8 @@ trap 'rm -rf "${TMPDIR}"' EXIT
 
 - Track ongoing work, open questions, and deferred improvements in `TODO.md` at the repository root.
 - Each item should include: context, action items as a checklist, and references.
+- While work is still in-flight, update the existing task entry instead of creating a new duplicate entry.
+- If work is on `main` and not yet committed, or in a pull request that is not yet merged, amend the existing TODO/CHANGELOG task entry for that work rather than adding a new task section.
 - **When a task is complete,** move it from `TODO.md` to `CHANGELOG.md` with its full context, done definition, and completion date.
 - Do not remove completed items from the repository — move them to the changelog for historical record.
 - Do not track ephemeral in-flight notes anywhere else in the repository.

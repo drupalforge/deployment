@@ -1,5 +1,25 @@
 # TODO List
 
+## Burn down markdownlint baseline
+
+### Resolve existing Markdown lint debt tracked in baseline
+
+**Context:**
+Markdown linting now runs as a required test, but existing repository violations are tracked in a baseline so only new violations fail CI. The baseline should be reduced over time until it is empty.
+
+**Done definition:**
+- [ ] Existing baseline violations are fixed in docs files
+- [ ] `tests/markdownlint-baseline.txt` is reduced or removed
+- [ ] `bash tests/test-markdown-lint.sh` passes with no new violations
+- [ ] `bash tests/unit-test.sh` passes locally
+
+**Action items:**
+- [ ] Fix baseline entries incrementally by file/section
+- [ ] Regenerate baseline as entries are resolved
+- [ ] Remove baseline entirely once markdownlint is clean
+
+---
+
 ## Drupal 11 recommended-project compatibility
 
 ### Make DevPanel settings and tests compatible with Drupal 11 minimal install

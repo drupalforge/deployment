@@ -25,7 +25,9 @@ jobs:
         run: |
           # Install PHP for syntax checking
           sudo apt-get update
-          sudo apt-get install -y php-cli php-curl jq
+          sudo apt-get install -y php-cli php-curl jq npm
+          # Install markdownlint-cli for required Markdown lint unit tests.
+          sudo npm install -g markdownlint-cli
           # Install the latest shellcheck release from GitHub to ensure consistency with
           # local development environments (avoids version skew with the apt package).
           SHELLCHECK_VERSION=$(curl -fsSL https://api.github.com/repos/koalaman/shellcheck/releases/latest \

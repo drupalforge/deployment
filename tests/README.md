@@ -55,6 +55,7 @@ These tests use `grep` and file inspection to check:
 - Configuration files exist
 - Code patterns are present
 - YAML files follow consistent formatting (via yamllint)
+- Markdown files follow consistent formatting (via markdownlint)
 
 **Important**: Unit tests do NOT build Docker images. They only check the text content of files.
 
@@ -260,3 +261,28 @@ yamllint .github/workflows/*.yml tests/*.yml
 ```bash
 pip install yamllint
 ```
+
+### Markdown Linting
+
+The test suite includes Markdown linting via `markdownlint` to validate formatting consistency across repository documentation.
+`markdownlint` is required for `bash tests/unit-test.sh` and CI unit tests.
+
+**Configuration**: `.markdownlint.json` at repository root
+
+**Baseline**: `tests/markdownlint-baseline.txt`
+- Existing known violations are tracked in the baseline.
+- Baseline entries are stored as file + rule + count, so line movement does not churn the baseline.
+- Unit tests fail only on violations not present in the baseline.
+- Regenerate after intentional documentation cleanup:
+```bash
+bash tests/update-markdownlint-baseline.sh
+```
+
+**To run manually**:
+```bash
+markdownlint --config .markdownlint.json "**/*.md"
+```
+
+**Requirements**: Install markdownlint (required). See installation options:
+
+<https://github.com/igorshubovych/markdownlint-cli?tab=readme-ov-file#installation>

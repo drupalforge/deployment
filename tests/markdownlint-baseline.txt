@@ -1,0 +1,35 @@
+# markdownlint baseline
+# Format: <workspace-relative-path> <rule> <count>
+# Regenerate with: bash tests/update-markdownlint-baseline.sh
+
+.githooks/README.md MD031 5
+.githooks/README.md MD032 3
+.githooks/README.md MD040 1
+.githooks/README.md MD060 4
+.github/workflows/README.md MD032 1
+AGENTS.md MD012 1
+AGENTS.md MD022 4
+AGENTS.md MD031 13
+AGENTS.md MD032 15
+AGENTS.md MD060 8
+CHANGELOG.md MD012 1
+CHANGELOG.md MD031 2
+CHANGELOG.md MD032 29
+CHANGELOG.md MD036 20
+CHANGELOG.md MD040 1
+README.md MD007 8
+README.md MD009 2
+README.md MD031 1
+README.md MD032 14
+README.md MD040 2
+README.md MD060 18
+TODO.md MD012 2
+TODO.md MD032 6
+tests/INTEGRATION_TESTING.md MD022 4
+tests/INTEGRATION_TESTING.md MD031 4
+tests/INTEGRATION_TESTING.md MD032 1
+tests/INTEGRATION_TESTING.md MD040 1
+tests/README.md MD022 7
+tests/README.md MD031 25
+tests/README.md MD032 9
+tests/README.md MD060 10
