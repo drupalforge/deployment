@@ -131,11 +131,9 @@ configure_apache_proxy() {
     normalized_paths+=("/sites/default/files")
   fi
 
-  # Inject managed rewrite rules into the active vhost scope.
+  # Build the rewrite block once and reuse for each target file.
   local vhost_block
-  local vhost_output
   vhost_block=$(mktemp)
-  vhost_output=$(mktemp)
 
   {
     printf '    # BEGIN DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
@@ -173,73 +171,87 @@ configure_apache_proxy() {
     printf '    # END DRUPALFORGE PROXY RULES (managed by setup-proxy.sh)\n'
   } > "$vhost_block"
 
-  local vhost_target="/etc/apache2/sites-enabled/000-default.conf"
+  # inject_proxy_rules <vhost_target>
+  # Injects (or replaces) the managed rewrite block in a vhost config file.
+  # Returns 1 on failure (errors are logged to stderr via error()).
+  inject_proxy_rules() {
+    local target="$1"
+    local output
+    output=$(mktemp)
 
-  # sites-enabled/000-default.conf is the live file Apache reads.
-  # On DevPanel it is not a symlink — it must be updated directly.
-  # We do not touch /templates or sites-available.
-  if [ ! -f "$vhost_target" ]; then
-    rm -f "$vhost_block" "$vhost_output"
-    error "Apache vhost configuration file not found: $vhost_target"
-    return 1
-  fi
-
-  if awk -v block_file="$vhost_block" '
-    BEGIN {
-      inserted=0
-      skip=0
-      start_marker="^[[:space:]]*# BEGIN DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
-      end_marker="^[[:space:]]*# END DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
-    }
-
-    skip {
-      if ($0 ~ end_marker) {
+    if awk -v block_file="$vhost_block" '
+      BEGIN {
+        inserted=0
         skip=0
+        start_marker="^[[:space:]]*# BEGIN DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
+        end_marker="^[[:space:]]*# END DRUPALFORGE PROXY RULES \\(managed by setup-proxy\\.sh\\)"
       }
-      next
-    }
 
-    $0 ~ start_marker {
-      skip=1
-      next
-    }
-
-    /^[[:space:]]*<\/VirtualHost>/ {
-      if (inserted==0) {
-        while ((getline block_line < block_file) > 0) {
-          print block_line
+      skip {
+        if ($0 ~ end_marker) {
+          skip=0
         }
-        close(block_file)
-        inserted=1
+        next
       }
-      print
-      next
-    }
 
-    { print }
-
-    END {
-      if (inserted==0) {
-        exit 1
+      $0 ~ start_marker {
+        skip=1
+        next
       }
-    }
-  ' "$vhost_target" > "$vhost_output"; then
-    # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
-    if sudo -n tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1 || \
-       tee "$vhost_target" < "$vhost_output" >/dev/null 2>&1; then
-      log "Rewrite rules added to Apache vhost configuration: $vhost_target"
+
+      /^[[:space:]]*<\/VirtualHost>/ {
+        if (inserted==0) {
+          while ((getline block_line < block_file) > 0) {
+            print block_line
+          }
+          close(block_file)
+          inserted=1
+        }
+        print
+        next
+      }
+
+      { print }
+
+      END {
+        if (inserted==0) {
+          exit 1
+        }
+      }
+    ' "$target" > "$output"; then
+      # shellcheck disable=SC2024  # < redirect reads temp file; tee writes vhost file with sudo
+      if sudo -n tee "$target" < "$output" >/dev/null 2>&1 || \
+         tee "$target" < "$output" >/dev/null 2>&1; then
+        log "Rewrite rules added to Apache vhost configuration: $target"
+      else
+        rm -f "$output"
+        error "Failed to write rewrite rules to Apache vhost configuration: $target"
+        return 1
+      fi
     else
-      rm -f "$vhost_block" "$vhost_output"
-      error "Failed to write rewrite rules to Apache vhost configuration: $vhost_target"
+      rm -f "$output"
+      error "Failed to configure proxy rules in Apache vhost configuration: $target"
       return 1
     fi
-  else
-    rm -f "$vhost_block" "$vhost_output"
-    error "Failed to configure proxy rules in Apache vhost configuration: $vhost_target"
+
+    rm -f "$output"
+  }
+
+  # Inject rules into the live vhost config (required).
+  if ! inject_proxy_rules "/etc/apache2/sites-enabled/000-default.conf"; then
+    rm -f "$vhost_block"
     return 1
   fi
 
-  rm -f "$vhost_block" "$vhost_output"
+  # Also inject into the DevPanel vhost template so the rules survive the
+  # `sudo cp /templates/000-default.conf /etc/apache2/sites-enabled/000-default.conf`
+  # performed by apache-start.sh when Apache starts.
+  if ! inject_proxy_rules "/templates/000-default.conf"; then
+    rm -f "$vhost_block"
+    return 1
+  fi
+
+  rm -f "$vhost_block"
 
   # Enable the drupalforge-proxy conf (a2enconf is idempotent so always safe to call).
   # setup-proxy.sh owns the full conf lifecycle so that re-runs reliably reload the config.

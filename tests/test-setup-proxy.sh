@@ -108,13 +108,14 @@ test_inline_rewrite_awk() {
     fi
 }
 
-# Test 10: Script targets vhost-scoped rewrite injection for live requests
+# Test 10: Script injects rewrite rules into both the live vhost config and the DevPanel template
 test_vhost_rewrite_scope() {
     if grep -q '/etc/apache2/sites-enabled/000-default.conf' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q '/templates/000-default.conf' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q 'BEGIN DRUPALFORGE PROXY RULES' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
-        echo -e "${GREEN}✓ Script injects managed rewrite rules into active vhost scope${NC}"
+        echo -e "${GREEN}✓ Script injects managed rewrite rules into both live vhost and DevPanel template${NC}"
     else
-        echo -e "${RED}✗ Script does not manage vhost-scoped rewrite injection${NC}"
+        echo -e "${RED}✗ Script does not inject rewrite rules into both vhost targets${NC}"
         exit 1
     fi
 }
