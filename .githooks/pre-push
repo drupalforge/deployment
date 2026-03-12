@@ -125,7 +125,7 @@ if [ "$RUN_INTEGRATION" = true ]; then
 fi
 
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║         All tests passed! Proceeding with push...             ║${NC}"
+echo -e "${GREEN}║         All tests passed! Proceeding with push...              ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

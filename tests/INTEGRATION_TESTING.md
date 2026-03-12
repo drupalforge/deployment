@@ -35,6 +35,7 @@ bash integration-test.sh
 ```
 
 This will:
+
 1. Start all services
 2. Build the deployment image
 3. Run 18 validation tests covering:
@@ -100,6 +101,7 @@ The integration test validates:
 ## Troubleshooting
 
 ### Services won't start
+
 ```bash
 # Check Docker resources
 docker system df
@@ -109,6 +111,7 @@ docker system prune -a
 ```
 
 ### Tests timeout
+
 ```bash
 # Manually check service status
 docker-compose -f docker-compose.test.yml ps
@@ -118,12 +121,14 @@ docker-compose -f docker-compose.test.yml logs deployment
 ```
 
 ### MinIO connection issues
+
 ```bash
 # Check if MinIO is running and bucket exists
 docker-compose -f docker-compose.test.yml exec minio mc ls minio/test-deployments
 ```
 
 ### Database import didn't happen
+
 ```bash
 # Check MySQL
 docker-compose -f docker-compose.test.yml exec mysql mysql -uroot -proot_password -Ddrupaldb -e "SHOW TABLES;"
@@ -133,7 +138,7 @@ docker-compose -f docker-compose.test.yml exec mysql mysql -uroot -proot_passwor
 
 The test deployment container receives:
 
-```
+```text
 DB_HOST=mysql
 DB_USER=drupal
 DB_PASSWORD=drupal_password

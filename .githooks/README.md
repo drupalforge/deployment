@@ -20,6 +20,7 @@ The pre-push hook runs automatically before `git push` and performs the followin
 When Git invokes hooks with stdin attached to a pipe instead of a terminal, the hook reattaches stdin to `/dev/tty` (when available). This allows test scripts to prompt for `sudo` credentials interactively instead of skipping sudo-dependent checks.
 
 This ensures that:
+
 - Only relevant tests run (faster feedback)
 - Broken code doesn't get pushed
 - Tests that passed before continue to pass
@@ -68,7 +69,8 @@ git push
 ```
 
 You'll see output like:
-```
+
+```text
 ╔════════════════════════════════════════════════════════════════╗
 ║                     Pre-Push Hook                              ║
 ╚════════════════════════════════════════════════════════════════╝
@@ -80,7 +82,7 @@ Running unit tests...
 ✓ Unit tests passed
 
 ╔════════════════════════════════════════════════════════════════╗
-║         All tests passed! Proceeding with push...             ║
+║         All tests passed! Proceeding with push...              ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
 
@@ -116,7 +118,7 @@ git config core.hooksPath .githooks
 The pre-push hook is smart about what to test:
 
 | Changed Files | Tests Run |
-|---------------|-----------|
+| ------------- | --------- |
 | `Dockerfile` | Docker build + Integration |
 | `scripts/*.sh` | Unit + Docker build |
 | `tests/*.sh` | Unit tests |
@@ -126,6 +128,7 @@ The pre-push hook is smart about what to test:
 ### Test Cleanup
 
 All tests automatically clean up after themselves:
+
 - Docker images created during tests are removed
 - Test containers are stopped and removed
 - Test volumes are deleted
@@ -136,11 +139,13 @@ All tests automatically clean up after themselves:
 ### Hook not running
 
 Check configuration:
+
 ```bash
 git config core.hooksPath
 ```
 
 Verify hook is executable:
+
 ```bash
 ls -la .githooks/pre-push
 # Should show -rwxr-xr-x (executable)
@@ -149,12 +154,14 @@ ls -la .githooks/pre-push
 ### Tests taking too long
 
 The hook runs only relevant tests. If Docker build or integration tests are slow:
+
 - Docker build tests: ~1-2 minutes
 - Integration tests: ~3-5 minutes (only run for Dockerfile changes)
 
 ### Hook fails but tests pass locally
 
 Make sure you're running the same tests:
+
 ```bash
 cd tests
 bash unit-test.sh           # Unit tests
@@ -167,6 +174,7 @@ bash integration-test.sh    # Full integration
 Pre-push runs unit tests that may include sudo-dependent checks. If credentials are stale, non-interactive `sudo -n` calls can skip/fail those checks.
 
 Try:
+
 ```bash
 sudo -v
 sudo -n true && echo "sudo active"

@@ -2,6 +2,51 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Remove markdownlint baseline dependency
+
+### Make markdownlint a direct clean-pass check
+
+**Context:**
+The Markdown baseline had already been burned down to zero entries, but `tests/test-markdown-lint.sh` still required `tests/markdownlint-baseline.txt` and the docs still described the old regenerate-baseline workflow. The remaining cleanup was to remove that dependency so Markdown linting behaves like the other direct lint checks.
+
+**Done definition:**
+
+- [x] `tests/test-markdown-lint.sh` passes without reading a baseline file
+- [x] Baseline helper artifacts are removed if no longer needed
+- [x] Markdown lint docs describe direct clean-pass behavior instead of baseline management
+- [x] `bash tests/test-markdown-lint.sh` and `bash tests/unit-test.sh` pass locally
+
+**Implementation notes:**
+
+- Simplified `tests/test-markdown-lint.sh` to lint all Markdown files directly and fail immediately on any violation.
+- Removed `tests/markdownlint-baseline.txt` and `tests/update-markdownlint-baseline.sh` because they are no longer needed.
+- Updated `tests/README.md` to describe the direct clean-pass Markdown lint workflow.
+
+Status: ✅ Complete (2026-03-12)
+
+## Burn down markdownlint baseline
+
+### Resolve existing Markdown lint debt tracked in baseline
+
+**Context:**
+Markdown linting now runs as a required test, but existing repository violations were tracked in a baseline so only new violations failed CI. The baseline has now been burned down to zero remaining entries.
+
+**Done definition:**
+
+- [x] Existing baseline violations are fixed in docs files
+- [x] `tests/markdownlint-baseline.txt` is reduced or removed
+- [x] `bash tests/test-markdown-lint.sh` passes with no new violations
+- [x] `bash tests/unit-test.sh` passes locally
+
+**Implementation notes:**
+
+- Cleaned up Markdown formatting across repository docs, including hidden-directory docs under `.githooks/`.
+- Normalized blank lines around lists and code fences, added missing fence languages, and converted compact tables to the configured spaced table style.
+- Reworked changelog `Status` lines from emphasized faux headings into regular text so they no longer trigger `MD036`.
+- Regenerated `tests/markdownlint-baseline.txt`; it now contains zero tracked violations.
+
+Status: ✅ Complete (2026-03-12)
+
 ## Add and require markdownlint with baseline tracking
 
 ### Validate Markdown formatting without blocking legacy doc debt
@@ -10,6 +55,7 @@ All completed work for the Drupal Forge deployment image is tracked here. When a
 The suite initially had no Markdown lint coverage. Then `markdownlint` was made required, which exposed many existing repository violations. To avoid masking rules globally while still keeping CI actionable, Markdown lint now enforces "no new violations" via a baseline file.
 
 **Done definition:**
+
 - [x] Add Markdown lint configuration at repository root
 - [x] Add `tests/test-markdown-lint.sh` using repository output conventions
 - [x] Make `markdownlint` required for markdown lint unit tests
@@ -22,13 +68,14 @@ The suite initially had no Markdown lint coverage. Then `markdownlint` was made 
 - [x] `bash tests/unit-test.sh` passes locally
 
 **Implementation notes:**
+
 - `tests/test-markdown-lint.sh` fails if `markdownlint` is missing and compares lint output to baseline entries.
 - Baseline entries are stored as `<file> <rule> <count>` (not line-based), reducing churn from line movement.
 - `.github/workflows/tests.yml` installs `markdownlint-cli` for deterministic CI unit-test runs.
 - Install guidance now links to official `markdownlint-cli` installation docs rather than prescribing one local install method.
 - Added TODO tracking for baseline burn-down until `tests/markdownlint-baseline.txt` is empty/removed.
 
-**Status: ✅ Complete (2026-03-12)**
+Status: ✅ Complete (2026-03-12)
 
 ---
 
@@ -40,6 +87,7 @@ The suite initially had no Markdown lint coverage. Then `markdownlint` was made 
 Drupal aggregated CSS/JS asset filenames differ across sites and environments. Proxying `${FILE_PROXY_PATHS}/css/*` and `${FILE_PROXY_PATHS}/js/*` to origin causes unnecessary misses because those generated filenames often do not exist on origin for the current site.
 
 **Done definition:**
+
 - [x] `scripts/setup-proxy.sh` excludes `${path}/css/` and `${path}/js/` from regular file-proxy RewriteConds for every configured file proxy path
 - [x] `tests/test-setup-proxy.sh` validates the generated rewrite rules include CSS/JS exclusions
 - [x] `README.md` documents that Apache fallback proxy excludes generated CSS/JS paths and why
@@ -47,12 +95,13 @@ Drupal aggregated CSS/JS asset filenames differ across sites and environments. P
 - [x] `bash tests/unit-test.sh` passes locally
 
 **Implementation notes:**
+
 - Added explicit regular-file rewrite exclusions for `${path}/css/` and `${path}/js/` in `configure_apache_proxy()` so generated aggregated assets are handled by the local Drupal runtime instead of being fetched from origin.
 - Clarified docs that image-style requests under `${path}/styles/` do not proxy derivatives from origin; they trigger original-image download so Drupal generates styles locally.
 - Extended `tests/test-setup-proxy.sh` per-path rewrite checks to assert CSS/JS/style subtree exclusions.
 - Updated README proxy behavior notes to document why CSS/JS paths are excluded under Apache fallback mode.
 
-**Status: ✅ Complete (2026-03-12)**
+Status: ✅ Complete (2026-03-12)
 
 ---
 
@@ -66,6 +115,7 @@ Drupal image-style URLs contain a `?itok=…` cache-buster. The existing image-s
 Regular file proxy was unaffected because no negation existed for non-`styles/` paths.
 
 **Done definition:**
+
 - [x] `setup-proxy.sh` image-style `RewriteCond` uses `(.+)$` capture group; the condition is a POSITIVE (non-negated) match so that `%1` is correctly set to the original file's subpath
 - [x] `setup-proxy.sh` regular file proxy `RewriteCond` simplified from `^%s(/|$)` to `^%s/` (no reason to proxy just the directory)
 - [x] `setup-proxy.sh` injects the managed rewrite block into both `/templates/000-default.conf` and `/etc/apache2/sites-enabled/000-default.conf` (direct vhost); `/etc/apache2/sites-available` remains untouched
@@ -77,10 +127,11 @@ Regular file proxy was unaffected because no negation existed for non-`styles/` 
 - [x] CI integration tests pass
 
 **Implementation notes:**
+
 - Apache's `%{REQUEST_URI}` is the path component of the URL only; the query string (`?itok=…`) is provided separately via `%{QUERY_STRING}`. The original `(.+)$` capture group is correct — the `$` end-anchor matches the end of the path since `%{REQUEST_URI}` never contains a `?`. The primary fix was ensuring the condition is a positive (non-negated) match so that `%1` is correctly set to the image subpath.
 - The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
 
-**Status: ✅ Complete (2026-03-12)**
+Status: ✅ Complete (2026-03-12)
 
 ---
 
@@ -100,12 +151,14 @@ When `apache-start.sh` copies the template over the live config, the rules are a
 template so they are preserved.
 
 **Done definition:**
+
 - [x] `setup-proxy.sh` injects rules into both `/etc/apache2/sites-enabled/000-default.conf` and `/templates/000-default.conf`
 - [x] `bash tests/test-setup-proxy.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 - [x] CI integration tests pass
 
 **Action items:**
+
 - [x] Update `setup-proxy.sh` to inject into both files
 - [x] Remove `scripts/apache2-foreground-wrapper.sh`
 - [x] Revert Dockerfile to remove the wrapper COPY
@@ -113,7 +166,7 @@ template so they are preserved.
 - [x] Run unit tests
 - [x] Verify CI
 
-**Status: ✅ Complete (2026-03-12)**
+Status: ✅ Complete (2026-03-12)
 
 ---
 
@@ -125,6 +178,7 @@ template so they are preserved.
 `finfo_file()` misclassified extension-based formats like CSS as `text/plain`, causing browsers to reject stylesheets. The proxy setup also wrote to `.htaccess` as a runtime fallback and generated bypass rules dynamically, adding complexity. Writing rewrite rules to `drupalforge-proxy.conf` (a global conf include) did not work because the rules must run inside the `<VirtualHost>` context where Drupal's site routing applies.
 
 **Done definition:**
+
 - [x] `proxy-handler.php` downloads the file then issues a `302` redirect back to the original URL; Apache serves it with correct `Content-Type` via `mod_mime`
 - [x] `setup-proxy.sh` injects rewrite rules directly into the Apache vhost templates (`/templates/000-default.conf` and `/etc/apache2/sites-available/000-default.conf`) inside a `BEGIN/END DRUPALFORGE PROXY RULES` marker block, replacing any previous block on re-runs (no `.htaccess` fallback)
 - [x] `config/apache-proxy.conf` holds only the `Mutex`, `Alias`, `Location`, and proxy module settings; rewrite rules live in the vhost config where they run in the correct `<VirtualHost>` context
@@ -139,11 +193,12 @@ template so they are preserved.
 - [x] CI integration tests pass
 
 **Implementation notes:**
+
 - Rewrite rules in a global conf include (`drupalforge-proxy.conf`) apply outside the `<VirtualHost>` context and do not have access to the vhost's `DocumentRoot`, causing them to fail. Rules must be injected into the vhost configuration directly.
 - `[PT]` is required alongside `[END]` so the `Alias /drupalforge-proxy-handler.php` mapping is re-applied after the rewrite. `[END]` alone caused 404s in integration runs because the Alias was skipped.
 - `apache2ctl graceful` starts Apache when not running; guarding with `pgrep -x apache2` prevents premature startup that would conflict with the normal startup sequence.
 
-**Status: ✅ Complete (2026-03-11)**
+Status: ✅ Complete (2026-03-11)
 
 ---
 
@@ -155,6 +210,7 @@ template so they are preserved.
 Previous session context was lost. Re-ran the complete test matrix and fixed regressions. Sudo-dependent tests were kept as real checks (no broad skip strategy).
 
 **Done definition:**
+
 - [x] `bash tests/unit-test.sh` passes locally with sudo-dependent checks executing (not skipped)
 - [x] `bash tests/docker-build-test.sh` passes locally
 - [x] `bash tests/integration-test.sh` passes locally
@@ -163,12 +219,13 @@ Previous session context was lost. Re-ran the complete test matrix and fixed reg
 - [x] Completed task moved from `TODO.md` to `CHANGELOG.md`
 
 **Implementation notes:**
+
 - Removed hardcoded `--platform linux/amd64` from one-off integration validation containers in `tests/integration-test.sh` so those checks run on native Docker platform (macOS ARM + Linux compatible).
 - Updated integration docs in `tests/INTEGRATION_TESTING.md` to document native-platform one-off validation behavior.
 - Kept root-owned APP_ROOT coverage in `tests/test-deployment-entrypoint.sh` as a true sudo-required check.
 - Refactored DRUSH URI unit checks in `tests/test-deployment-entrypoint.sh` to use a local `sudo` stub, so URI behavior is validated deterministically without depending on host sudo state.
 
-**Status: ✅ Complete (2026-03-10)**
+Status: ✅ Complete (2026-03-10)
 
 ---
 
@@ -180,6 +237,7 @@ Previous session context was lost. Re-ran the complete test matrix and fixed reg
 Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both `linux/amd64` and `linux/arm64`, we can remove platform-specific restrictions from the deployment image and tests. This enables native builds and tests on ARM64 systems without forcing amd64 emulation.
 
 **Done definition:**
+
 - [x] `Dockerfile` uses `devpanel/php:${PHP_VERSION}-base-rc` cross-platform base images
 - [x] `Dockerfile` removes `MAKEFLAGS="-j1"` single-thread GD compile workaround (was needed for QEMU multi-threaded stress)
 - [x] `tests/docker-build-test.sh` removes `--platform linux/amd64` flag from docker build command
@@ -188,9 +246,10 @@ Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both 
 - [x] `bash tests/docker-build-test.sh` passes locally on ARM64 system
 - [x] `bash tests/integration-test.sh` passes locally (16/18 assertions, 2 pre-existing one-off container failures unrelated to this work)
 
-**Status: ✅ Complete (2026-03-10)**
+Status: ✅ Complete (2026-03-10)
 
 **Notes:**
+
 - Tested on ARM64 system (macOS arm64); native builds work without platform forcing
 - Docker build and integration tests confirm cross-platform images build and run correctly
 - Removed `-base` and switched to `-rc` tagged images for verified cross-platform support
@@ -206,12 +265,13 @@ Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both 
 `config/settings.devpanel.php` sets a default `config_sync_directory` path, but deployments can fail when that directory does not exist yet.
 
 **Done definition:**
+
 - [x] `scripts/bootstrap-app.sh` creates `$settings['config_sync_directory']` recursively when it is missing
 - [x] Existing values are respected (no override when already set)
 - [x] `bash tests/test-bootstrap-app.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-02-27)**
+Status: ✅ Complete (2026-02-27)
 
 ---
 
@@ -223,12 +283,13 @@ Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both 
 `scripts/import-database.sh` supports SSL mode controls. The goal is to avoid unconditional skip-verify usage while still allowing an explicit local/test fallback mode when self-signed certificates are unavoidable.
 
 **Done definition:**
+
 - [x] `scripts/import-database.sh` uses client defaults in `compat` and only applies skip-verify in explicit fallback mode
 - [x] `README.md` documents current SSL mode behavior clearly
 - [x] `bash tests/test-import-database.sh` and `bash tests/unit-test.sh` pass locally
 - [x] `bash tests/integration-test.sh` passes locally
 
-**Status: ✅ Complete (2026-02-26) - superseded by MySQL SSL Certificate Handling**
+Status: ✅ Complete (2026-02-26) - superseded by MySQL SSL Certificate Handling
 
 ---
 
@@ -240,13 +301,14 @@ Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both 
 `scripts/setup-proxy.sh` currently has fragmented and partially broken rewrite manipulation logic. We need one helper that removes existing `drupalforge-proxy-handler` rewrites, ensures a file/dir bypass exists, and injects per-path rewrite rules.
 
 **Done definition:**
+
 - [x] One helper in `scripts/setup-proxy.sh` performs cleanup + bypass ensure + per-path injection
 - [x] `configure_apache_proxy()` uses that helper for both `.htaccess` and Apache config targets
 - [x] `bash tests/test-setup-proxy.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 - [x] `bash tests/integration-test.sh` passes locally
 
-**Status: ✅ Complete (2026-02-26)**
+Status: ✅ Complete (2026-02-26)
 
 ---
 
@@ -258,20 +320,23 @@ Now that `devpanel/php:8.2-base-rc` and `devpanel/php:8.3-base-rc` support both 
 Current repository state has failing unit and integration tests. The goal is to identify regressions, apply minimal root-cause fixes, and restore green local test runs.
 
 **Done definition:**
+
 - [x] `bash tests/unit-test.sh` passes locally
 - [x] `bash tests/integration-test.sh` passes locally
 - [x] Any required code changes include corresponding test/documentation updates
 
 **Local verification completed successfully:**
+
 - `bash tests/unit-test.sh` → all unit suites passed
 - `bash tests/integration-test.sh` → 15/15 integration assertions passed
 
 **Notes:**
+
 - Integration stack remains on MySQL 8.0 with low-memory tuning for Docker Desktop compatibility.
 - Secure proxy reliability was restored by preventing startup ordering from allowing later `.htaccess` overwrites in the shared fixture mount.
 - Test cleanup and stale-resource removal run before and after integration execution.
 
-**Status: ✅ Complete (2026-02-26)**
+Status: ✅ Complete (2026-02-26)
 
 ---
 
@@ -283,12 +348,13 @@ Current repository state has failing unit and integration tests. The goal is to 
 When `settings.php` includes the app-root-grandparent `settings.devpanel.php` path and no S3 database import runs, Drupal installer should skip the database setup form and proceed directly to install flow.
 
 **Done definition:**
+
 - [x] Integration suite includes a no-import deployment scenario using an empty database
 - [x] Integration test hits `/core/install.php?rewrite=ok&langcode=en&profile=minimal`
 - [x] Assertion confirms database setup step is skipped and install flow starts
 - [x] `bash tests/integration-test.sh` passes locally
 
-**Status: ✅ Complete (2026-02-27)**
+Status: ✅ Complete (2026-02-27)
 
 ---
 
@@ -300,12 +366,13 @@ When `settings.php` includes the app-root-grandparent `settings.devpanel.php` pa
 `scripts/import-database.sh` logs `DB_PORT` but does not pass it to `mysql`, so deployments on non-default ports can fail.
 
 **Done definition:**
+
 - [x] `scripts/import-database.sh` passes `-P "${DB_PORT:-3306}"` for readiness, table checks, and import execution
 - [x] `README.md` documents `DB_PORT` default behavior for import connections
 - [x] `bash tests/test-import-database.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -317,13 +384,14 @@ When `settings.php` includes the app-root-grandparent `settings.devpanel.php` pa
 `scripts/import-database.sh` currently repeats `${DB_PORT:-3306}` in each MySQL invocation. Set the default once for readability and consistency.
 
 **Done definition:**
+
 - [x] `scripts/import-database.sh` assigns `DB_PORT` default once before connection attempts
 - [x] All MySQL commands use `-P "$DB_PORT"`
 - [x] `tests/test-import-database.sh` validates the single-default + per-command port usage pattern
 - [x] `bash tests/test-import-database.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -335,6 +403,7 @@ When `settings.php` includes the app-root-grandparent `settings.devpanel.php` pa
 The private files directory should be owned by the webserver user/group, matching how public files path ownership is handled.
 
 **Done definition:**
+
 - [x] `scripts/bootstrap-app.sh` ensures non-empty `$settings['file_private_path']` is owned by the resolved Apache runtime user/group
 - [x] Ownership resolution follows existing Apache env behavior (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, `/etc/apache2/envvars` fallback)
 - [x] `tests/test-bootstrap-app.sh` covers private path ownership behavior
@@ -342,7 +411,7 @@ The private files directory should be owned by the webserver user/group, matchin
 - [x] `bash tests/test-bootstrap-app.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -354,13 +423,14 @@ The private files directory should be owned by the webserver user/group, matchin
 When Drupal config sets a non-empty `$settings['file_private_path']`, deployments can fail if that directory does not exist at startup.
 
 **Done definition:**
+
 - [x] `scripts/bootstrap-app.sh` resolves `$settings['file_private_path']` and creates it recursively when non-empty
 - [x] Empty `file_private_path` values are treated as disabled and do not create directories
 - [x] `README.md` documents the private files directory bootstrap behavior
 - [x] `bash tests/test-bootstrap-app.sh` passes locally
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -372,12 +442,13 @@ When Drupal config sets a non-empty `$settings['file_private_path']`, deployment
 Unit tests cover private file path creation/ownership in bootstrap. Integration tests should also assert that the runtime container creates the private path and aligns ownership with the configured webserver user.
 
 **Done definition:**
+
 - [x] `tests/integration-test.sh` asserts the private file path exists in the integration deployment container
 - [x] Integration assertion validates ownership matches the Apache runtime user/group used by that container
 - [x] `tests/INTEGRATION_TESTING.md` documents the additional private path integration coverage
 - [x] `bash tests/integration-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -389,6 +460,7 @@ Unit tests cover private file path creation/ownership in bootstrap. Integration 
 Drupal Forge deployments need GD compiled with AVIF support and two additional PHP extensions (`apcu` and `uploadprogress`) available at runtime.
 
 **Done definition:**
+
 - [x] `Dockerfile` installs build deps and compiles GD with AVIF support
 - [x] `Dockerfile` installs `apcu` and `uploadprogress` via PECL and enables both extensions
 - [x] Build dependency cleanup is performed after installation (purge/autoremove/apt cache cleanup)
@@ -396,7 +468,7 @@ Drupal Forge deployments need GD compiled with AVIF support and two additional P
 - [x] `README.md` documents these bundled PHP extension capabilities
 - [x] `bash tests/test-dockerfile.sh` and `bash tests/unit-test.sh` pass locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -408,12 +480,13 @@ Drupal Forge deployments need GD compiled with AVIF support and two additional P
 Current integration coverage validates private path ownership in the main deployment container (`APACHE_RUN_USER=www`). We also need a secure-mode check that validates bootstrap behavior when Apache runs with defaults (`www-data`).
 
 **Done definition:**
+
 - [x] `tests/integration-test.sh` includes a one-off secure-mode container assertion for private path ownership
 - [x] Assertion validates `/var/www/html/private` ownership resolves to `www-data:www-data`
 - [x] `tests/INTEGRATION_TESTING.md` reflects the added secure-mode private path check and updated test count
 - [x] `bash tests/integration-test.sh` passes locally
 
-**Status: ✅ Complete (2026-03-03)**
+Status: ✅ Complete (2026-03-03)
 
 ---
 
@@ -423,9 +496,11 @@ Current integration coverage validates private path ownership in the main deploy
 
 **Problem:**
 The MariaDB client in the image failed with:
-```
+
+```text
 ERROR 2026 (HY000): TLS/SSL error: self-signed certificate in certificate chain
 ```
+
 when connecting to MySQL 8.0 (integration tests) and cloud-managed databases (e.g. DigitalOcean).
 
 **Root cause (confirmed by comparison with `drupalforge/drupal-11:latest`):**
@@ -447,6 +522,7 @@ active but certificate chain validation is disabled, which is appropriate for
 MySQL 8.0 (self-signed cert) and cloud-managed databases (private CA).
 
 **Done definition:**
+
 - [x] `Dockerfile` no longer reinstalls `curl` over the base image's version
 - [x] `config/mariadb-client.cnf` sets `ssl-verify-server-cert = off` under `[client]`
 - [x] `Dockerfile` copies `config/mariadb-client.cnf` to `/etc/mysql/conf.d/drupalforge.cnf`
@@ -457,5 +533,4 @@ MySQL 8.0 (self-signed cert) and cloud-managed databases (private CA).
 - [x] `tests/test-dockerfile.sh` verifies the COPY directive and config file content
 - [x] `bash tests/unit-test.sh` passes locally
 
-**Status: ✅ Complete (2026-02-27)**
-
+Status: ✅ Complete (2026-02-27)

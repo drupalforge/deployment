@@ -50,17 +50,23 @@ Before starting any task, write a short "done" definition in `TODO.md` so work h
 ## Tests Must Pass Locally and in CI
 
 - Run the full unit test suite locally before pushing:
+
   ```bash
   bash tests/unit-test.sh
   ```
+
 - For changes to `Dockerfile`, `scripts/`, or `.github/workflows/`, also run the Docker build test:
+
   ```bash
   bash tests/docker-build-test.sh
   ```
+
 - The repository provides a pre-push Git hook that runs the relevant tests automatically. Enable it with:
+
   ```bash
   git config core.hooksPath .githooks
   ```
+
 - Do **not** push code that fails any test, even with `--no-verify`, unless explicitly directed by a human maintainer.
 - CI (GitHub Actions `tests.yml`) must also pass before a pull request is merged.
 
@@ -73,6 +79,7 @@ Every test script is responsible for removing any resources it creates:
 - No leftover state should affect subsequent test runs or the host environment.
 
 Example pattern for shell-based tests:
+
 ```bash
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "${TMPDIR}"' EXIT
@@ -105,7 +112,7 @@ When a task is finished:
 Every test script must produce output using the following conventions so that the runner (`tests/unit-test.sh`) and humans can parse results consistently.
 
 | Situation | Format |
-|-----------|--------|
+| --------- | ------ |
 | Suite header (first line) | `echo -e "${BLUE}Testing <component>...${NC}"` |
 | Passing assertion | `echo -e "${GREEN}✓ <description>${NC}"` |
 | Failing assertion | `echo -e "${RED}✗ <description>${NC}"` then `exit 1` |
@@ -113,15 +120,18 @@ Every test script must produce output using the following conventions so that th
 | Suite summary (last line) | `echo -e "${GREEN}✓ <Suite name> tests passed${NC}"` |
 
 Rules:
+
 - `${GREEN}` is reserved for assertions that passed.
 - `${RED}` is reserved for assertions that failed; always exit with a non-zero status immediately after.
 - `${YELLOW}` is reserved for skipped or optional assertions (ones that do not fail the suite). Do **not** use `${YELLOW}` for general informational or progress messages.
 - `${BLUE}` is used for structural output: the suite header and any other non-result informational messages (e.g., `echo -e "${BLUE}  Linting $n files...${NC}"`).
 - Color variables are defined once in `tests/lib/colors.sh` and must be sourced at the top of every test script — do not redefine them inline. Scripts that already source `tests/lib/sudo.sh` receive the colors transitively; all other scripts must source `colors.sh` directly:
+
   ```bash
   # shellcheck source=lib/colors.sh
   source "$(dirname "${BASH_SOURCE[0]}")/lib/colors.sh"
   ```
+
 - If a test directly invokes sourced/evaluated script functions, capture stdout/stderr and only print that output when the assertion fails. Passing output must remain assertion-formatted only.
 
 ## Tests Requiring Sudo
@@ -131,6 +141,7 @@ Tests that require elevated privileges (for operations like changing file owners
 ### When a Test Requires Sudo
 
 A test needs sudo when it:
+
 - Creates or modifies read-only files or directories
 - Changes file or directory ownership
 - Performs cleanup operations that require elevation
@@ -170,6 +181,7 @@ fi
 **`setup_sudo [temp_dir]`**
 
 Initializes sudo credentials and manages the complete lifecycle:
+
 - Resets inherited sudo state at the start of each call (fresh process-local probe)
 - Probes for sudo availability (via `sudo -n` for cached credentials or interactive `sudo -v` if needed)
 - Exports `SUDO_AVAILABLE` (1 if credentials available, 0 otherwise)
@@ -181,14 +193,17 @@ Initializes sudo credentials and manages the complete lifecycle:
 **`ensure_active_sudo`**
 
 Checks whether non-interactive sudo is currently available in the calling process.
+
 - Returns success (0) when `sudo -n` works
 - Returns failure (1) when credentials are not active
 - Updates `SUDO_AVAILABLE` to match runtime state
 
 **Arguments:**
+
 - `temp_dir` (optional): Directory to remove on exit with elevated privileges if needed
 
 **Exports:**
+
 - `SUDO_AVAILABLE`: 1 if sudo credentials available, 0 otherwise
 - `SUDO_PROBED`: internal compatibility flag
 - `SUDO_REFRESH_PID`: PID of background refresh process (if active)
@@ -209,6 +224,7 @@ sudo -n chmod 644 "${settings_file}"
 ```
 
 **Key points:**
+
 - Call `setup_sudo` once per test script near the top; do not manually unset/reset `SUDO_*` variables in test files.
 - Use `ensure_active_sudo` from `tests/lib/sudo.sh` instead of custom per-test probe helpers.
 - Always use `sudo -n` (non-interactive) in tests; credentials were already verified during setup.
@@ -225,6 +241,7 @@ To reduce credential-expiration risk and avoid unnecessary re-prompts:
 - Run non-sudo tests after all sudo-dependent tests.
 
 Examples:
+
 - In `tests/test-bootstrap-app.sh`, keep sudo-required checks grouped at the top of the run list.
 - In `tests/test-deployment-entrypoint.sh`, run ownership/permission sudo tests before non-sudo timing and grep-based checks.
 
@@ -233,14 +250,18 @@ Examples:
 If sudo-dependent tests are unexpectedly skipped or intermittently fail in longer runs:
 
 - Re-authenticate before running tests:
+
   ```bash
   sudo -v
   bash tests/unit-test.sh
   ```
+
 - Verify non-interactive sudo is active in the current shell:
+
   ```bash
   sudo -n true && echo "sudo active"
   ```
+
 - If `sudo -n true` fails, rerun with an interactive terminal and complete the password prompt.
 - Ensure sudo-dependent tests remain ordered first (shortest to longest) so privileged checks execute before credentials age.
 
@@ -256,6 +277,7 @@ The `setup_sudo()` function implements a complete sudo management solution:
 6. **Parallel-Safe**: Works correctly when multiple test suites run in parallel; each gets fresh credentials from the shared background refresh loop
 
 The countdown is only displayed when:
+
 - No cached sudo credentials are available (`sudo -n` fails)
 - Both stdin AND stdout are connected to a TTY (interactive session)
 - Not in a CI environment
@@ -263,6 +285,7 @@ The countdown is only displayed when:
 ### Example Implementations
 
 Reference implementations showing clean, minimal sudo usage:
+
 - **`tests/test-deployment-entrypoint.sh`**: Primary example with multiple sudo-requiring tests and proper skip patterns
 - **`tests/test-bootstrap-app.sh`**: Additional test file example
 - **`tests/unit-test.sh`**: Master test runner calling `setup_sudo` (all probing and countdown handled by library)
@@ -271,6 +294,7 @@ Reference implementations showing clean, minimal sudo usage:
 ### Do Not Reimplement
 
 Developers should **never** manually implement sudo probing or refresh logic in test files. If you need to:
+
 - Modify how credentials are probed or managed
 - Change refresh intervals  
 - Change how active-credential checks are performed in tests
@@ -278,28 +302,31 @@ Developers should **never** manually implement sudo probing or refresh logic in 
 
 Then update `tests/lib/sudo.sh` instead, and all tests will automatically benefit from the improvement.
 
-
 ## Test Coverage Requirements
 
 Tests must cover all of the following dimensions:
 
 ### Security
+
 - Validate that secrets and credentials are never logged or written to disk.
 - Confirm that scripts reject invalid or missing required environment variables rather than proceeding silently.
 - Verify that file permissions follow the principle of least privilege.
 
 ### Coding Standards
+
 - Shell scripts must pass `shellcheck` (or equivalent linter) with no errors.
 - PHP files must follow PSR-12 (validated by the existing test suite via `test-proxy-handler.sh`).
 - YAML files must pass `yamllint` (validated by `tests/test-yaml-lint.sh`).
 - Dockerfile must follow the conventions checked by `tests/test-dockerfile.sh`.
 
 ### Functionality — Individual Components
+
 - Each script in `scripts/` must have a corresponding `tests/test-<script-name>.sh` unit test file.
 - Unit tests must cover both success paths and expected failure paths.
 - External dependencies (AWS S3, MySQL, HTTP origins) must be mocked in unit tests.
 
 ### Functionality — Whole Project
+
 - Integration tests (`tests/integration-test.sh`) must validate the complete startup flow end-to-end:
   - Database import from S3 (mocked with MinIO locally).
   - File proxy setup and on-demand download.
@@ -309,7 +336,7 @@ Tests must cover all of the following dimensions:
 ## Quick Reference
 
 | Task | Command |
-|------|---------|
+| ---- | ------- |
 | Run all unit tests | `bash tests/unit-test.sh` |
 | Run a single unit test | `bash tests/test-<component>.sh` |
 | Run Docker build test | `bash tests/docker-build-test.sh` |

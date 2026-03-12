@@ -11,6 +11,7 @@ Runs unit tests and Docker builds for the deployment image.
 #### Triggered Events
 
 The workflow runs on:
+
 - `push` to `main` branch
 - `pull_request` events: `opened`, `synchronize`, `reopened`, `ready_for_review`
 

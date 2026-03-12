@@ -28,7 +28,7 @@ The initialization runs automatically before Apache starts, ensuring the applica
 
 ### Startup Flow
 
-```
+```text
 Container Start
     ↓
 Deployment Entrypoint (deployment-entrypoint.sh)
@@ -56,6 +56,7 @@ Deployment Entrypoint (deployment-entrypoint.sh)
 ### Image Inheritance
 
 Extends `devpanel/php:{8.2,8.3}-base` with:
+
 - Application bootstrap script (`bootstrap-app.sh`)
 - Database import script (`import-database.sh`)
 - Proxy configuration script (`setup-proxy.sh`)
@@ -67,6 +68,7 @@ Extends `devpanel/php:{8.2,8.3}-base` with:
 The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
 
 **CMD Inheritance:** The deployment image dynamically inherits the CMD from the base image at build time. This is achieved by:
+
 1. Extracting the base image's CMD using `docker inspect`
 2. Passing it as a `BASE_CMD` build argument
 3. Setting it as an environment variable in the container
@@ -78,13 +80,15 @@ This ensures compatibility with future base image updates without hardcoding the
 
 ### The repository and application code
 
-Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`). 
+Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 
 **DevPanel handles:**
+
 - Cloning the repository from Git
 - Checking out the specified branch
 
 **Deployment image handles (on startup):**
+
 - Initializing and updating Git submodules recursively
 - Running `composer install` if `composer.json` exists
 - Creating Drupal `settings.php` from `default.settings.php` if:
@@ -93,6 +97,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 - Ensuring Drupal `settings.php` includes DevPanel configuration from two levels above the Drupal `$app_root` variable (`dirname($app_root, 2) . '/settings.devpanel.php'`) if the project has `web/sites/default/settings.php`
 
 **Permission Handling:** The bootstrap script uses non-interactive `sudo` for settings file operations.
+
 - When `sites/default` or `settings.php` are read-only, operations are attempted via `sudo -n` only
 - If `sudo` credentials are unavailable, the bootstrap step fails with an error
 - This allows configuration to work when files are owned by a different user or have restricted permissions
@@ -100,6 +105,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 ### The site database
 
 A database dump is stored in an S3 bucket and imported on container startup:
+
 - Must be a valid MySQL dump (`.sql` or `.sql.gz`)
 - Stored at the path specified by `S3_DATABASE_PATH`
 - Downloaded using AWS credentials (from environment or instance role)
@@ -114,21 +120,21 @@ Digital assets are retrieved on-demand from the origin site using one of two met
    - No additional configuration needed if installed
 
 2. **Apache Reverse Proxy with Conditional Serving** (fallback):
-  - Serves local files if they exist at the requested path
-  - Proxies to origin only if the file doesn't exist locally
-  - Allows users to add/modify files locally that are served directly
-  - Works for any paths specified by `FILE_PROXY_PATHS`
-  - Excludes `${FILE_PROXY_PATHS}/css/*` and `${FILE_PROXY_PATHS}/js/*` from regular file proxying so site-specific aggregated asset filenames are resolved by the local Drupal site
-  - Handles `${FILE_PROXY_PATHS}/styles/*` as image-style requests by downloading the original source image and letting Drupal generate the derivative locally
-  - Useful for sites without Stage File Proxy module
-  - Rewrite rules are injected into the Apache VirtualHost configuration managed by `setup-proxy.sh`
+   - Serves local files if they exist at the requested path
+   - Proxies to origin only if the file doesn't exist locally
+   - Allows users to add/modify files locally that are served directly
+   - Works for any paths specified by `FILE_PROXY_PATHS`
+   - Excludes `${FILE_PROXY_PATHS}/css/*` and `${FILE_PROXY_PATHS}/js/*` from regular file proxying so site-specific aggregated asset filenames are resolved by the local Drupal site
+   - Handles `${FILE_PROXY_PATHS}/styles/*` as image-style requests by downloading the original source image and letting Drupal generate the derivative locally
+   - Useful for sites without Stage File Proxy module
+   - Rewrite rules are injected into the Apache VirtualHost configuration managed by `setup-proxy.sh`
 
 ## Environment Variables
 
 ### Database Import Configuration
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| -------- | ----------- | ------- |
 | `S3_BUCKET` | S3 bucket name (required for import) | `my-deployment-bucket` |
 | `S3_DATABASE_PATH` | Path to database dump in S3 (required for import) | `dumps/site-prod.sql.gz` |
 | `AWS_REGION` | AWS region (optional, default: `us-east-1`) | `us-east-1` |
@@ -154,7 +160,7 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 ### File Proxy Configuration
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| -------- | ----------- | ------- |
 | `ORIGIN_URL` | Origin site URL for file proxy (required to enable proxy) | `https://prod-site.example.com` |
 | `FILE_PROXY_PATHS` | Comma-separated paths to proxy (optional, default: `/sites/default/files`) | `/sites/default/files,/sites/all/themes/custom/assets` |
 | `USE_STAGE_FILE_PROXY` | Force Stage File Proxy or Apache proxy (`yes`/`no`, optional auto-detect) | `yes` |
@@ -163,7 +169,7 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 ### Bootstrap Configuration
 
 | Variable | Description | Example |
-|----------|-------------|---------|
+| -------- | ----------- | ------- |
 | `APP_ROOT_TIMEOUT` | Seconds to wait for `APP_ROOT` to be populated before proceeding (optional, default: `300`; set to `0` to disable) | `300` |
 | `BOOTSTRAP_REQUIRED` | Exit container if bootstrap fails (`yes`/`no`, optional, default: `yes`) | `yes` |
 | `COMPOSER_INSTALL_FLAGS` | Extra flags appended to `composer install` during bootstrap (optional) | `--ignore-platform-req=php` |
@@ -174,6 +180,7 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 When using Apache reverse proxy (fallback when Stage File Proxy not available), requests are handled intelligently based on file existence:
 
 **How it works:**
+
 1. User requests file at a proxied path (e.g., `/sites/default/files/image.jpg`)
 2. Apache checks if the file exists locally
    - **If it exists:** Serves it directly from disk
@@ -325,7 +332,7 @@ The GitHub Actions workflows include several performance optimizations for build
 1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
 2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
 3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
-4. **Multi-platform support**: 
+4. **Multi-platform support**:
    - QEMU emulation for cross-platform builds
    - Docker Buildx Cloud builder for multi-platform builds (automatically enabled when building for multiple platforms or ARM)
    - Defaults to `linux/amd64` (uses standard buildx for optimal performance)
@@ -351,6 +358,7 @@ The cloud builder will automatically activate for ARM builds for better multi-pl
 
 **Parallel Multi-Architecture Builds:**
 When multiple platforms are specified in the matrix, the workflow:
+
 - Builds each architecture in parallel as separate jobs for faster builds
 - Each platform job runs independently with its own cache
 - Platform-specific images are pushed by digest during the build
@@ -359,12 +367,14 @@ When multiple platforms are specified in the matrix, the workflow:
 
 **Multi-Architecture Manifests:**
 The workflow automatically creates manifest lists for multi-platform builds:
+
 - Each platform is built and pushed independently
 - Platform images are referenced by digest
 - Manifest list is created referencing all platform digests
 - The manifest list allows Docker to automatically pull the correct image for the host architecture
 
 No manual manifest creation is required. You can verify a multi-arch image with:
+
 ```bash
 docker buildx imagetools inspect drupalforge/deployment:php-8.3
 ```
@@ -408,6 +418,7 @@ bash tests/integration-test.sh
 ```
 
 This validates:
+
 - Database import from S3 (using MinIO for local testing)
 - Application database connectivity
 - Git bootstrap and Composer installation
@@ -417,6 +428,7 @@ This validates:
 - Downloaded files persist locally
 
 **Setup:** The integration test automatically:
+
 1. Builds the deployment image
 2. Starts MinIO, MySQL, and a mock origin server
 3. Runs the deployment container with full initialization
@@ -459,7 +471,7 @@ cat /tmp/drupalforge-deployment.log
 
 The first lines always include the entrypoint path and startup command:
 
-```
+```text
 [DEPLOYMENT] Entrypoint: /usr/local/bin/deployment-entrypoint
 [DEPLOYMENT] Deployment initialization complete, executing: sudo -E /bin/bash /scripts/apache-start.sh
 ```
@@ -473,6 +485,7 @@ docker inspect --format '{{.Config.Entrypoint}} {{.Config.Cmd}}' <container>
 ### Database Import Fails
 
 Check logs for:
+
 - S3 bucket/path accessibility (AWS credentials, permissions)
 - MySQL connectivity (host, port, credentials)
 - Database file integrity
