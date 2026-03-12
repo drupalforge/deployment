@@ -134,7 +134,7 @@ test_image_style_proxied_when_original_missing() {
     fi
 }
 
-# Test 12: Image style Apache RewriteCond regex handles query strings (root cause of the original bug).
+# Test 12: Image style Apache RewriteCond regex handles query strings.
 # Extracts the regex format string from setup-proxy.sh, substitutes a real path prefix,
 # and tests the resulting pattern against the exact REQUEST_URI from the original bug report.
 test_image_style_apache_regex() {
