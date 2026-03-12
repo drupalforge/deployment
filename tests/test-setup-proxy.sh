@@ -141,9 +141,9 @@ test_image_style_proxied_when_original_missing() {
 test_image_style_apache_regex() {
     # Extract the regex portion from the image-style RewriteCond printf line.
     # The line in setup-proxy.sh is:
-    #   printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/([^?]+)\n' "$path"
+    #   printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
     # After stripping everything up to "REQUEST_URI} " and trimming the trailing \n...:
-    #   ^%s/styles/[^/]+/public/([^?]+)
+    #   ^%s/styles/[^/]+/public/(.+)$
     local pattern_fmt
     pattern_fmt=$(grep 'RewriteCond.*styles.*public' "$SCRIPT_DIR/scripts/setup-proxy.sh" \
         | sed 's/.*REQUEST_URI} //; s/\\n.*//' \

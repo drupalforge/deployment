@@ -2,17 +2,17 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
-## Fix image-style proxy: correct RewriteCond regex to handle query strings
+## Fix image-style proxy: correct RewriteCond and refactor PHP handler
 
-### Ensure `?itok=…` query strings do not break the image-style proxy rule
+### Ensure image-style URLs are correctly proxied
 
 **Context:**
-Drupal image-style URLs contain a `?itok=…` cache-buster. The existing image-style `RewriteCond` used a `(.+)$` capture group with a `$` end-anchor, which failed to match when Apache's `%{REQUEST_URI}` included that query string. As a result, proxy rules never fired for styled images; Drupal received requests with no source file on disk and returned "Error generating image, missing source file."
+Drupal image-style URLs contain a `?itok=…` cache-buster. The existing image-style `RewriteCond` was negated (`!^…`), so it never set `%1` to the original file's subpath. As a result, proxy rules never fired for styled images; Drupal received requests with no source file on disk and returned "Error generating image, missing source file."
 
-Regular file proxy was unaffected because no `$` end-anchor or image-style intercept existed for non-`styles/` paths.
+Regular file proxy was unaffected because no negation existed for non-`styles/` paths.
 
 **Done definition:**
-- [x] `setup-proxy.sh` image-style `RewriteCond` uses `([^?]+)` capture group (stops at `?`; no `$` end-anchor)
+- [x] `setup-proxy.sh` image-style `RewriteCond` uses `(.+)$` capture group; the condition is a POSITIVE (non-negated) match so that `%1` is correctly set to the original file's subpath
 - [x] `setup-proxy.sh` regular file proxy `RewriteCond` simplified from `^%s(/|$)` to `^%s/` (no reason to proxy just the directory)
 - [x] `setup-proxy.sh` injects the managed rewrite block into both `/templates/000-default.conf` and `/etc/apache2/sites-enabled/000-default.conf` (direct vhost); `/etc/apache2/sites-available` remains untouched
 - [x] `proxy-handler.php` 302 redirect logic extracted into a reusable `redirect_to_requested_uri()` function shared by both early-exit and post-download paths
@@ -23,8 +23,7 @@ Regular file proxy was unaffected because no `$` end-anchor or image-style inter
 - [x] CI integration tests pass
 
 **Implementation notes:**
-- Apache's `%{REQUEST_URI}` is the path component of the URL only; the query string (`?itok=…`) is provided separately via `%{QUERY_STRING}`. The `([^?]+)` capture group is a defensive improvement over the original `(.+)$` — it makes the pattern self-contained and query-string-safe — but the primary fix was ensuring the condition is a positive (non-negated) match so that `%1` is correctly set to the image subpath.
-- `([^?]+)` captures any character except `?`, stopping cleanly if a query string boundary is ever present.
+- Apache's `%{REQUEST_URI}` is the path component of the URL only; the query string (`?itok=…`) is provided separately via `%{QUERY_STRING}`. The original `(.+)$` capture group is correct — the `$` end-anchor matches the end of the path since `%{REQUEST_URI}` never contains a `?`. The primary fix was ensuring the condition is a positive (non-negated) match so that `%1` is correctly set to the image subpath.
 - The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
 
 **Status: ✅ Complete (2026-03-12)**
