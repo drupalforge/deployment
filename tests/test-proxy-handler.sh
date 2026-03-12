@@ -137,7 +137,7 @@ test_image_style_regex() {
     local tmpfile
     tmpfile=$(mktemp "${TMPDIR:-/tmp}/test_proxy_regex_XXXXXX.php")
     # shellcheck disable=SC2064
-    trap "rm -f '$tmpfile'" RETURN
+    trap "rm -f '$tmpfile'" EXIT
 
     cat > "$tmpfile" << 'PHPEOF'
 <?php

@@ -14,7 +14,7 @@ Regular file proxy was unaffected because no `$` end-anchor or image-style inter
 **Done definition:**
 - [x] `setup-proxy.sh` image-style `RewriteCond` uses `([^?]+)` capture group (stops at `?`; no `$` end-anchor)
 - [x] `setup-proxy.sh` regular file proxy `RewriteCond` simplified from `^%s(/|$)` to `^%s/` (no reason to proxy just the directory)
-- [x] `setup-proxy.sh` targets `/etc/apache2/sites-enabled/000-default.conf` directly (not a symlink on DevPanel); `/templates` and `sites-available` untouched
+- [x] `setup-proxy.sh` injects the managed rewrite block into both `/templates/000-default.conf` and `/etc/apache2/sites-enabled/000-default.conf` (direct vhost); `/etc/apache2/sites-available` remains untouched
 - [x] `proxy-handler.php` 302 redirect logic extracted into a reusable `redirect_to_requested_uri()` function shared by both early-exit and post-download paths
 - [x] `tests/integration-test.sh` "File proxy setup (rewrite rules)" assertion updated to grep `sites-enabled/000-default.conf`
 - [x] `bash tests/test-setup-proxy.sh` passes locally
@@ -26,6 +26,39 @@ Regular file proxy was unaffected because no `$` end-anchor or image-style inter
 - `%{REQUEST_URI}` in Apache mod_rewrite includes the query string. Using `(.+)$` meant the pattern required the string to end immediately after the filename, which is false when `?itok=…` is present.
 - `([^?]+)` captures any character except `?`, stopping cleanly at the query string boundary.
 - The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
+
+**Status: ✅ Complete (2026-03-12)**
+
+---
+
+## Fix integration test failures (apache-start.sh template overwrite)
+
+### Ensure proxy rules survive apache-start.sh template copy before Apache starts
+
+**Context:**
+`deployment-entrypoint.sh` calls `setup-proxy.sh` which injects rewrite rules into
+`/etc/apache2/sites-enabled/000-default.conf`. However, `apache-start.sh` (the DevPanel
+base image startup script) runs `sudo cp /templates/000-default.conf /etc/apache2/sites-enabled/000-default.conf`
+AFTER the entrypoint finishes, overwriting the injected rules. Apache then starts with no proxy rules.
+
+The fix: `setup-proxy.sh` now injects rules into BOTH `/etc/apache2/sites-enabled/000-default.conf`
+(live config) and `/templates/000-default.conf` (always present in the DevPanel base image).
+When `apache-start.sh` copies the template over the live config, the rules are already in the
+template so they are preserved.
+
+**Done definition:**
+- [x] `setup-proxy.sh` injects rules into both `/etc/apache2/sites-enabled/000-default.conf` and `/templates/000-default.conf`
+- [x] `bash tests/test-setup-proxy.sh` passes locally
+- [x] `bash tests/unit-test.sh` passes locally
+- [x] CI integration tests pass
+
+**Action items:**
+- [x] Update `setup-proxy.sh` to inject into both files
+- [x] Remove `scripts/apache2-foreground-wrapper.sh`
+- [x] Revert Dockerfile to remove the wrapper COPY
+- [x] Update test-setup-proxy.sh test 10 to assert both targets
+- [x] Run unit tests
+- [x] Verify CI
 
 **Status: ✅ Complete (2026-03-12)**
 

@@ -1,36 +1,5 @@
 # TODO List
 
-## Fix integration test failures (apache-start.sh template overwrite)
-
-### Ensure proxy rules survive apache-start.sh template copy before Apache starts
-
-**Context:**
-`deployment-entrypoint.sh` calls `setup-proxy.sh` which injects rewrite rules into
-`/etc/apache2/sites-enabled/000-default.conf`. However, `apache-start.sh` (the DevPanel
-base image startup script) runs `sudo cp /templates/000-default.conf /etc/apache2/sites-enabled/000-default.conf`
-AFTER the entrypoint finishes, overwriting the injected rules. Apache then starts with no proxy rules.
-
-The fix: `setup-proxy.sh` now injects rules into BOTH `/etc/apache2/sites-enabled/000-default.conf`
-(live config) and `/templates/000-default.conf` (always present in the DevPanel base image).
-When `apache-start.sh` copies the template over the live config, the rules are already in the
-template so they are preserved.
-
-**Done definition:**
-- [x] `setup-proxy.sh` injects rules into both `/etc/apache2/sites-enabled/000-default.conf` and `/templates/000-default.conf`
-- [x] `bash tests/test-setup-proxy.sh` passes locally
-- [x] `bash tests/unit-test.sh` passes locally
-- [ ] CI integration tests pass
-
-**Action items:**
-- [x] Update `setup-proxy.sh` to inject into both files
-- [x] Remove `scripts/apache2-foreground-wrapper.sh`
-- [x] Revert Dockerfile to remove the wrapper COPY
-- [x] Update test-setup-proxy.sh test 10 to assert both targets
-- [x] Run unit tests
-- [ ] Verify CI
-
----
-
 ## Drupal 11 recommended-project compatibility
 
 ### Make DevPanel settings and tests compatible with Drupal 11 minimal install
