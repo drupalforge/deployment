@@ -136,7 +136,7 @@ test_image_style_proxied_when_original_missing() {
 
 # Test 12: Image style Apache RewriteCond regex handles query strings.
 # Extracts the regex format string from setup-proxy.sh, substitutes a real path prefix,
-# and tests the resulting pattern against a REQUEST_URI.
+# and tests the resulting pattern against a real-life REQUEST_URI.
 test_image_style_apache_regex() {
     # Extract the regex portion from the image-style RewriteCond printf line.
     # The line in setup-proxy.sh is:
@@ -155,7 +155,7 @@ test_image_style_apache_regex() {
     # Substitute a real path prefix for the %s placeholder to get the concrete Apache pattern.
     local pattern="${pattern_fmt/\%s/\/sites\/default\/files}"
 
-    # Test with the exact REQUEST_URI from the original bug report.
+    # Test with a real-life REQUEST_URI.
     local test_uri="/sites/default/files/styles/medium/public/2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg?itok=SUwEM6-9"
     if [[ ! "$test_uri" =~ $pattern ]]; then
         echo -e "${RED}✗ Image style RewriteCond does not match REQUEST_URI with query string${NC}"
