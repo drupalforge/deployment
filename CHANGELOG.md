@@ -23,8 +23,8 @@ Regular file proxy was unaffected because no `$` end-anchor or image-style inter
 - [x] CI integration tests pass
 
 **Implementation notes:**
-- `%{REQUEST_URI}` in Apache mod_rewrite includes the query string. Using `(.+)$` meant the pattern required the string to end immediately after the filename, which is false when `?itok=…` is present.
-- `([^?]+)` captures any character except `?`, stopping cleanly at the query string boundary.
+- Apache's `%{REQUEST_URI}` is the path component of the URL only; the query string (`?itok=…`) is provided separately via `%{QUERY_STRING}`. The `([^?]+)` capture group is a defensive improvement over the original `(.+)$` — it makes the pattern self-contained and query-string-safe — but the primary fix was ensuring the condition is a positive (non-negated) match so that `%1` is correctly set to the image subpath.
+- `([^?]+)` captures any character except `?`, stopping cleanly if a query string boundary is ever present.
 - The `SetEnv ORIGIN_URL` / `SetEnv WEB_ROOT` directives added in a previous iteration were incorrect: regular file proxy was working without them, confirming they are not needed. Removing them simplifies the injected block.
 
 **Status: ✅ Complete (2026-03-12)**

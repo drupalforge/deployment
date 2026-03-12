@@ -112,8 +112,8 @@ configure_apache_proxy() {
     proxy_paths+=("/sites/default/files")
   fi
 
-  if [ ! -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
-    error "Apache vhost configuration file does not exist at /etc/apache2/sites-enabled/000-default.conf"
+  if [ ! -f "/templates/000-default.conf" ]; then
+    error "Apache vhost template does not exist at /templates/000-default.conf"
     return 1
   fi
 
@@ -237,18 +237,20 @@ configure_apache_proxy() {
     rm -f "$output"
   }
 
-  # Inject rules into the live vhost config (required).
-  if ! inject_proxy_rules "/etc/apache2/sites-enabled/000-default.conf"; then
+  # Always inject into the DevPanel vhost template (required; always present in this image).
+  if ! inject_proxy_rules "/templates/000-default.conf"; then
     rm -f "$vhost_block"
     return 1
   fi
 
-  # Also inject into the DevPanel vhost template so the rules survive the
-  # `sudo cp /templates/000-default.conf /etc/apache2/sites-enabled/000-default.conf`
-  # performed by apache-start.sh when Apache starts.
-  if ! inject_proxy_rules "/templates/000-default.conf"; then
-    rm -f "$vhost_block"
-    return 1
+  # Also inject into the live vhost config when it already exists (e.g. Apache is running).
+  # The file may not exist yet during the deployment entrypoint; apache-start.sh copies it
+  # from /templates/000-default.conf before Apache starts.
+  if [ -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
+    if ! inject_proxy_rules "/etc/apache2/sites-enabled/000-default.conf"; then
+      rm -f "$vhost_block"
+      return 1
+    fi
   fi
 
   rm -f "$vhost_block"

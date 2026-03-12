@@ -134,9 +134,10 @@ test_image_style_proxied_when_original_missing() {
     fi
 }
 
-# Test 12: Image style Apache RewriteCond regex handles query strings.
-# Extracts the regex format string from setup-proxy.sh, substitutes a real path prefix,
-# and tests the resulting pattern against a real-life REQUEST_URI.
+# Test 12: Image style Apache RewriteCond regex matches a real image-style REQUEST_URI.
+# Apache's %{REQUEST_URI} contains the path component only (no query string); the query
+# string is provided separately via %{QUERY_STRING}.  This test therefore validates the
+# regex against the path as Apache actually presents it.
 test_image_style_apache_regex() {
     # Extract the regex portion from the image-style RewriteCond printf line.
     # The line in setup-proxy.sh is:
@@ -155,25 +156,22 @@ test_image_style_apache_regex() {
     # Substitute a real path prefix for the %s placeholder to get the concrete Apache pattern.
     local pattern="${pattern_fmt/\%s/\/sites\/default\/files}"
 
-    # Test with a real-life REQUEST_URI.
-    local test_uri="/sites/default/files/styles/medium/public/2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg?itok=SUwEM6-9"
+    # Test with the path component of the REQUEST_URI from the original bug report.
+    # Apache provides the path only in %{REQUEST_URI}; the ?itok=… part is in %{QUERY_STRING}.
+    local test_uri="/sites/default/files/styles/medium/public/2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg"
     if [[ ! "$test_uri" =~ $pattern ]]; then
-        echo -e "${RED}✗ Image style RewriteCond does not match REQUEST_URI with query string${NC}"
+        echo -e "${RED}✗ Image style RewriteCond does not match image-style REQUEST_URI${NC}"
         echo -e "${RED}  Pattern: $pattern${NC}"
         echo -e "${RED}  URI:     $test_uri${NC}"
         exit 1
     fi
 
     local captured="${BASH_REMATCH[1]}"
-    if [[ "$captured" == *"?"* ]]; then
-        echo -e "${RED}✗ Image style RewriteCond capture group includes query string: $captured${NC}"
-        exit 1
-    fi
     if [[ "$captured" != "2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg" ]]; then
         echo -e "${RED}✗ Image style RewriteCond captured wrong path: $captured${NC}"
         exit 1
     fi
-    echo -e "${GREEN}✓ Image style RewriteCond matches REQUEST_URI with query string; capture group: $captured${NC}"
+    echo -e "${GREEN}✓ Image style RewriteCond matches image-style REQUEST_URI; capture group: $captured${NC}"
 }
 
 
