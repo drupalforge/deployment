@@ -117,6 +117,16 @@ configure_apache_proxy() {
     return 1
   fi
 
+  # Determine whether Apache is currently running; if so, the live vhost config must exist.
+  local apache_running=false
+  if pgrep -x apache2 >/dev/null 2>&1; then
+    apache_running=true
+  fi
+  if "${apache_running}" && [ ! -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
+    error "Apache is running but /etc/apache2/sites-enabled/000-default.conf does not exist"
+    return 1
+  fi
+
   # Normalize proxied paths and inject per-path rewrite rules into vhost config.
   local normalized_paths=()
 
@@ -243,10 +253,10 @@ configure_apache_proxy() {
     return 1
   fi
 
-  # Also inject into the live vhost config when it already exists (e.g. Apache is running).
-  # The file may not exist yet during the deployment entrypoint; apache-start.sh copies it
-  # from /templates/000-default.conf before Apache starts.
-  if [ -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
+  # Also inject into the live vhost config.  When Apache is running it is required;
+  # during the deployment entrypoint it may not exist yet (apache-start.sh copies it
+  # from /templates/000-default.conf before Apache starts).
+  if "${apache_running}" || [ -f "/etc/apache2/sites-enabled/000-default.conf" ]; then
     if ! inject_proxy_rules "/etc/apache2/sites-enabled/000-default.conf"; then
       rm -f "$vhost_block"
       return 1
