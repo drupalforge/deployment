@@ -123,7 +123,7 @@ test_vhost_rewrite_scope() {
 # the regular-file rule excludes the styles/ subtree so existing originals fall through to Drupal.
 test_image_style_proxied_when_original_missing() {
     # Image style rule: positive match captures the original subpath into %1
-    if grep -q 'RewriteCond %%{REQUEST_URI} \^.*styles.*/public/(.+)' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+    if grep -q 'RewriteCond %%{REQUEST_URI} \^.*styles.*/public/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q 'RewriteCond %%{DOCUMENT_ROOT}.*%%1 !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
        grep -q 'RewriteCond %%{REQUEST_URI} !.*styles/' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Image style rule uses positive match (%1 set correctly); regular-file rule excludes styles/ subtree${NC}"

@@ -162,7 +162,7 @@ configure_apache_proxy() {
       # sets %1 to the original file's subpath (the portion after /public/).
       # Condition 2 then uses %1 to test that the original file is absent on disk.
       printf '        # Image style proxy: %s\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/([^?]+)\n' "$path"
       printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
       printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
       printf '\n'
