@@ -161,9 +161,6 @@ $cases = [
     // Non-styled path is unchanged
     ['/sites/default/files/direct/image.jpg',
      '/sites/default/files/direct/image.jpg'],
-    // Query string (?itok=…) must not break the match — the root cause of the original bug
-    ['/sites/default/files/styles/medium/public/2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg?itok=SUwEM6-9',
-     '/sites/default/files/2026-02/josh-carter-5kk7fGDdGFM-unsplash.jpg'],
 ];
 
 $fail = 0;

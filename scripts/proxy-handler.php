@@ -37,7 +37,7 @@ $web_root = rtrim($web_root, '/');
 // Always redirect back to the styled URL so Drupal can generate the derivative;
 // only download the original from origin when it is not already on disk.
 $download_path = $requested_path;
-if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/([^?]+)#', $requested_path, $matches)) {
+if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_path, $matches)) {
     $download_path = $matches[1] . '/' . $matches[2];
 }
 
