@@ -1,32 +1,5 @@
 # TODO List
 
-## Drupal 11 recommended-project compatibility
-
-### Make DevPanel settings and tests compatible with Drupal 11 minimal install
-
-**Context:**
-Current test fixtures use a synthetic database and a minimal fake app, which does not prove Drupal 11 install state detection. `config/settings.devpanel.php` also reads hash salt from a missing file and does not include DB SSL mode controls used by Drush/runtime DB access.
-
-**Done definition:**
-
-- [ ] `config/settings.devpanel.php` derives hash salt deterministically from `$databases` and no longer depends on a missing file
-- [ ] Integration fixture database is replaced with a real Drupal 11 minimal-install dump
-- [ ] Integration test verifies installer behavior reports Drupal is already installed (no setup flow)
-- [ ] MySQL SSL mode is environment-controlled with compatibility mode default and strict mode override for import + Drupal runtime/Drush (implementation aligned with existing "MySQL SSL Certificate Handling" task below)
-- [ ] Stage File Proxy behavior is validated against the real Drupal fixture flow
-- [ ] README/integration docs reflect new settings and test behavior
-- [ ] `bash tests/unit-test.sh`, `bash tests/docker-build-test.sh`, and `bash tests/integration-test.sh` pass locally
-
-**Action items:**
-
-- [ ] Update docs for DB driver requirement, hash salt behavior, and SSL mode controls
-- [ ] Add tests for deterministic hash salt and SSL mode behavior
-- [ ] Replace fixture DB with a real minimal-install dump and assert installed-state behavior
-- [ ] Implement settings/script changes needed to satisfy tests
-- [ ] Run full test matrix and mark task complete
-
----
-
 ## Switch back to registry build cache
 
 ### Revert GHA cache to `type=registry` in `docker-publish-image.yml`

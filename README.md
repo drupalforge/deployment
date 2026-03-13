@@ -157,6 +157,28 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 - Bootstrap aligns non-empty `file_private_path` ownership to Apache runtime user/group (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, with Apache envvars fallback).
 - `trusted_host_patterns` includes `DP_HOSTNAME` when provided, otherwise `.*`.
 
+### Drush SQL Client Compatibility
+
+MariaDB 11 SSL compatibility relies on both:
+
+- MariaDB client defaults override in `config/mariadb-client.cnf` (copied to `/etc/mysql/conf.d/drupalforge.cnf`)
+- Drush SQL client options in `config/drush.yml` (copied to `/etc/drush/drush.yml`)
+
+The image ships the Drush client config with:
+
+```yaml
+command:
+  sql:
+    cli:
+      options:
+        extra: "--ssl-verify-server-cert=OFF"
+    dump:
+      options:
+        extra-dump: "--no-tablespaces"
+```
+
+Together, these avoid MariaDB 11 client default verification issues across both direct client usage and Drush SQL CLI operations against MySQL-compatible managed databases that use self-signed or non-system-trusted CA chains.
+
 ### File Proxy Configuration
 
 | Variable | Description | Example |

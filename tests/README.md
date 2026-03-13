@@ -62,6 +62,7 @@ These tests use `grep` and file inspection to check:
 - Code patterns are present
 - YAML files follow consistent formatting (via yamllint)
 - Markdown files follow consistent formatting (via markdownlint)
+- DevPanel settings behavior (including deterministic `hash_salt`) is validated in `test-settings-devpanel.sh`
 
 **Important**: Unit tests do NOT build Docker images. They only check the text content of files.
 

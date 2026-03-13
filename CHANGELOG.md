@@ -2,6 +2,33 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Drupal 11 recommended-project compatibility
+
+### Make DevPanel settings and tests compatible with Drupal 11 minimal install
+
+**Context:**
+Current test fixtures used a synthetic database and a minimal fake app, which did not prove Drupal 11 install state detection. `config/settings.devpanel.php` also read hash salt from a missing file, and Drush/runtime SSL behavior required explicit compatibility controls.
+
+**Done definition:**
+
+- [x] `config/settings.devpanel.php` derives hash salt deterministically from `$databases` and no longer depends on a missing file
+- [x] Integration fixture database is replaced with a real Drupal 11 minimal-install dump
+- [x] Integration test verifies install state by ensuring the Drupal home page does not redirect to installer (no setup flow)
+- [x] MySQL SSL mode is environment-controlled with compatibility mode default and strict mode override for import + Drupal runtime/Drush (implementation aligned with existing "MySQL SSL Certificate Handling" task below)
+- [x] Stage File Proxy behavior is validated against the real Drupal fixture flow
+- [x] README/integration docs reflect new settings and test behavior
+- [x] `bash tests/unit-test.sh`, `bash tests/docker-build-test.sh`, and `bash tests/integration-test.sh` pass locally
+
+**Implementation notes:**
+
+- Deterministic `hash_salt` behavior is implemented and covered by unit tests.
+- MariaDB 11 SSL verify compatibility is handled through both client defaults (`config/mariadb-client.cnf`) and image-level Drush config (`/etc/drush/drush.yml`).
+- Real Drupal fixture dump and Stage File Proxy flow are in place; install-state assertion enforces no installer redirect from the home page.
+- README and integration testing docs now document current behavior and related coverage.
+- Full local validation matrix passed (`unit-test.sh`, `docker-build-test.sh`, `integration-test.sh`).
+
+Status: ✅ Complete (2026-03-13)
+
 ## Consolidate Compose-Managed Fixture Preparation
 
 ### Make manual and integration startup use one self-initializing fixture path

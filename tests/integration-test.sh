@@ -259,10 +259,9 @@ else
     ((failed=failed+1))
 fi
 
-# Test 2: Installer endpoint is reachable and reports a valid Drupal install state
-# Depending on fixture DB snapshot, Drupal may report either installer flow or already-installed state.
-if run_test "Drupal install state endpoint reachable" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/core/install.php | grep -Eqi \"(already installed|choose language|set up database)\"'"; then
+# Test 2: Installed fixtures should not redirect home page traffic to installer.
+if run_test "Drupal home page does not redirect to installer" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'location=\$(curl -sI http://localhost/ | awk '\''tolower(\$1)==\"location:\" {print \$2}'\'' | tr -d \"\\r\"); [ -z \"\$location\" ] || ! echo \"\$location\" | grep -qi \"/core/install.php\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))

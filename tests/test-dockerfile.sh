@@ -158,7 +158,22 @@ test_mariadb_ssl_config() {
     fi
 }
 
-# Test 14: Builds GD extension with AVIF support
+# Test 14: Configures Drush SQL client options for MariaDB 11 compatibility
+test_drush_sql_ssl_config() {
+    local drush_config="$SCRIPT_DIR/config/drush.yml"
+    if grep -q "COPY.*config/drush.yml.* /etc/drush/drush.yml" "$DOCKERFILE" && \
+       grep -q "sql:" "$drush_config" && \
+       grep -q "cli:" "$drush_config" && \
+       grep -q "extra: \"--ssl-verify-server-cert=OFF\"" "$drush_config" && \
+       grep -q "extra-dump: \"--no-tablespaces\"" "$drush_config"; then
+        echo -e "${GREEN}✓ Configures Drush SQL client compatibility options${NC}"
+    else
+        echo -e "${RED}✗ Missing Drush SQL client compatibility options${NC}"
+        exit 1
+    fi
+}
+
+# Test 15: Builds GD extension with AVIF support
 test_gd_avif_support() {
     if grep -q "docker-php-ext-configure gd.*--with-avif" "$DOCKERFILE" && \
        grep -q "docker-php-ext-install gd" "$DOCKERFILE"; then
@@ -169,7 +184,7 @@ test_gd_avif_support() {
     fi
 }
 
-# Test 15: Installs APCU and uploadprogress via PECL
+# Test 16: Installs APCU and uploadprogress via PECL
 test_pecl_extensions() {
     if grep -q "pecl install apcu" "$DOCKERFILE" && \
        grep -q "extension=apcu.so" "$DOCKERFILE" && \
@@ -182,7 +197,7 @@ test_pecl_extensions() {
     fi
 }
 
-# Test 16: Cleans up temporary apt build dependencies and cache
+# Test 17: Cleans up temporary apt build dependencies and cache
 test_apt_cleanup() {
     if grep -q "apt-get purge -y -qq libavif-dev" "$DOCKERFILE" && \
        grep -q "apt-get autoremove -y -qq" "$DOCKERFILE" && \
@@ -209,6 +224,7 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_mariadb_ssl_config
+test_drush_sql_ssl_config
 test_gd_avif_support
 test_pecl_extensions
 test_apt_cleanup
