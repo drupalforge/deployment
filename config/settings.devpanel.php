@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @file
+ * DevPanel Drupal settings overrides.
+ */
+
 $databases['default']['default']['database'] = getenv('DB_NAME');
 $databases['default']['default']['username'] = getenv('DB_USER');
 $databases['default']['default']['password'] = getenv('DB_PASSWORD');

@@ -2,6 +2,28 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Enforce Drupal PHP coding standards
+
+### Add PHPCS coverage for DevPanel settings PHP
+
+**Context:**
+`config/settings.devpanel.php` should follow Drupal coding standards, including uppercase `NULL`/`TRUE`/`FALSE`. Current unit tests validate behavior but did not run PHPCS against this file.
+
+**Done definition:**
+
+- [x] `tests/README.md` documents PHPCS Drupal-standard validation and requirements
+- [x] `tests/test-phpcs.sh` exists, follows repository test output conventions, and validates Drupal coding standard compliance for `config/settings.devpanel.php`
+- [x] `config/settings.devpanel.php` uses uppercase `NULL` where required by Drupal coding standards
+- [x] `bash tests/test-phpcs.sh` and `bash tests/unit-test.sh` pass locally
+
+**Implementation notes:**
+
+- Added `tests/test-phpcs.sh` to enforce PHPCS + Drupal standard checks for `config/settings.devpanel.php` as part of unit tests.
+- Updated `config/settings.devpanel.php` formatting and constants (`TRUE`/`NULL`) to satisfy Drupal PHPCS rules.
+- Updated `tests/README.md` to document the new PHPCS validation step.
+
+Status: ✅ Complete (2026-03-13)
+
 ## Broaden Drush SQL SSL verify handling
 
 ### Move SQL SSL verify disablement to Drupal DB settings
