@@ -66,6 +66,38 @@ services:
       timeout: 3s
       retries: 5
 
+  # Prepare the fixture app for deployment startup.
+  # This one-shot step initializes missing fixture root files and applies
+  # ownership/permission adjustments needed for bootstrap/composer writes.
+  app-fixture-prepare:
+    image: test-df-deployment:8.3
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: 8.3
+    user: root
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - >
+        if [ ! -f /var/www/html/composer.json ]; then
+          rm -rf /var/www/html/* /var/www/html/.[!.]* /var/www/html/..?* 2>/dev/null || true;
+          git clone --branch 11.x --single-branch --depth 1 \
+            https://github.com/drupal/recommended-project.git /var/www/html;
+          cd /var/www/html;
+          composer require drush/drush drupal/stage_file_proxy --no-interaction;
+        fi;
+        if [ ! -f /var/www/html/web/sites/default/settings.php ] &&
+           [ -f /var/www/html/web/sites/default/default.settings.php ]; then
+          cp /var/www/html/web/sites/default/default.settings.php /var/www/html/web/sites/default/settings.php;
+        fi;
+        mkdir -p /var/www/html/web/sites/default/files &&
+        (chmod -R a+rwX /var/www/html/web/sites/default/files 2>/dev/null || true) &&
+        (chown -R www:www /var/www/html 2>/dev/null || true)
+    volumes:
+      - ./fixtures/app:/var/www/html
+
   # Deployment container - runs the full initialization
   deployment:
     image: test-df-deployment:8.3
@@ -75,6 +107,8 @@ services:
       args:
         PHP_VERSION: 8.3
     depends_on:
+      app-fixture-prepare:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       minio-setup:

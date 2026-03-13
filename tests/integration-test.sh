@@ -171,38 +171,11 @@ if [[ "$docker_mem_bytes" =~ ^[0-9]+$ ]] && [ "$docker_mem_bytes" -gt 0 ]; then
     fi
 fi
 
-# Initialize test app from Drupal 11 recommended-project
-echo -e "${YELLOW}Initializing test app...${NC}"
-if [ ! -f "$SCRIPT_DIR/fixtures/app/composer.json" ]; then
-    # Clean up any partial/failed installation
-    rm -rf "$SCRIPT_DIR/fixtures/app"
-    mkdir -p "$SCRIPT_DIR/fixtures/app"
-    cd "$SCRIPT_DIR/fixtures/app"
-    
-    # Clone Drupal 11 recommended-project (shallow clone for speed)
-    git clone --branch 11.x --single-branch --depth 1 \
-        https://github.com/drupal/recommended-project.git . >/dev/null 2>&1
-    
-    # Install dependencies including Drush and Stage File Proxy
-    composer require drush/drush drupal/stage_file_proxy \
-        --no-interaction >/dev/null 2>&1
-
-    cd "$SCRIPT_DIR"
-fi
-
-# Ensure fixture has settings.php (existing fixture checkouts skip the block above).
-# Bootstrap intentionally does not auto-create settings.php when default.settings.php
-# existed before bootstrap started, so integration fixtures must provide it.
-if [ ! -f "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php" ] && [ -f "$SCRIPT_DIR/fixtures/app/web/sites/default/default.settings.php" ]; then
-    cp "$SCRIPT_DIR/fixtures/app/web/sites/default/default.settings.php" "$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php"
-fi
-
-# Ensure the default files directory exists and is writable after fresh fixture
-# recreation. On macOS bind mounts, UID/GID mapping can make container writes
-# fail unless explicit write permissions are set on the host path.
-mkdir -p "$SCRIPT_DIR/fixtures/app/web/sites/default/files"
-chmod -R a+rwX "$SCRIPT_DIR/fixtures/app/web/sites/default/files" 2>/dev/null || true
-echo -e "${GREEN}✓ Test app initialized${NC}"
+# Fixture initialization and ownership are handled by compose one-shot services:
+# app-fixture-init and app-fixture-setup in docker-compose.test.yml.
+echo -e "${YELLOW}Using compose-managed fixture initialization...${NC}"
+mkdir -p "$SCRIPT_DIR/fixtures/app"
+echo -e "${GREEN}✓ Fixture directory ready for compose initialization${NC}"
 echo ""
 
 # Start services
@@ -215,16 +188,6 @@ cleanup_compose_state "yes"
 
 # Build image first so we can use it to set fixture ownership
 $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
-
-# Ensure fixture app directory is owned by the container user (www=uid 1000)
-# so that Composer can create the vendor/ directory during bootstrap
-docker run --rm \
-  -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
-  --user root \
-  --entrypoint "" \
-  test-df-deployment:8.3 \
-    chown -R www:www /var/www/html 2>/dev/null || true
-echo -e "${GREEN}✓ Fixture ownership set for container user${NC}"
 
 compose_up_ok=0
 for start_attempt in 1 2; do

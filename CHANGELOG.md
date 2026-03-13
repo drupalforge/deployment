@@ -2,6 +2,31 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Consolidate Compose-Managed Fixture Preparation
+
+### Make manual and integration startup use one self-initializing fixture path
+
+**Context:**
+Manual `docker-compose -f docker-compose.test.yml up -d` could fail with `tests-deployment-1 is unhealthy` when `tests/fixtures/app` was partial (for example, missing `composer.json`). Integration runs also duplicated fixture bootstrap logic in `tests/integration-test.sh`, requiring host `git`/`composer` even though compose could own this lifecycle.
+
+**Done definition:**
+
+- [x] Startup no longer depends on host-side fixture bootstrap in `tests/integration-test.sh`
+- [x] `tests/docker-compose.test.yml` provides a single one-shot fixture preparation service (`app-fixture-prepare`) that initializes missing fixture root files and applies ownership/permission fixes
+- [x] `deployment` depends on `app-fixture-prepare` completion
+- [x] `tests/test-integration-compose.sh` enforces the single-service model and rejects legacy fixture service names / host bootstrap reintroduction
+- [x] `tests/INTEGRATION_TESTING.md` reflects compose-owned initialization behavior and prerequisites
+- [x] `bash tests/test-integration-compose.sh`, `bash tests/unit-test.sh`, `bash tests/integration-test.sh`, and manual cold-start compose startup from `tests/` pass locally
+
+**Implementation notes:**
+
+- Consolidated fixture preparation into a single one-shot service (`app-fixture-prepare`) in `tests/docker-compose.test.yml` as part of this task's implementation.
+- `app-fixture-prepare` performs the full idempotent workflow: clone Drupal recommended-project when needed, install Drush + Stage File Proxy, ensure `settings.php`, create writable files path, and apply ownership/permission fixes.
+- Removed host-side fixture `git clone` / `composer require` from `tests/integration-test.sh`.
+- Expanded `tests/test-integration-compose.sh` checks to prevent regressions in service wiring and host-side bootstrap logic.
+
+Status: ✅ Complete (2026-03-12)
+
 ## Remove markdownlint baseline dependency
 
 ### Make markdownlint a direct clean-pass check

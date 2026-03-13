@@ -25,7 +25,7 @@ The test environment includes:
 ### Prerequisites
 
 - Docker and Docker Compose installed
-- Git (for initializing the test app repository)
+- Outbound network access for GitHub and Packagist (first-run fixture initialization)
 
 ### Run Complete Test Suite
 
@@ -38,7 +38,8 @@ This will:
 
 1. Start all services
 2. Build the deployment image
-3. Run 18 validation tests covering:
+3. Initialize `fixtures/app` in compose when fixture root files are missing
+4. Run 18 validation tests covering:
    - Database import from S3/MinIO
    - Application connectivity to database
    - Drupal install-state detection
@@ -50,7 +51,7 @@ This will:
    - Bootstrap (Git submodules, Composer)
    - File proxy setup
    - File download from origin and local persistence
-4. Clean up resources
+5. Clean up resources
 
 ### Manual Testing
 
@@ -76,6 +77,10 @@ docker-compose -f docker-compose.test.yml logs -f deployment
 # Stop services
 docker-compose -f docker-compose.test.yml down
 ```
+
+The compose stack runs a one-shot `app-fixture-prepare` service before the deployment containers start. It bootstraps `fixtures/app` from `drupal/recommended-project` 11.x when root files are missing, ensures `settings.php` exists, and fixes ownership/write permissions so manual startup matches the behavior of `integration-test.sh` on macOS and Linux.
+
+Because of this first-run initialization, manual `up -d` can take longer and requires outbound network access for GitHub/Packagist.
 
 ## Test Coverage
 
