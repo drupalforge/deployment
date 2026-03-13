@@ -130,7 +130,9 @@ if (!is_string($private_path)) {
   $private_path = "";
 }
 $private_path = trim($private_path);
-if ($private_path !== "" && !preg_match("/^(\/|[A-Za-z]:[\\\/])/", $private_path)) {
+if ($private_path !== "" &&
+    !str_starts_with($private_path, "/") &&
+    !preg_match("/^[A-Za-z]:[\\\\\/]/", $private_path)) {
   $private_path = rtrim($app_root, "/\\") . "/" . $private_path;
 }
 echo $config_sync . PHP_EOL . $private_path;

@@ -177,6 +177,7 @@ putenv("DB_PORT=3306");
 putenv("DB_DRIVER=mysql");
 $databases = [];
 $settings = ["config_sync_directory" => getenv("SYNC_DIR")];
+$app_root = "/var/www/html/web";
 include getenv("SETTINGS_FILE");
 echo $settings["config_sync_directory"] ?? "";
 ')
