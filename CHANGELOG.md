@@ -2,6 +2,31 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Broaden Drush SQL SSL verify handling
+
+### Move SQL SSL verify disablement to Drupal DB settings
+
+**Context:**
+`config/drush.yml` previously disabled server certificate verification only for `sql:cli`, which did not cover all Drush SQL execution paths. Drush's MySQL/MariaDB SQL layer can derive `--ssl-verify-server-cert` from Drupal database `pdo` settings, so the compatibility behavior needed to be defined once in `config/settings.devpanel.php` and reused across site-backed SQL commands.
+
+**Done definition:**
+
+- [x] `README.md` documents that Drush SQL SSL verify behavior is sourced from `settings.devpanel.php` database `pdo` settings for MySQL/MariaDB-backed site commands
+- [x] `tests/test-settings-devpanel.sh` covers MySQL/MariaDB-only PDO SSL verify injection, non-MySQL exclusion, and override behavior for preexisting SSL verify values while preserving unrelated PDO values
+- [x] `config/settings.devpanel.php` sets MySQL/MariaDB SSL verify server cert to `OFF` via the available PDO constant, overriding any preexisting SSL verify value
+- [x] `config/drush.yml` removes the `sql:cli` `extra: "--ssl-verify-server-cert=OFF"` fallback and keeps `sql:dump` `extra-dump: "--no-tablespaces"`
+- [x] `tests/test-dockerfile.sh` validates the new steady-state Drush config expectations
+- [x] `bash tests/test-settings-devpanel.sh`, `bash tests/test-dockerfile.sh`, `bash tests/unit-test.sh`, and `bash tests/integration-test.sh` pass locally
+
+**Implementation notes:**
+
+- Moved Drush SSL verify handling into `config/settings.devpanel.php` using MySQL PDO SSL verify constants and value `OFF` so Drush includes `--ssl-verify-server-cert=OFF` across site-backed SQL command paths.
+- Removed duplicated `sql:cli` fallback from `config/drush.yml` and retained only `sql:dump` compatibility option `--no-tablespaces`.
+- Adjusted `scripts/bootstrap-app.sh` path resolution so `config_sync_directory` remains project-relative while `file_private_path` supports absolute-path handling correctly.
+- Added/updated tests and docs to enforce behavior and coding standards, including PHPCS coverage for `config/settings.devpanel.php`.
+
+Status: ✅ Complete (2026-03-13)
+
 ## Drupal 11 recommended-project compatibility
 
 ### Make DevPanel settings and tests compatible with Drupal 11 minimal install

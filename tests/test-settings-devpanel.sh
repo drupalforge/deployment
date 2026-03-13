@@ -190,6 +190,170 @@ echo $settings["config_sync_directory"] ?? "";
     fi
 }
 
+# Test 7: MySQL driver defaults PDO ssl verify server cert to OFF
+test_mysql_ssl_verify_default() {
+        local result
+
+        result=$(SETTINGS_FILE="$SETTINGS_FILE" php -r '
+putenv("DB_NAME=drupaldb");
+putenv("DB_USER=drupal");
+putenv("DB_PASSWORD=drupal_password");
+putenv("DB_HOST=mysql");
+putenv("DB_PORT=3306");
+putenv("DB_DRIVER=mysql");
+$databases = [];
+$settings = [];
+$app_root = "/var/www/html/web";
+include getenv("SETTINGS_FILE");
+
+$attr = null;
+if (defined("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT");
+} elseif (defined("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT");
+}
+
+if ($attr === null) {
+    echo "unsupported";
+    exit(0);
+}
+
+$pdo = $databases["default"]["default"]["pdo"] ?? [];
+echo (array_key_exists($attr, $pdo) ? "present:" : "missing:");
+$value = $pdo[$attr] ?? null;
+if ($value === "OFF") {
+    echo "OFF";
+} elseif ($value === "off") {
+    echo "off";
+} elseif ($value === false) {
+    echo "false";
+} elseif ($value === true) {
+    echo "true";
+} elseif ($value === null) {
+    echo "null";
+} else {
+    echo (string) $value;
+}
+')
+
+        if [ "$result" = "unsupported" ]; then
+                echo -e "${YELLOW}⊘ Skipped: MySQL PDO ssl verify constant is unavailable in this PHP runtime${NC}"
+                return 0
+        fi
+
+        if [ "$result" = "present:OFF" ] || [ "$result" = "present:off" ]; then
+            echo -e "${GREEN}✓ MySQL driver defaults PDO ssl verify server cert to OFF${NC}"
+        else
+            echo -e "${RED}✗ MySQL driver did not default PDO ssl verify server cert to OFF${NC}"
+                exit 1
+        fi
+}
+
+# Test 8: Non-MySQL drivers do not receive MySQL PDO ssl verify setting
+test_non_mysql_does_not_set_mysql_ssl_verify() {
+        local result
+
+        result=$(SETTINGS_FILE="$SETTINGS_FILE" php -r '
+putenv("DB_NAME=drupaldb");
+putenv("DB_USER=drupal");
+putenv("DB_PASSWORD=drupal_password");
+putenv("DB_HOST=mysql");
+putenv("DB_PORT=3306");
+putenv("DB_DRIVER=pgsql");
+$databases = [];
+$settings = [];
+$app_root = "/var/www/html/web";
+include getenv("SETTINGS_FILE");
+
+$attr = null;
+if (defined("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT");
+} elseif (defined("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT");
+}
+
+if ($attr === null) {
+    echo "unsupported";
+    exit(0);
+}
+
+$pdo = $databases["default"]["default"]["pdo"] ?? [];
+echo (array_key_exists($attr, $pdo) ? "present" : "missing");
+')
+
+        if [ "$result" = "unsupported" ]; then
+                echo -e "${YELLOW}⊘ Skipped: MySQL PDO ssl verify constant is unavailable in this PHP runtime${NC}"
+                return 0
+        fi
+
+        if [ "$result" = "missing" ]; then
+                echo -e "${GREEN}✓ Non-MySQL drivers do not receive MySQL PDO ssl verify setting${NC}"
+        else
+                echo -e "${RED}✗ Non-MySQL driver unexpectedly received MySQL PDO ssl verify setting${NC}"
+                exit 1
+        fi
+}
+
+# Test 9: Existing ssl verify value is overridden while unrelated PDO values are preserved
+test_existing_pdo_values_overridden() {
+        local result
+
+        result=$(SETTINGS_FILE="$SETTINGS_FILE" php -r '
+putenv("DB_NAME=drupaldb");
+putenv("DB_USER=drupal");
+putenv("DB_PASSWORD=drupal_password");
+putenv("DB_HOST=mysql");
+putenv("DB_PORT=3306");
+putenv("DB_DRIVER=mysql");
+
+$attr = null;
+if (defined("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("Pdo\\Mysql::ATTR_SSL_VERIFY_SERVER_CERT");
+} elseif (defined("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT")) {
+    $attr = constant("PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT");
+}
+
+if ($attr === null) {
+    echo "unsupported";
+    exit(0);
+}
+
+$databases = [
+    "default" => [
+        "default" => [
+            "driver" => "mysql",
+            "pdo" => [
+                $attr => true,
+                123456 => "keep",
+            ],
+        ],
+    ],
+];
+$settings = [];
+$app_root = "/var/www/html/web";
+include getenv("SETTINGS_FILE");
+
+$pdo = $databases["default"]["default"]["pdo"] ?? [];
+$attrValue = $pdo[$attr] ?? null;
+$customValue = $pdo[123456] ?? null;
+echo (($attrValue === "OFF" || $attrValue === "off") ? "attr-overridden" : "attr-not-overridden");
+echo ":";
+echo (($customValue === "keep") ? "custom-preserved" : "custom-changed");
+')
+
+        if [ "$result" = "unsupported" ]; then
+                echo -e "${YELLOW}⊘ Skipped: MySQL PDO ssl verify constant is unavailable in this PHP runtime${NC}"
+                return 0
+        fi
+
+        if [ "$result" = "attr-overridden:custom-preserved" ]; then
+            echo -e "${GREEN}✓ Existing ssl verify value is overridden while unrelated PDO values are preserved${NC}"
+        else
+            echo -e "${RED}✗ Existing ssl verify override behavior is incorrect${NC}"
+                exit 1
+        fi
+}
+
 # Run tests
 test_file_and_syntax
 test_hash_salt_deterministic
@@ -197,5 +361,8 @@ test_hash_salt_changes_with_database
 test_empty_hash_salt_replaced
 test_db_driver_env_usage
 test_config_sync_directory_preserved_when_preconfigured
+test_mysql_ssl_verify_default
+test_non_mysql_does_not_set_mysql_ssl_verify
+test_existing_pdo_values_overridden
 
 echo -e "${GREEN}✓ settings.devpanel.php tests passed${NC}"

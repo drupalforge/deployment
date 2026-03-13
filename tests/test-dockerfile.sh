@@ -158,17 +158,17 @@ test_mariadb_ssl_config() {
     fi
 }
 
-# Test 14: Configures Drush SQL client options for MariaDB 11 compatibility
-test_drush_sql_ssl_config() {
+# Test 14: Configures Drush SQL dump compatibility options
+test_drush_sql_dump_config() {
     local drush_config="$SCRIPT_DIR/config/drush.yml"
     if grep -q "COPY.*config/drush.yml.* /etc/drush/drush.yml" "$DOCKERFILE" && \
        grep -q "sql:" "$drush_config" && \
-       grep -q "cli:" "$drush_config" && \
-       grep -q "extra: \"--ssl-verify-server-cert=OFF\"" "$drush_config" && \
+       grep -q "dump:" "$drush_config" && \
+       ! grep -q "extra: \"--ssl-verify-server-cert=OFF\"" "$drush_config" && \
        grep -q "extra-dump: \"--no-tablespaces\"" "$drush_config"; then
-        echo -e "${GREEN}✓ Configures Drush SQL client compatibility options${NC}"
+        echo -e "${GREEN}✓ Configures Drush SQL dump compatibility options${NC}"
     else
-        echo -e "${RED}✗ Missing Drush SQL client compatibility options${NC}"
+        echo -e "${RED}✗ Missing expected Drush SQL dump compatibility options${NC}"
         exit 1
     fi
 }
@@ -224,7 +224,7 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_mariadb_ssl_config
-test_drush_sql_ssl_config
+test_drush_sql_dump_config
 test_gd_avif_support
 test_pecl_extensions
 test_apt_cleanup

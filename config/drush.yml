@@ -1,8 +1,5 @@
 command:
   sql:
-    cli:
-      options:
-        extra: "--ssl-verify-server-cert=OFF"
     dump:
       options:
         extra-dump: "--no-tablespaces"
