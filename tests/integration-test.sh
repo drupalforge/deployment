@@ -171,8 +171,8 @@ if [[ "$docker_mem_bytes" =~ ^[0-9]+$ ]] && [ "$docker_mem_bytes" -gt 0 ]; then
     fi
 fi
 
-# Fixture initialization and ownership are handled by compose one-shot services:
-# app-fixture-init and app-fixture-setup in docker-compose.test.yml.
+# Fixture initialization and ownership are handled by compose one-shot service:
+# app-fixture-prepare in docker-compose.test.yml.
 echo -e "${YELLOW}Using compose-managed fixture initialization...${NC}"
 mkdir -p "$SCRIPT_DIR/fixtures/app"
 echo -e "${GREEN}✓ Fixture directory ready for compose initialization${NC}"
@@ -186,12 +186,13 @@ cd "$SCRIPT_DIR"
 # Ensure a clean compose state immediately before building and starting services.
 cleanup_compose_state "yes"
 
-# Build image first so we can use it to set fixture ownership
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build
+# Build the deployment image once. Both deployment services share the same
+# image tag, so building all services can race on compose v1.
+$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build deployment
 
 compose_up_ok=0
 for start_attempt in 1 2; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS -d; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS --no-build -d; then
         compose_up_ok=1
         break
     fi

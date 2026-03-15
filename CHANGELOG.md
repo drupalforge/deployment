@@ -2,6 +2,28 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Prevent compose image-tag build race in integration startup
+
+### Build once and start with `--no-build` in integration tests
+
+**Context:**
+`docker-compose` v1 could attempt parallel builds for services that share the same image tag (`test-df-deployment:8.3`) during integration startup, intermittently failing with `target deployment: failed to solve: image ... already exists`.
+
+**Done definition:**
+
+- [x] `tests/integration-test.sh` builds only the `deployment` service image before startup
+- [x] `tests/integration-test.sh` starts compose services with `up --no-build -d` to avoid duplicate build attempts
+- [x] `tests/test-integration-compose.sh` includes a regression assertion requiring `--no-build` in integration startup
+- [x] `bash tests/integration-test.sh` and `bash tests/run-all-tests.sh` pass locally
+
+**Implementation notes:**
+
+- Updated integration startup to run a single explicit build step (`build deployment`) before `up`.
+- Added `--no-build` to compose startup retries so compose reuses the prebuilt image rather than racing a second build path.
+- Added a compose contract test assertion that fails if `integration-test.sh` drops `--no-build`.
+
+Status: ✅ Complete (2026-03-15)
+
 ## Enforce Drupal PHP coding standards
 
 ### Add PHPCS coverage for DevPanel settings PHP
