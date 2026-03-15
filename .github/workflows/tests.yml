@@ -43,12 +43,8 @@ jobs:
         run: |
           composer global config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
           composer global require "squizlabs/php_codesniffer=*" "drupal/coder=*"
-          # Register the Drupal coding standard with phpcs
-          "$(composer global config bin-dir --absolute --quiet)/phpcs" \
-            --config-set installed_paths \
-            "$(composer global config home --quiet)/vendor/drupal/coder/coder_sniffer"
-          # Make phpcs available system-wide
-          sudo ln -sf "$(composer global config bin-dir --absolute --quiet)/phpcs" /usr/local/bin/phpcs
+          # Add Composer global bin-dir to PATH so phpcs is available system-wide
+          echo "$(composer global config bin-dir --absolute --quiet)" >> "$GITHUB_PATH"
         env:
           COMPOSER_ALLOW_SUPERUSER: '1'
 
