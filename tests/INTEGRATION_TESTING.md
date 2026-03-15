@@ -8,7 +8,7 @@ This directory contains fixtures and scripts for integration testing the deploym
 - **integration-test.sh** - Full validation script
 - **fixtures/**
   - `app/` - Drupal app fixture used by bootstrap and runtime checks
-  - `test-database.sql` - Drupal database dump used for import/install-state testing
+  - `test-database.sql.gz` - Drupal database dump used for import/install-state testing
   - `origin-files/` - Mock origin server files
 
 ## Services
