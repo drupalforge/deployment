@@ -59,6 +59,13 @@ else
     exit 1
 fi
 
+if grep -q "^[[:space:]]*S3_DATABASE_PATH:[[:space:]]*test-db\.sql\.gz$" "$COMPOSE_FILE"; then
+    echo -e "${GREEN}✓ Deployment S3_DATABASE_PATH matches MinIO uploaded fixture object${NC}"
+else
+    echo -e "${RED}✗ Deployment S3_DATABASE_PATH must match minio-setup uploaded test-db.sql.gz object${NC}"
+    exit 1
+fi
+
 if grep -q "git clone --branch 11.x" "$INTEGRATION_SCRIPT"; then
     echo -e "${RED}✗ integration-test.sh still performs host-side fixture cloning${NC}"
     exit 1

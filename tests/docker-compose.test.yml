@@ -24,11 +24,11 @@ services:
       /bin/sh -c "
       mc alias set minio http://minio:9000 minioadmin minioadmin;
       mc mb minio/test-deployments --ignore-existing;
-      mc cp /fixtures/test-database.sql minio/test-deployments/test-db.sql;
+      mc cp /fixtures/test-database.sql.gz minio/test-deployments/test-db.sql.gz;
       echo 'MinIO setup complete';
       "
     volumes:
-      - ./fixtures/test-database.sql:/fixtures/test-database.sql
+      - ./fixtures/test-database.sql.gz:/fixtures/test-database.sql.gz
 
   # MySQL database
   mysql:
@@ -133,7 +133,7 @@ services:
 
       # S3 configuration for database import
       S3_BUCKET: test-deployments
-      S3_DATABASE_PATH: test-db.sql
+      S3_DATABASE_PATH: test-db.sql.gz
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_REGION: us-east-1
