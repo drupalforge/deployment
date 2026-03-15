@@ -41,6 +41,7 @@ jobs:
 
       - name: Install PHP CodeSniffer with Drupal coding standard
         run: |
+          composer global config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
           composer global require "squizlabs/php_codesniffer=*" "drupal/coder=*"
           # Register the Drupal coding standard with phpcs
           "$(composer global config bin-dir --absolute --quiet)/phpcs" \
