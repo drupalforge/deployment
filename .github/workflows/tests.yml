@@ -39,6 +39,15 @@ jobs:
           sudo mv "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
           shellcheck --version
 
+      - name: Install PHP CodeSniffer with Drupal coding standard
+        run: |
+          composer global config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer global require "squizlabs/php_codesniffer=*" "drupal/coder=*"
+          # Add Composer global bin-dir to PATH so phpcs is available system-wide
+          echo "$(composer global config bin-dir --absolute --quiet)" >> "$GITHUB_PATH"
+        env:
+          COMPOSER_ALLOW_SUPERUSER: '1'
+
       - name: Run unit tests
         run: |
           bash tests/unit-test.sh
