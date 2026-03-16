@@ -68,7 +68,7 @@ docker-compose -f docker-compose.test.yml up -d
 sleep 30
 
 # Access the application
-docker-compose -f docker-compose.test.yml exec deployment curl http://localhost/index.php
+docker-compose -f docker-compose.test.yml exec deployment curl http://localhost/
 
 # Check if file was proxied
 docker-compose -f docker-compose.test.yml exec deployment curl http://localhost/sites/default/files/test-image.txt
@@ -78,19 +78,80 @@ docker-compose -f docker-compose.test.yml logs -f deployment
 
 # Stop services
 docker-compose -f docker-compose.test.yml down
+
+# Full cleanup (matches integration-test.sh cleanup behavior)
+bash cleanup-test-environment.sh --mode full
+```
+
+### Manual-only deployment environment overrides
+
+For local-only experiments, use an opt-in compose overlay that applies env-file
+overrides to `app-fixture-prepare` and `deployment`:
+
+```bash
+cd tests
+docker compose -f docker-compose.test.yml -f docker-compose.manual.yml up -d
+```
+
+Create `tests/.env.manual` with only the values you want to override. The
+overlay keeps CI and scripted runs unchanged because it is only active when you
+explicitly include `docker-compose.manual.yml`.
+
+Shared defaults are loaded from `tests/.env.shared` for both test and manual
+runs.
+
+`tests/.env.test` is layered only by `docker-compose.test.yml` and sets
+`AWS_S3_ENDPOINT` for MinIO-backed integration tests.
+
+`docker-compose.manual.yml` uses `!override` so manual runs load
+`tests/.env.shared` plus `tests/.env.manual` (and do not inherit
+`tests/.env.test`).
+
+During manual testing, `AWS_S3_ENDPOINT` is only set if you add it to
+`tests/.env.manual`.
+
+To change the fixture repository/branch used by `app-fixture-prepare`, set
+`DP_REPO_BRANCH` in `tests/.env.manual`. Example:
+
+```bash
+cat > tests/.env.manual <<'EOF'
+DP_REPO_BRANCH=https://github.com/drupal/recommended-project/tree/11.x
+# DP_REPO_BRANCH=https://gitlab.com/devpanel-vn/drupal-forge/-/tree/staging
+EOF
+
+cd tests
+docker compose -f docker-compose.test.yml -f docker-compose.manual.yml up -d
 ```
 
 The compose stack runs a one-shot `app-fixture-prepare` service before the deployment containers start. It bootstraps `fixtures/app` from `drupal/recommended-project` 11.x when root files are missing, ensures `settings.php` exists, and fixes ownership/write permissions so manual startup matches the behavior of `integration-test.sh` on macOS and Linux.
 
 Because of this first-run initialization, manual `up -d` can take longer and requires outbound network access for GitHub/Packagist.
 
+### Shared Cleanup Script
+
+Use `cleanup-test-environment.sh` to reuse the same cleanup logic in automated
+and manual workflows:
+
+```bash
+cd tests
+
+# Pre-run stale cleanup (containers/volumes)
+bash cleanup-test-environment.sh --mode stale
+
+# Post-run full cleanup (stale cleanup + fixture/image cleanup)
+bash cleanup-test-environment.sh --mode full
+
+# Docker build image/container cleanup (used by docker-build-test.sh)
+bash cleanup-test-environment.sh --mode docker-build
+```
+
 ## Test Coverage
 
 The integration test validates:
 
 ✓ Database import from S3 (via MinIO)
+✓ Drupal home page does not redirect to installer
 ✓ Application database connectivity
-✓ Application web access
 ✓ Git initialization during bootstrap
 ✓ Composer.json present
 ✓ Rewrite rules generated
@@ -100,10 +161,12 @@ The integration test validates:
 ✓ Proxied files persist locally
 ✓ Apache proxy rewrites preserve the original request path when dispatching to the handler alias
 ✓ S3/MinIO connectivity
-✓ Private file path exists and is owned by the Apache runtime user/group
+✓ Secure-mode file proxy download path works with default Apache `www-data`
+✓ DevPanel settings template exists in container
+✓ DevPanel include injection into `settings.php` is idempotent
 ✓ Secure-mode private path is owned by default Apache user/group (`www-data`)
-✓ DevPanel settings template and include injection
 ✓ Private file path exists and is owned by the Apache runtime user/group
+✓ No-import installer flow skips database setup when DevPanel settings are included
 
 ## Troubleshooting
 

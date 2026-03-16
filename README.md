@@ -453,7 +453,7 @@ This validates:
 1. Builds the deployment image
 2. Starts MinIO, MySQL, and a mock origin server
 3. Runs the deployment container with full initialization
-4. Executes 15 validation checks
+4. Executes 18 validation checks
 5. Cleans up resources
 
 See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual testing instructions.
@@ -461,7 +461,7 @@ See [INTEGRATION_TESTING.md](tests/INTEGRATION_TESTING.md) for detailed manual t
 ### Test Coverage
 
 - **Unit Tests**: 40+ individual tests covering all scripts and configuration
-- **Integration Tests**: 15 end-to-end validation checks
+- **Integration Tests**: 18 end-to-end validation checks
 - **CI/CD**: Automated tests on every PR and push to main branch
   - Tests run automatically on pull requests that are ready for review
   - Draft pull requests are skipped (tests don't run)

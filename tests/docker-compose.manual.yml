@@ -1,0 +1,11 @@
+services:
+  # Manual-only overlay: include with -f docker-compose.manual.yml for local experiments.
+  app-fixture-prepare:
+    env_file: !override
+      - .env.shared
+      - .env.manual
+
+  deployment:
+    env_file: !override
+      - .env.shared
+      - .env.manual

@@ -7,6 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CLEANUP_SCRIPT="$SCRIPT_DIR/cleanup-test-environment.sh"
 
 # shellcheck source=lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
@@ -21,16 +22,10 @@ echo ""
 # shellcheck disable=SC2329  # Invoked indirectly via trap
 cleanup_images() {
     echo -e "${YELLOW}Cleaning up test images...${NC}"
-    for version in "${PHP_VERSIONS[@]}"; do
-        local tag="${TEST_TAG_PREFIX}:${version}"
-        local container="${TEST_TAG_PREFIX}-${version}"
-        # Remove any lingering container (e.g. if docker rm -f inside test_version failed)
-        docker rm -f "$container" 2>/dev/null || true
-        if docker images -q "$tag" 2>/dev/null | grep -q .; then
-            echo "  Removing image: $tag"
-            docker rmi "$tag" 2>/dev/null || true
-        fi
-    done
+    bash "$CLEANUP_SCRIPT" \
+      --mode docker-build \
+      --tag-prefix "$TEST_TAG_PREFIX" \
+      --php-versions "${PHP_VERSIONS[*]}"
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 

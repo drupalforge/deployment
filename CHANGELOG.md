@@ -24,6 +24,32 @@ All completed work for the Drupal Forge deployment image is tracked here. When a
 
 Status: ✅ Complete (2026-03-15)
 
+Superseded: 2026-03-16. The temporary startup workaround (`build deployment` + `up --no-build`) was removed after eliminating duplicate service `build` sections for the shared test image in `tests/docker-compose.test.yml`.
+
+## Manual-only deployment env overrides for compose tests
+
+### Add opt-in manual env override workflow
+
+**Context:**
+The integration compose stack should keep deterministic defaults for CI and scripted runs, while allowing local manual testing to layer overrides from an untracked env file without changing default test behavior.
+
+**Done definition:**
+
+- [x] Integration testing docs describe a manual-only compose override command that layers `tests/docker-compose.manual.yml`
+- [x] Unit tests enforce that manual env overrides are opt-in (not active in `tests/docker-compose.test.yml`)
+- [x] `tests/docker-compose.manual.yml` exists and defines manual-only env-file layering for the services that need local override support
+- [x] Local override env file path is ignored by git so secrets/local values are not tracked
+
+**Implementation notes:**
+
+- Added manual testing documentation for opt-in compose layering with `docker compose -f docker-compose.test.yml -f docker-compose.manual.yml up -d`.
+- Added `tests/docker-compose.manual.yml` with manual-only env-file layering.
+- Kept deterministic default behavior in `tests/docker-compose.test.yml` and moved to shared/test/manual env layering (`tests/.env.shared`, `tests/.env.test`, and `tests/.env.manual`).
+- Expanded `tests/test-integration-compose.sh` to enforce that manual overrides remain opt-in and do not alter base compose behavior.
+- Added `tests/.env.manual` to `.gitignore`.
+
+Status: ✅ Complete (2026-03-15)
+
 ## Enforce Drupal PHP coding standards
 
 ### Add PHPCS coverage for DevPanel settings PHP

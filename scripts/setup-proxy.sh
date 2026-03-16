@@ -172,6 +172,7 @@ configure_apache_proxy() {
       # Excludes styles/ subtree so that when the original exists and Drupal needs to
       # generate a derivative, the request falls through to Drupal's own routing.
       printf '        # File proxy: %s\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} !^%s/boost/\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} !^%s/css/\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} !^%s/js/\n' "$path"
       printf '        RewriteCond %%{REQUEST_URI} !^%s/styles/\n' "$path"

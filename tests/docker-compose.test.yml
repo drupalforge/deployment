@@ -76,15 +76,34 @@ services:
       dockerfile: Dockerfile
       args:
         PHP_VERSION: 8.3
+    env_file:
+      - .env.shared
     user: root
+    # $$ escapes Compose variable interpolation so the shell receives a literal $.
+    # See https://docs.docker.com/reference/compose-file/interpolation/
     entrypoint:
       - /bin/bash
       - -lc
       - >
         if [ ! -f /var/www/html/composer.json ]; then
+          case "$$DP_REPO_BRANCH" in
+            */-/tree/*)
+              repo_url="$${DP_REPO_BRANCH%%/-/tree/*}.git";
+              repo_branch="$${DP_REPO_BRANCH##*/-/tree/}";
+              ;;
+            */tree/*)
+              repo_url="$${DP_REPO_BRANCH%%/tree/*}.git";
+              repo_branch="$${DP_REPO_BRANCH##*/tree/}";
+              ;;
+            *)
+              echo "Invalid DP_REPO_BRANCH: $$DP_REPO_BRANCH";
+              echo "Expected .../tree/<branch> (GitHub) or .../-/tree/<branch> (GitLab)";
+              exit 1;
+              ;;
+          esac;
           rm -rf /var/www/html/* /var/www/html/.[!.]* /var/www/html/..?* 2>/dev/null || true;
-          git clone --branch 11.x --single-branch --depth 1 \
-            https://github.com/drupal/recommended-project.git /var/www/html;
+          git clone --branch "$$repo_branch" --single-branch --depth 1 \
+            "$$repo_url" /var/www/html;
           cd /var/www/html;
           composer require drush/drush drupal/stage_file_proxy --no-interaction;
         fi;
@@ -101,11 +120,6 @@ services:
   # Deployment container - runs the full initialization
   deployment:
     image: test-df-deployment:8.3
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args:
-        PHP_VERSION: 8.3
     depends_on:
       app-fixture-prepare:
         condition: service_completed_successfully
@@ -115,43 +129,13 @@ services:
         condition: service_completed_successfully
       origin-server:
         condition: service_healthy
-    environment:
-      # Run Apache as the same user that owns the app volume so it can write proxy-downloaded files
-      APACHE_RUN_USER: www
-      APACHE_RUN_GROUP: www
-
-      # Database configuration
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: drupal
-      DB_PASSWORD: drupal_password
-      DB_NAME: drupaldb
-      DB_DRIVER: mysql
-
-      # Allow fixture lock files to install even if PHP platform differs in tests
-      COMPOSER_INSTALL_FLAGS: "--ignore-platform-req=php"
-
-      # S3 configuration for database import
-      S3_BUCKET: test-deployments
-      S3_DATABASE_PATH: test-db.sql.gz
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      AWS_REGION: us-east-1
-
-      # File proxy configuration
-      ORIGIN_URL: http://origin-server:8000
-      FILE_PROXY_PATHS: /sites/default/files
-      # Keep integration assertions deterministic in CI by testing Apache proxy mode.
-      # Real Drupal fixture still includes Stage File Proxy for manual/optional validation.
-      USE_STAGE_FILE_PROXY: "no"
-      WEB_ROOT: /var/www/html/web
-
-      # AWS S3 endpoint override for MinIO
-      AWS_S3_ENDPOINT: http://minio:9000
+    env_file:
+      - .env.shared
+      - .env.test
     volumes:
       - ./fixtures/app:/var/www/html
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/index.php"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       start_period: 120s
       interval: 5s
       timeout: 3s

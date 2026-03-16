@@ -5,10 +5,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_COMPOSE_PROJECT="test-df-deployment"
 NOIMPORT_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-noimport-once"
 SECURE_PRIVATE_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-secure-private-once"
+CLEANUP_SCRIPT="$SCRIPT_DIR/cleanup-test-environment.sh"
 
 # shellcheck source=lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
@@ -33,65 +33,6 @@ run_test() {
     fi
 }
 
-# shellcheck disable=SC2317  # Invoked indirectly via trap
-cleanup_compose_state() {
-    local remove_orphans="${1:-no}"
-    local compose_down_args="-v"
-    local stale_containers
-    local stale_volume
-
-    if [ "$remove_orphans" = "yes" ]; then
-        compose_down_args="$compose_down_args --remove-orphans"
-    fi
-
-    # shellcheck disable=SC2086  # compose_down_args must be unquoted for word-splitting
-    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml down $compose_down_args 2>/dev/null || true
-
-    stale_containers=$(docker ps -aq --filter "label=com.docker.compose.project=${TEST_COMPOSE_PROJECT}" 2>/dev/null || true)
-    if [ -n "$stale_containers" ]; then
-        echo "$stale_containers" | xargs docker rm -f 2>/dev/null || true
-    fi
-
-    # Remove known named volumes explicitly in case previous interrupted runs
-    # left volumes without compose metadata (which can break dependency startup).
-    for stale_volume in \
-        "${TEST_COMPOSE_PROJECT}_minio_data" \
-        "${TEST_COMPOSE_PROJECT}_mysql_data" \
-        "${TEST_COMPOSE_PROJECT}_secure_proxy_files"; do
-        docker volume rm -f "$stale_volume" >/dev/null 2>&1 || true
-    done
-}
-
-# shellcheck disable=SC2329  # Invoked indirectly via cleanup() from trap
-cleanup_gitignored_paths() {
-    local gitignore_file="$PROJECT_ROOT/.gitignore"
-    local ignore_path trimmed_path
-
-    if [ ! -f "$gitignore_file" ]; then
-        return 0
-    fi
-
-    while IFS= read -r ignore_path || [ -n "$ignore_path" ]; do
-        trimmed_path="${ignore_path#"${ignore_path%%[![:space:]]*}"}"
-        trimmed_path="${trimmed_path%"${trimmed_path##*[![:space:]]}"}"
-
-        if [ -z "$trimmed_path" ] || [[ "$trimmed_path" == \#* ]] || [[ "$trimmed_path" == \!* ]]; then
-            continue
-        fi
-
-        if [[ "$trimmed_path" == *"*"* ]] || [[ "$trimmed_path" == *"?"* ]] || [[ "$trimmed_path" == *"["* ]]; then
-            continue
-        fi
-
-        trimmed_path="${trimmed_path%/}"
-        if [ -z "$trimmed_path" ] || [[ "$trimmed_path" == /* ]] || [[ "$trimmed_path" == *".."* ]]; then
-            continue
-        fi
-
-        rm -rf "${PROJECT_ROOT:?}/$trimmed_path" 2>/dev/null || true
-    done < "$gitignore_file"
-}
-
 # shellcheck disable=SC2329  # Invoked indirectly via trap
 cleanup() {
     if [ "${KEEP_TEST_ENV:-no}" = "yes" ]; then
@@ -102,37 +43,8 @@ cleanup() {
 
     echo ""
     echo -e "${YELLOW}Cleaning up test environment...${NC}"
-    cd "$SCRIPT_DIR"
-    
-    # Stop and remove compose resources for this test project.
-    cleanup_compose_state "no"
+        bash "$CLEANUP_SCRIPT" --mode full --project "$TEST_COMPOSE_PROJECT" --compose-file "$SCRIPT_DIR/docker-compose.test.yml"
 
-    # Best-effort cleanup for one-off no-import validation container.
-    docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
-    docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
-    
-    # Restore fixture ownership to the current (host) user before fixture cleanup
-    docker run --rm \
-      -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
-      --user root \
-      --entrypoint "" \
-      test-df-deployment:8.3 \
-      chown -R "$(id -u):$(id -g)" /var/www/html 2>/dev/null || true
-
-    # Clean up test images
-    echo "Removing test images..."
-    $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml rm -f 2>/dev/null || true
-    
-    # Remove dangling images created during test
-    local test_images
-    test_images=$(docker images -f "dangling=false" --format "{{.Repository}}:{{.Tag}}" | grep "^test-df-deployment" || true)
-    if [ -n "$test_images" ]; then
-        echo "$test_images" | xargs docker rmi 2>/dev/null || true
-    fi
-
-    # Remove generated paths listed in .gitignore.
-    cleanup_gitignored_paths
-    
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
@@ -158,7 +70,7 @@ echo ""
 # Best-effort stale cleanup before building/running to avoid memory pressure
 # from interrupted prior runs.
 echo -e "${YELLOW}Cleaning stale integration resources...${NC}"
-cleanup_compose_state "yes"
+bash "$CLEANUP_SCRIPT" --mode stale --project "$TEST_COMPOSE_PROJECT" --compose-file "$SCRIPT_DIR/docker-compose.test.yml"
 echo -e "${GREEN}✓ Stale resources cleaned${NC}"
 echo ""
 
@@ -184,15 +96,11 @@ echo -e "${YELLOW}Starting test environment...${NC}"
 cd "$SCRIPT_DIR"
 
 # Ensure a clean compose state immediately before building and starting services.
-cleanup_compose_state "yes"
-
-# Build the deployment image once. Both deployment services share the same
-# image tag, so building all services can race on compose v1.
-$DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build deployment
+bash "$CLEANUP_SCRIPT" --mode stale --project "$TEST_COMPOSE_PROJECT" --compose-file "$SCRIPT_DIR/docker-compose.test.yml"
 
 compose_up_ok=0
 for start_attempt in 1 2; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS --no-build -d; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS -d; then
         compose_up_ok=1
         break
     fi
@@ -203,7 +111,7 @@ for start_attempt in 1 2; do
 
     if [ "$start_attempt" -lt 2 ]; then
         echo -e "${BLUE}  Retrying startup with clean services/volumes${NC}"
-        cleanup_compose_state "yes"
+        bash "$CLEANUP_SCRIPT" --mode stale --project "$TEST_COMPOSE_PROJECT" --compose-file "$SCRIPT_DIR/docker-compose.test.yml"
     fi
 done
 
@@ -215,7 +123,7 @@ fi
 # Wait for regular deployment container to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/index.php >/dev/null 2>&1; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/ >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Deployment container ready${NC}"
         break
     fi
@@ -231,7 +139,7 @@ echo ""
 
 # Wait for secure deployment container to be ready
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/index.php >/dev/null 2>&1; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/ >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Secure deployment container ready${NC}"
         break
     fi
@@ -270,7 +178,7 @@ fi
 
 # Test 3: Drupal entrypoint responds
 if run_test "Drupal index endpoint reachable" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/index.php | grep -qi \"Drupal\"'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/ | grep -qi \"Drupal\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -404,8 +312,10 @@ if ! docker run -d \
     echo -e "${RED}✗ Failed to start secure-mode private path validation container${NC}"
     ((failed=failed+1))
 else
+    secure_private_ready=0
     for i in {1..60}; do
-        if docker exec "$SECURE_PRIVATE_CONTAINER_NAME" curl -s http://localhost/index.php >/dev/null 2>&1; then
+        if docker exec "$SECURE_PRIVATE_CONTAINER_NAME" curl -s http://localhost/ >/dev/null 2>&1; then
+            secure_private_ready=1
             break
         fi
         if [ "$i" -eq 60 ]; then
@@ -417,11 +327,13 @@ else
         sleep 1
     done
 
-    if run_test "Secure-mode private path owned by default Apache user/group" \
-        "docker exec $SECURE_PRIVATE_CONTAINER_NAME sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www-data:www-data$\"'"; then
-        ((passed=passed+1))
-    else
-        ((failed=failed+1))
+    if [ "$secure_private_ready" -eq 1 ]; then
+        if run_test "Secure-mode private path owned by default Apache user/group" \
+            "docker exec $SECURE_PRIVATE_CONTAINER_NAME sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www-data:www-data$\"'"; then
+            ((passed=passed+1))
+        else
+            ((failed=failed+1))
+        fi
     fi
 
     docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -457,8 +369,10 @@ else
         echo -e "${RED}✗ Failed to start no-import validation container${NC}"
         ((failed=failed+1))
     else
+        noimport_ready=0
         for i in {1..60}; do
-            if docker exec "$NOIMPORT_CONTAINER_NAME" curl -s http://localhost/index.php >/dev/null 2>&1; then
+            if docker exec "$NOIMPORT_CONTAINER_NAME" curl -s http://localhost/ >/dev/null 2>&1; then
+                noimport_ready=1
                 break
             fi
             if [ "$i" -eq 60 ]; then
@@ -470,11 +384,13 @@ else
             sleep 1
         done
 
-        if run_test "No-import installer flow skips database setup" \
-            "docker exec $NOIMPORT_CONTAINER_NAME sh -lc 'location=\"\$(curl -sI \"http://localhost/core/install.php?rewrite=ok&langcode=en&profile=minimal\" | tr -d \"\\r\" | awk -F\": \" '\''tolower(\$1)==\"location\" {print \$2; exit}'\'')\" && echo \"\$location\" | grep -q \"op=start\"'"; then
-            ((passed=passed+1))
-        else
-            ((failed=failed+1))
+        if [ "$noimport_ready" -eq 1 ]; then
+            if run_test "No-import installer flow skips database setup" \
+                "docker exec $NOIMPORT_CONTAINER_NAME sh -lc 'location=\"\$(curl -sI \"http://localhost/core/install.php?rewrite=ok&langcode=en&profile=minimal\" | tr -d \"\\r\" | awk -F\": \" '\''tolower(\$1)==\"location\" {print \$2; exit}'\'')\" && echo \"\$location\" | grep -q \"op=start\"'"; then
+                ((passed=passed+1))
+            else
+                ((failed=failed+1))
+            fi
         fi
 
         docker rm -f "$NOIMPORT_CONTAINER_NAME" >/dev/null 2>&1 || true
