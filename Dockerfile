@@ -8,18 +8,8 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 # Switch to root for system-level operations
 USER root
 
-# Install required PHP extensions:
-# - Build GD with AVIF support
-# - Enable APCU and uploadprogress via PECL
+# Install additional PHP extensions not already provided by the base image.
 RUN apt-get update -qq \
-    && apt-get install -y -qq libavif-dev \
-    && docker-php-ext-configure gd --with-avif --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install gd \
-    && for pkg in $(apt-cache depends libavif-dev | grep '^\s*Depends:' | grep -o 'libavif[^, ]*'); do \
-        apt-mark manual "$pkg"; \
-    done \
-    && apt-get purge -y -qq libavif-dev \
-    && apt-get autoremove -y -qq \
     && pecl update-channels \
     && printf '' | pecl install apcu \
     && echo 'extension=apcu.so' > /usr/local/etc/php/conf.d/apcu.ini \

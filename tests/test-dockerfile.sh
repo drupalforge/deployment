@@ -145,18 +145,7 @@ test_labels() {
     fi
 }
 
-# Test 13: Builds GD extension with AVIF support
-test_gd_avif_support() {
-    if grep -q "docker-php-ext-configure gd.*--with-avif" "$DOCKERFILE" && \
-       grep -q "docker-php-ext-install gd" "$DOCKERFILE"; then
-        echo -e "${GREEN}✓ Builds GD extension with AVIF support${NC}"
-    else
-        echo -e "${RED}✗ Missing GD AVIF build configuration${NC}"
-        exit 1
-    fi
-}
-
-# Test 14: Installs APCU and uploadprogress via PECL
+# Test 13: Installs APCU and uploadprogress via PECL
 test_pecl_extensions() {
     if grep -q "pecl install apcu" "$DOCKERFILE" && \
        grep -q "extension=apcu.so" "$DOCKERFILE" && \
@@ -169,15 +158,13 @@ test_pecl_extensions() {
     fi
 }
 
-# Test 15: Cleans up temporary apt build dependencies and cache
+# Test 14: Cleans up apt package manager cache
 test_apt_cleanup() {
-    if grep -q "apt-get purge -y -qq libavif-dev" "$DOCKERFILE" && \
-       grep -q "apt-get autoremove -y -qq" "$DOCKERFILE" && \
-       grep -q "apt-get clean" "$DOCKERFILE" && \
+    if grep -q "apt-get clean" "$DOCKERFILE" && \
        grep -q "rm -rf /var/lib/apt/lists/\*" "$DOCKERFILE"; then
-        echo -e "${GREEN}✓ Cleans apt build dependencies and cache${NC}"
+        echo -e "${GREEN}✓ Cleans apt package manager cache${NC}"
     else
-        echo -e "${RED}✗ Missing apt cleanup for extension build dependencies${NC}"
+        echo -e "${RED}✗ Missing apt package manager cleanup${NC}"
         exit 1
     fi
 }
@@ -195,7 +182,6 @@ test_apache_modules
 test_entrypoint
 test_aws_cli_install
 test_labels
-test_gd_avif_support
 test_pecl_extensions
 test_apt_cleanup
 

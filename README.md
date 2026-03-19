@@ -15,7 +15,7 @@ This provides a safe environment to develop, preview, and share changes.
 
 ## Overview
 
-The deployment image is built on [devpanel/php](https://github.com/devpanel/php) base images (PHP 8.2 and 8.3) and adds the following deployment capabilities:
+The deployment image is built from [devpanel/php](https://github.com/devpanel/php) `:${PHP_VERSION}-base-rc` images (PHP 8.2 and 8.3 variants) and adds the following deployment capabilities:
 
 1. **Database Import from S3** - Automatically downloads and imports a database dump from an S3 bucket on container startup
 2. **File Proxy Configuration** - Retrieves digital assets on-demand from the origin site using:
@@ -55,14 +55,13 @@ Deployment Entrypoint (deployment-entrypoint.sh)
 
 ### Image Inheritance
 
-Extends `devpanel/php:{8.2,8.3}-base` with:
+Extends `devpanel/php:${PHP_VERSION}-base-rc` with:
 
 - Application bootstrap script (`bootstrap-app.sh`)
 - Database import script (`import-database.sh`)
 - Proxy configuration script (`setup-proxy.sh`)
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
-- PHP GD compiled with AVIF support (`--with-avif`)
 - PECL extensions enabled: `apcu` and `uploadprogress`
 
 The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
