@@ -162,9 +162,9 @@ When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app
 
 MariaDB 11 SSL compatibility relies on both:
 
-- MariaDB client defaults override in `config/mariadb-client.cnf` (copied to `/etc/mysql/conf.d/drupalforge.cnf`)
+- MariaDB client defaults override provided by the base image (loaded from `/etc/mysql/conf.d/`)
 - Drupal database `pdo` SSL verify setting in `config/settings.devpanel.php` (consumed by Drush site-backed MySQL/MariaDB SQL commands)
-- Drush SQL dump options in `config/drush.yml` (copied to `/etc/drush/drush.yml`)
+- Drush SQL dump options provided by the base image (`/etc/drush/drush.yml`)
 
 The image ships the Drush client config with:
 

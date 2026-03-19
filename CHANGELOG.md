@@ -2,6 +2,34 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Remove repo-managed Drush and MariaDB client config files
+
+### Migrate ownership to base image
+
+**Context:**
+`config/drush.yml` and `config/mariadb-client.cnf` were previously copied into the image from this repository. Both files are now supplied by the base image for all supported tags, making the repository copies redundant. See the earlier "Broaden Drush SQL SSL verify handling" and "Drupal 11 recommended-project compatibility" entries for the history of why these configs were originally added.
+
+**Done definition:**
+
+- [x] `README.md` no longer describes these files as repository-managed copy sources and clearly states base-image ownership.
+- [x] `tests/test-dockerfile.sh` removes assertions that required local `config/drush.yml` and `config/mariadb-client.cnf` files (former Tests 13 and 14).
+- [x] `Dockerfile` removes `COPY config/drush.yml ...` and `COPY config/mariadb-client.cnf ...` directives.
+- [x] `config/drush.yml` and `config/mariadb-client.cnf` are removed from this repository.
+- [x] Required verification commands pass locally:
+  - `bash tests/test-dockerfile.sh`
+  - `bash tests/docker-build-test.sh`
+  - `bash tests/unit-test.sh`
+  - `bash tests/integration-test.sh`
+
+**Implementation notes:**
+
+- Removed both `COPY config/mariadb-client.cnf` and `COPY config/drush.yml` from the Dockerfile along with the associated MariaDB 11 comment block.
+- Removed formerly Tests 13 and 14 from `tests/test-dockerfile.sh` and renumbered the remaining tests.
+- Updated `README.md` Drush SQL client compatibility section to state that MariaDB client defaults and Drush SQL dump options are provided by the base image.
+- Base image confirmed to supply both configs for all supported PHP version tags (8.2 and 8.3).
+
+Status: ✅ Complete (2026-03-19)
+
 ## Prevent compose image-tag build race in integration startup
 
 ### Build once and start with `--no-build` in integration tests

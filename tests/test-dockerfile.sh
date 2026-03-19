@@ -145,35 +145,7 @@ test_labels() {
     fi
 }
 
-# Test 13: Configures MariaDB client SSL cert verification
-test_mariadb_ssl_config() {
-    local cnf="$SCRIPT_DIR/config/mariadb-client.cnf"
-    if grep -q "COPY.*mariadb-client.cnf" "$DOCKERFILE" && \
-       grep -q "\[client\]" "$cnf" && \
-       grep -q "ssl-verify-server-cert" "$cnf"; then
-        echo -e "${GREEN}✓ Configures MariaDB SSL cert chain verification for managed databases${NC}"
-    else
-        echo -e "${RED}✗ Missing MariaDB SSL cert verification config${NC}"
-        exit 1
-    fi
-}
-
-# Test 14: Configures Drush SQL dump compatibility options
-test_drush_sql_dump_config() {
-    local drush_config="$SCRIPT_DIR/config/drush.yml"
-    if grep -q "COPY.*config/drush.yml.* /etc/drush/drush.yml" "$DOCKERFILE" && \
-       grep -q "sql:" "$drush_config" && \
-       grep -q "dump:" "$drush_config" && \
-       ! grep -q "extra: \"--ssl-verify-server-cert=OFF\"" "$drush_config" && \
-       grep -q "extra-dump: \"--no-tablespaces\"" "$drush_config"; then
-        echo -e "${GREEN}✓ Configures Drush SQL dump compatibility options${NC}"
-    else
-        echo -e "${RED}✗ Missing expected Drush SQL dump compatibility options${NC}"
-        exit 1
-    fi
-}
-
-# Test 15: Builds GD extension with AVIF support
+# Test 13: Builds GD extension with AVIF support
 test_gd_avif_support() {
     if grep -q "docker-php-ext-configure gd.*--with-avif" "$DOCKERFILE" && \
        grep -q "docker-php-ext-install gd" "$DOCKERFILE"; then
@@ -184,7 +156,7 @@ test_gd_avif_support() {
     fi
 }
 
-# Test 16: Installs APCU and uploadprogress via PECL
+# Test 14: Installs APCU and uploadprogress via PECL
 test_pecl_extensions() {
     if grep -q "pecl install apcu" "$DOCKERFILE" && \
        grep -q "extension=apcu.so" "$DOCKERFILE" && \
@@ -197,7 +169,7 @@ test_pecl_extensions() {
     fi
 }
 
-# Test 17: Cleans up temporary apt build dependencies and cache
+# Test 15: Cleans up temporary apt build dependencies and cache
 test_apt_cleanup() {
     if grep -q "apt-get purge -y -qq libavif-dev" "$DOCKERFILE" && \
        grep -q "apt-get autoremove -y -qq" "$DOCKERFILE" && \
@@ -223,8 +195,6 @@ test_apache_modules
 test_entrypoint
 test_aws_cli_install
 test_labels
-test_mariadb_ssl_config
-test_drush_sql_dump_config
 test_gd_avif_support
 test_pecl_extensions
 test_apt_cleanup

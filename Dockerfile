@@ -40,13 +40,6 @@ RUN arch="$(dpkg --print-architecture)" \
     && /tmp/aws/install \
     && rm -rf /tmp/aws /tmp/awscliv2.zip
 
-# MariaDB 11.x (used in devpanel/php:8.3-base) changed ssl-verify-server-cert
-# default from FALSE (10.x) to TRUE, rejecting MySQL 8.0 and cloud-managed
-# databases whose self-signed CA is not in the system truststore.
-# drupalforge/drupal-11:latest (MariaDB 10.11) connects fine without this config.
-# SSL encryption is still used; only certificate chain validation is disabled.
-COPY config/mariadb-client.cnf /etc/mysql/conf.d/drupalforge.cnf
-
 # Copy startup and deployment scripts
 COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
@@ -55,7 +48,6 @@ COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
 
 # Copy Apache configuration for proxy and PHP proxy handler
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf
-COPY config/drush.yml /etc/drush/drush.yml
 COPY config/settings.devpanel.php /var/www/settings.devpanel.php
 COPY scripts/proxy-handler.php /var/www/drupalforge-proxy-handler.php
 
