@@ -65,14 +65,24 @@ ENV BASE_CMD="${BASE_CMD}"
 ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 
 # Set CMD from base image (passed as build arg)
-# Use bash -lc so BASE_CMD is expanded at runtime and forwarded as a proper
-# argv command for deployment-entrypoint's final `exec "$@"`.
+# Use bash -c so BASE_CMD (an ENV variable) is expanded at runtime and forwarded
+# as a proper argv command for deployment-entrypoint's final `exec "$@"`.
+# Do NOT use -l (login shell) here: a login shell sources /etc/profile and user
+# profile scripts, which in the DevPanel base image initialise VS Code Server.
+# The base image exclusively uses $APP_ROOT/.vscode as the VS Code user data
+# directory. APP_ROOT is injected at runtime by DevPanel, so it is not available
+# during the login-shell initialisation triggered by docker build or the first
+# container start. Without APP_ROOT, VS Code Server falls back to its default
+# home-directory path (/home/www/.vscode-server), creating that directory and
+# baking it into the container. Removing -l prevents profile scripts from running,
+# which prevents VS Code Server from initialising prematurely and creating the
+# unwanted /home/www/.vscode-server directory.
 # This covers:
 # 1) normal startup using the base-image Apache command,
 # 2) command strings that depend on env expansion,
 # 3) predictable behavior with exec-form ENTRYPOINT while still allowing
 #    runtime CMD overrides (e.g. `docker run ... <command>`).
-CMD ["/bin/bash", "-lc", "$BASE_CMD"]
+CMD ["/bin/bash", "-c", "$BASE_CMD"]
 
 LABEL org.opencontainers.image.source="https://github.com/drupalforge/deployment" \
       org.opencontainers.image.description="Drupal Forge deployment image with S3 database import and conditional file proxy support"
