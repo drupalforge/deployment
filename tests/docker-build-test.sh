@@ -90,20 +90,20 @@ test_version() {
             failed=1
         fi
 
-        # Verify .vscode-server directory is not baked into the image.
+        # Verify .vscode-server directory is not present in the final image.
         # The CMD must not use a login shell (-l). Login shells source /etc/profile
         # and user profile scripts which initialise VS Code Server in the DevPanel
         # base image. The base image exclusively uses $APP_ROOT/.vscode as the VS
         # Code user data directory. APP_ROOT is injected at runtime by DevPanel and
         # is not available during a premature login-shell initialisation, so VS Code
         # Server falls back to its default home-directory path (/home/www/.vscode-server).
-        # This check catches cases where the directory is written during docker build
+        # This check catches cases where the directory is written into the final image
         # (e.g. via ONBUILD or a login-shell RUN instruction).
-        echo -e "${YELLOW}  Verifying .vscode-server is absent from image layers...${NC}"
+        echo -e "${YELLOW}  Verifying .vscode-server is absent from the final image...${NC}"
         if docker run --rm --entrypoint sh "$tag" -c 'test ! -d /home/www/.vscode-server'; then
             echo -e "${GREEN}  ✓ /home/www/.vscode-server is absent from image (correct)${NC}"
         else
-            echo -e "${RED}  ✗ /home/www/.vscode-server found in image layers (login shell must not be used during build)${NC}"
+            echo -e "${RED}  ✗ /home/www/.vscode-server found in the final image (login shell must not be used during build)${NC}"
             failed=1
         fi
 

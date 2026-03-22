@@ -71,10 +71,10 @@ ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 # profile scripts, which in the DevPanel base image initialise VS Code Server.
 # The base image exclusively uses $APP_ROOT/.vscode as the VS Code user data
 # directory. APP_ROOT is injected at runtime by DevPanel, so it is not available
-# during the login-shell initialisation triggered by docker build or the first
-# container start. Without APP_ROOT, VS Code Server falls back to its default
-# home-directory path (/home/www/.vscode-server), creating that directory and
-# baking it into the container. Removing -l prevents profile scripts from running,
+# when a login shell runs before APP_ROOT has been set (for example, at initial
+# container startup). Without APP_ROOT, VS Code Server falls back to its default
+# home-directory path (/home/www/.vscode-server), creating that directory in the
+# container's writable layer. Removing -l prevents profile scripts from running,
 # which prevents VS Code Server from initialising prematurely and creating the
 # unwanted /home/www/.vscode-server directory.
 # This covers:
