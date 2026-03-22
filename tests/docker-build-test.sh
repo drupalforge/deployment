@@ -92,10 +92,10 @@ test_version() {
 
         # Verify .vscode-server directory is not present in the final image.
         # The CMD must not use a login shell (-l). Login shells source /etc/profile
-        # and user profile scripts which initialise VS Code Server in the DevPanel
+        # and user profile scripts which initialize VS Code Server in the DevPanel
         # base image. The base image exclusively uses $APP_ROOT/.vscode as the VS
         # Code user data directory. APP_ROOT is injected at runtime by DevPanel and
-        # is not available during a premature login-shell initialisation, so VS Code
+        # is not available during a premature login-shell initialization, so VS Code
         # Server falls back to its default home-directory path (/home/www/.vscode-server).
         # This check catches cases where the directory is written into the final image
         # (e.g. via ONBUILD or a login-shell RUN instruction).
@@ -132,11 +132,11 @@ test_version() {
 
                     # Verify that the CMD did not use a login shell (-l) to start.
                     # Login shells source /etc/profile and user profile scripts in
-                    # the DevPanel base image, which initialise VS Code Server.
+                    # the DevPanel base image, which initialize VS Code Server.
                     # The base image exclusively uses $APP_ROOT/.vscode as the VS
                     # Code user data directory. APP_ROOT is injected at runtime by
                     # DevPanel and is not available during a premature login-shell
-                    # initialisation, so VS Code Server falls back to its default
+                    # initialization, so VS Code Server falls back to its default
                     # home-directory path and creates /home/www/.vscode-server.
                     echo -e "${YELLOW}  Verifying .vscode-server absent at runtime...${NC}"
                     if docker exec "$run_container_name" sh -c 'test ! -d /home/www/.vscode-server'; then

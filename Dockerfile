@@ -68,14 +68,14 @@ ENTRYPOINT ["/usr/local/bin/deployment-entrypoint"]
 # Use bash -c so BASE_CMD (an ENV variable) is expanded at runtime and forwarded
 # as a proper argv command for deployment-entrypoint's final `exec "$@"`.
 # Do NOT use -l (login shell) here: a login shell sources /etc/profile and user
-# profile scripts, which in the DevPanel base image initialise VS Code Server.
+# profile scripts, which in the DevPanel base image initialize VS Code Server.
 # The base image exclusively uses $APP_ROOT/.vscode as the VS Code user data
 # directory. APP_ROOT is injected at runtime by DevPanel, so it is not available
 # when a login shell runs before APP_ROOT has been set (for example, at initial
 # container startup). Without APP_ROOT, VS Code Server falls back to its default
 # home-directory path (/home/www/.vscode-server), creating that directory in the
 # container's writable layer. Removing -l prevents profile scripts from running,
-# which prevents VS Code Server from initialising prematurely and creating the
+# which prevents VS Code Server from initializing prematurely and creating the
 # unwanted /home/www/.vscode-server directory.
 # This covers:
 # 1) normal startup using the base-image Apache command,
