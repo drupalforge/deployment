@@ -360,18 +360,19 @@ The GitHub Actions workflows include several performance optimizations for build
 
 These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
 
-#### Enabling ARM Builds
+#### ARM and Multi-Platform Builds
 
-To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-images.yml`:
+Both `linux/amd64` and `linux/arm64` are built by default. The `build` job uses a matrix of `php_version` and `platform`, so adding or removing an architecture is a one-line change in `.github/workflows/docker-publish-images.yml`:
 
 ```yaml
 jobs:
-  build-and-push:
+  build:
     strategy:
       matrix:
+        php_version: ${{ fromJson(needs.preflight.outputs.php_versions) }}
         platform:
           - linux/amd64
-          - linux/arm64  # Add ARM platform
+          - linux/arm64  # Remove this line to disable ARM builds
 ```
 
 The cloud builder will automatically activate for ARM builds for better multi-platform build performance.

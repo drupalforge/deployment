@@ -20,7 +20,7 @@ permissions:
   actions: write
 
 jobs:
-  check-tests-success:
+  preflight:
     runs-on: ubuntu-latest
     if: >-
       github.event_name != 'workflow_run' ||
@@ -36,12 +36,12 @@ jobs:
         run: echo 'php_versions=["8.2","8.3"]' >> "$GITHUB_OUTPUT"
 
   build:
-    needs: check-tests-success
+    needs: preflight
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php_version: ${{ fromJson(needs.check-tests-success.outputs.php_versions) }}
+        php_version: ${{ fromJson(needs.preflight.outputs.php_versions) }}
         platform:
           - linux/amd64
           - linux/arm64
@@ -119,12 +119,12 @@ jobs:
           retention-days: 1
 
   merge:
-    needs: [build, check-tests-success]
+    needs: [build, preflight]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php_version: ${{ fromJson(needs.check-tests-success.outputs.php_versions) }}
+        php_version: ${{ fromJson(needs.preflight.outputs.php_versions) }}
 
     steps:
       - name: Download digests
