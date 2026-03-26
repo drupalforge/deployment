@@ -30,19 +30,9 @@ jobs:
       - name: Check tests workflow result
         run: echo "Tests workflow succeeded, proceeding with image build"
 
-  build-php-8-2:
-    needs: check-tests-success
-    uses: ./.github/workflows/docker-publish-image.yml
-    with:
-      php_version: '8.2'
-    secrets: inherit
-
-  build-php-8-3:
-    needs: check-tests-success
-    uses: ./.github/workflows/docker-publish-image.yml
-    with:
-      php_version: '8.3'
-    secrets: inherit
+  # Per-PHP-version reusable workflow callers removed in favor of an inline
+  # matrix-driven `build` job defined below. The reusable workflow file
+  # `.github/workflows/docker-publish-image.yml` will be deleted.
 
   build:
     needs: check-tests-success
