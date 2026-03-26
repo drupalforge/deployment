@@ -349,8 +349,8 @@ docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:php-8.2 .
 
 The GitHub Actions workflows include several performance optimizations for building Docker images:
 
-1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
-2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
+1. **GitHub Actions caching**: Uses `type=gha` for build cache (registry-based caching with `type=registry,mode=max` is the goal but is deferred due to open BuildKit issues; see `TODO.md`)
+2. **Per-platform cache scopes**: Each `(php_version, platform)` matrix job uses its own GHA cache scope, maximising layer reuse without cross-platform cache pollution
 3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
 4. **Multi-platform support**:
    - QEMU emulation for cross-platform builds
@@ -360,21 +360,22 @@ The GitHub Actions workflows include several performance optimizations for build
 
 These optimizations can significantly reduce build times, especially for rebuilds with minimal changes.
 
-#### Enabling ARM Builds
+#### ARM and Multi-Platform Builds
 
-To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-image.yml`:
+Both `linux/amd64` and `linux/arm64` are built by default. The `build` job uses a matrix of `php_version` and `platform`, so adding or removing an architecture is a one-line change in `.github/workflows/docker-publish-images.yml`:
 
 ```yaml
 jobs:
-  build-and-push:
+  build:
     strategy:
       matrix:
+        php_version: ${{ fromJson(needs.preflight.outputs.php_versions) }}
         platform:
           - linux/amd64
-          - linux/arm64  # Add ARM platform
+          - linux/arm64  # Remove this line to disable ARM builds
 ```
 
-The cloud builder will automatically activate for ARM builds for better multi-platform build performance.
+The workflow attempts to use the Docker Buildx Cloud builder for ARM builds (requires a `DOCKERHUB_USERNAME/github` cloud builder to be configured on Docker Hub). If the cloud builder is unavailable, it falls back to QEMU emulation automatically.
 
 **Parallel Multi-Architecture Builds:**
 When multiple platforms are specified in the matrix, the workflow:

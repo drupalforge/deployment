@@ -45,11 +45,11 @@ Scope decision confirmed:
 
 ## Switch back to registry build cache
 
-### Revert GHA cache to `type=registry` in `docker-publish-image.yml`
+### Revert GHA cache to `type=registry` in `docker-publish-images.yml`
 
 **File affected:**
 
-- `.github/workflows/docker-publish-image.yml` (`cache-from` / `cache-to` in the "Build and push image" step)
+- `.github/workflows/docker-publish-images.yml` (`cache-from` / `cache-to` in the "Build and push image" step)
 
 **Background:**
 The build cache was switched from `type=registry,mode=max` (Docker Hub) to `type=gha` (GitHub Actions cache) because of two open upstream BuildKit bugs that can cause `COPY` layers to serve stale data, meaning script updates could be silently omitted from published images:
@@ -60,6 +60,6 @@ The build cache was switched from `type=registry,mode=max` (Docker Hub) to `type
 **Action items:**
 
 - [ ] Monitor moby/buildkit#4817 and moby/buildkit#2279 for fixes
-- [ ] Once both issues are resolved, revert `cache-from` and `cache-to` in `.github/workflows/docker-publish-image.yml` back to `type=registry` and remove the `actions: write` permission from the `build-and-push` job and the caller workflow
+- [ ] Once both issues are resolved, revert `cache-from` and `cache-to` in `.github/workflows/docker-publish-images.yml` back to `type=registry` and remove the `actions: write` permission from the `build` and `merge` jobs and the caller workflow
 
 ---

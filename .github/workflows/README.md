@@ -46,8 +46,12 @@ This ensures that only the most recent workflow run for each PR or ref is active
 
 ### docker-publish-images.yml
 
-Builds and publishes Docker images to Docker Hub when code is merged to main or tags are created.
+Builds and publishes Docker images to Docker Hub. Triggered when the Tests workflow completes (build/publish proceeds only if it succeeded on `main`), on tag pushes (`v*.*.*`), or manually via `workflow_dispatch`.
 
-### docker-publish-image.yml
+Uses a matrix strategy to build images for each PHP version (`8.2`, `8.3`) and each platform (`linux/amd64`, `linux/arm64`) in parallel. Per-platform digests are uploaded as artifacts and combined into a tagged multi-arch manifest list by a final `merge` job.
 
-Reusable workflow for building and publishing a single Docker image. Called by docker-publish-images.yml.
+Tags produced:
+
+- `{version}-php-{phpversion}` on semver tag pushes (e.g. `1.2.3-php-8.3`)
+- `php-{phpversion}` on the default branch (e.g. `php-8.3`)
+- `{branch}-php-{phpversion}` when manually triggered via `workflow_dispatch` from a non-default branch
