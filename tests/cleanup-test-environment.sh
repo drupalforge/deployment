@@ -15,7 +15,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/colors.sh"
 
 MODE="full"
-PROJECT_NAME="$(basename "$SCRIPT_DIR")"
+PROJECT_NAME="test-df-deployment"
 COMPOSE_FILE="docker-compose.test.yml"
 TAG_PREFIX="test-df-deployment"
 PHP_VERSIONS="8.2 8.3"
