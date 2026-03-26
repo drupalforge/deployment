@@ -362,7 +362,7 @@ These optimizations can significantly reduce build times, especially for rebuild
 
 #### Enabling ARM Builds
 
-To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-image.yml`:
+To build for ARM architecture when the base image supports it, edit `.github/workflows/docker-publish-images.yml`:
 
 ```yaml
 jobs:

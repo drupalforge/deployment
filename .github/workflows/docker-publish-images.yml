@@ -29,8 +29,8 @@ jobs:
     outputs:
       php_versions: ${{ steps.set-matrix.outputs.php_versions }}
     steps:
-      - name: Check tests workflow result
-        run: echo "Tests workflow succeeded, proceeding with image build"
+      - name: Verify build prerequisites
+        run: echo "Preconditions satisfied, proceeding with image build"
       - name: Set PHP versions matrix
         id: set-matrix
         run: echo 'php_versions=["8.2","8.3"]' >> "$GITHUB_OUTPUT"
