@@ -30,13 +30,23 @@ jobs:
       - name: Check tests workflow result
         run: echo "Tests workflow succeeded, proceeding with image build"
 
-  build:
+  setup:
     needs: check-tests-success
+    runs-on: ubuntu-latest
+    outputs:
+      php_versions: ${{ steps.set-matrix.outputs.php_versions }}
+    steps:
+      - name: Set PHP versions matrix
+        id: set-matrix
+        run: echo 'php_versions=["8.2","8.3"]' >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [check-tests-success, setup]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php_version: [ '8.2', '8.3' ]
+        php_version: ${{ fromJson(needs.setup.outputs.php_versions) }}
         platform:
           - linux/amd64
           - linux/arm64
@@ -114,12 +124,12 @@ jobs:
           retention-days: 1
 
   merge:
-    needs: build
+    needs: [build, setup]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        php_version: [ '8.2', '8.3' ]
+        php_version: ${{ fromJson(needs.setup.outputs.php_versions) }}
 
     steps:
       - name: Download digests
