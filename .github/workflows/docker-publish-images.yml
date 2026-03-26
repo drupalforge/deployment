@@ -64,7 +64,11 @@ jobs:
           BASE_CMD=$(docker inspect "${BASE_IMAGE}" --format='{{json .Config.Cmd}}' | jq -r 'join(" ")')
           echo "Extracted CMD: ${BASE_CMD}"
 
-          echo "base_cmd=${BASE_CMD}" >> $GITHUB_OUTPUT
+          {
+            echo 'base_cmd<<EOF'
+            echo "$BASE_CMD"
+            echo 'EOF'
+          } >>"$GITHUB_OUTPUT"
 
       - name: Checkout code
         uses: actions/checkout@v4
