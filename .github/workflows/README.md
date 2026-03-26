@@ -51,6 +51,7 @@ Builds and publishes Docker images to Docker Hub. Triggered on successful comple
 Uses a matrix strategy to build images for each PHP version (`8.2`, `8.3`) and each platform (`linux/amd64`, `linux/arm64`) in parallel. Per-platform digests are uploaded as artifacts and combined into a tagged multi-arch manifest list by a final `merge` job.
 
 Tags produced:
+
 - `{version}-php-{phpversion}` on semver tag pushes (e.g. `1.2.3-php-8.3`)
 - `php-{phpversion}` on the default branch (e.g. `php-8.3`)
 - `{branch}-php-{phpversion}` on non-default branches
