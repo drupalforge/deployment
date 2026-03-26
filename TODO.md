@@ -60,6 +60,6 @@ The build cache was switched from `type=registry,mode=max` (Docker Hub) to `type
 **Action items:**
 
 - [ ] Monitor moby/buildkit#4817 and moby/buildkit#2279 for fixes
-- [ ] Once both issues are resolved, revert `cache-from` and `cache-to` in `.github/workflows/docker-publish-images.yml` back to `type=registry` and remove the `actions: write` permission from the `build-and-push` job and the caller workflow
+- [ ] Once both issues are resolved, revert `cache-from` and `cache-to` in `.github/workflows/docker-publish-images.yml` back to `type=registry` and remove the `actions: write` permission from the `build` and `merge` jobs and the caller workflow
 
 ---
