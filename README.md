@@ -375,7 +375,7 @@ jobs:
           - linux/arm64  # Remove this line to disable ARM builds
 ```
 
-The cloud builder will automatically activate for ARM builds for better multi-platform build performance.
+The workflow attempts to use the Docker Buildx Cloud builder for ARM builds (requires a `DOCKERHUB_USERNAME/github` cloud builder to be configured on Docker Hub). If the cloud builder is unavailable, it falls back to QEMU emulation automatically.
 
 **Parallel Multi-Architecture Builds:**
 When multiple platforms are specified in the matrix, the workflow:
