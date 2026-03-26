@@ -349,8 +349,8 @@ docker build --build-arg PHP_VERSION=8.2 -t drupalforge/deployment:php-8.2 .
 
 The GitHub Actions workflows include several performance optimizations for building Docker images:
 
-1. **Registry-based caching**: Uses Docker Hub registry for build cache instead of GitHub Actions cache, providing better cache reuse across builds
-2. **Aggressive cache mode**: Uses `mode=max` for cache-to to maximize layer caching
+1. **GitHub Actions caching**: Uses `type=gha` for build cache (registry-based caching with `type=registry,mode=max` is the goal but is deferred due to open BuildKit issues; see `TODO.md`)
+2. **Per-platform cache scopes**: Each `(php_version, platform)` matrix job uses its own GHA cache scope, maximising layer reuse without cross-platform cache pollution
 3. **Build visibility**: Uses `BUILDKIT_PROGRESS=plain` for detailed build output
 4. **Multi-platform support**:
    - QEMU emulation for cross-platform builds
