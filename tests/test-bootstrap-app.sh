@@ -262,28 +262,52 @@ test_settings_can_be_created_from_default() {
     echo -e "${GREEN}✓ Settings copy logic works${NC}"
 }
 
-# Test 10: settings.php is NOT created if default.settings.php existed before bootstrap
-test_settings_not_created_if_default_existed_before() {
-    local test_repo="$TEMP_DIR/test-no-auto-settings-if-default-existed"
+# Test 10: settings.php is created when default is the only site directory
+test_settings_created_when_default_only_site() {
+    local test_repo="$TEMP_DIR/test-single-site-auto-settings"
     local settings_dir="$test_repo/web/sites/default"
     local settings_file="$settings_dir/settings.php"
     local default_settings="$settings_dir/default.settings.php"
 
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: default-only single-site settings creation test requires sudo${NC}"
+        return 0
+    fi
+
     mkdir -p "$settings_dir"
     echo '<?php' > "$default_settings"
-    # NB: settings.php does NOT exist
 
     APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
-    if [ ! -f "$settings_file" ]; then
-        echo -e "${GREEN}✓ settings.php not auto-created when default.settings.php existed before bootstrap${NC}"
+    if [ -f "$settings_file" ]; then
+        echo -e "${GREEN}✓ settings.php is auto-created when default is the only site directory${NC}"
     else
-        echo -e "${RED}✗ settings.php should NOT be auto-created when default.settings.php existed before bootstrap${NC}"
+        echo -e "${RED}✗ settings.php should be auto-created when default is the only site directory${NC}"
         exit 1
     fi
 }
 
-# Test 10: DevPanel config can be added to read-only settings.php
+# Test 11: settings.php is not created for multi-site layouts
+test_settings_not_created_for_multisite() {
+    local test_repo="$TEMP_DIR/test-no-auto-settings-multisite"
+    local settings_dir="$test_repo/web/sites/default"
+    local settings_file="$settings_dir/settings.php"
+    local default_settings="$settings_dir/default.settings.php"
+
+    mkdir -p "$settings_dir" "$test_repo/web/sites/example.com"
+    echo '<?php' > "$default_settings"
+
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+
+    if [ ! -f "$settings_file" ]; then
+        echo -e "${GREEN}✓ settings.php is not auto-created for multi-site layouts${NC}"
+    else
+        echo -e "${RED}✗ settings.php should not be auto-created for multi-site layouts${NC}"
+        exit 1
+    fi
+}
+
+# Test 12: DevPanel config can be added to read-only settings.php
 test_devpanel_config_readonly_settings() {
     local test_repo="$TEMP_DIR/test-settings-readonly"
     local settings_dir="$test_repo/web/sites/default"
@@ -319,7 +343,7 @@ test_devpanel_config_readonly_settings() {
     fi
 }
 
-# Test 11: settings.php copy aligns destination file owner/group with invoking user
+# Test 13: settings.php copy aligns destination file owner/group with invoking user
 test_settings_copy_owner_matches_invoking_user() {
     local test_dir="$TEMP_DIR/test-cp-owner-match"
     local web_root="$test_dir/web"
@@ -360,7 +384,7 @@ test_settings_copy_owner_matches_invoking_user() {
 
     local func_output
     set +e
-    func_output=$(WEB_ROOT="$web_root" ensure_settings_php_exists "$test_dir" 0 2>&1)
+    func_output=$(WEB_ROOT="$web_root" ensure_settings_php_exists "$test_dir" 2>&1)
     local status=$?
     set -e
 
@@ -386,7 +410,7 @@ test_settings_copy_owner_matches_invoking_user() {
     fi
 }
 
-# Test 12: Default config sync directory is created during bootstrap
+# Test 14: Default config sync directory is created during bootstrap
 test_default_config_sync_directory_created() {
     if ! ensure_active_sudo; then
         echo -e "${YELLOW}⊘ Skipped: default config sync directory test requires sudo${NC}"
@@ -418,7 +442,7 @@ EOF
     fi
 }
 
-# Test 13: Custom config sync directory in settings.php is respected
+# Test 15: Custom config sync directory in settings.php is respected
 test_custom_config_sync_directory_created() {
     if ! ensure_active_sudo; then
         echo -e "${YELLOW}⊘ Skipped: custom config sync directory test requires sudo${NC}"
@@ -451,7 +475,7 @@ EOF
     fi
 }
 
-# Test 14: Explicit settings.php file_private_path override is created during bootstrap
+# Test 16: Explicit settings.php file_private_path override is created during bootstrap
 test_file_private_path_directory_created() {
     if ! ensure_active_sudo; then
         echo -e "${YELLOW}⊘ Skipped: file_private_path directory test requires sudo${NC}"
@@ -485,7 +509,7 @@ EOF
     fi
 }
 
-# Test 15: Empty file_private_path value is treated as disabled
+# Test 17: Empty file_private_path value is treated as disabled
 test_empty_file_private_path_is_skipped() {
     if ! ensure_active_sudo; then
         echo -e "${YELLOW}⊘ Skipped: empty file_private_path test requires sudo${NC}"
@@ -518,7 +542,7 @@ EOF
     fi
 }
 
-# Test 16: Private files path ownership aligns with Apache runtime user/group
+# Test 18: Private files path ownership aligns with Apache runtime user/group
 test_file_private_path_owner_matches_webserver() {
     local test_repo="$TEMP_DIR/test-private-path-owner"
     local settings_dir="$test_repo/web/sites/default"
@@ -603,6 +627,7 @@ test_error_handling
 # Sudo-dependent tests first (shortest to longest expected runtime)
 test_devpanel_settings_include_added
 test_settings_can_be_created_from_default
+test_settings_created_when_default_only_site
 test_devpanel_config_readonly_settings
 test_devpanel_settings_include_not_duplicated
 test_default_config_sync_directory_created
@@ -613,7 +638,7 @@ test_file_private_path_owner_matches_webserver
 test_settings_copy_owner_matches_invoking_user
 
 # Non-sudo tests
-test_settings_not_created_if_default_existed_before
+test_settings_not_created_for_multisite
 test_git_checkout_restores_deleted_sites_dir
 test_git_submodules
 test_composer_detection

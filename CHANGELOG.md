@@ -2,6 +2,31 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Auto-create Drupal settings.php for default-only single-site apps
+
+### Create settings.php when default.settings.php exists and `sites/default` is the only site directory
+
+**Context:**
+Bootstrap previously avoided auto-creating `settings.php` when `default.settings.php` already existed before bootstrap. That rule was too narrow for Drupal Forge deployments where the intended behavior is simpler: if `settings.php` is missing, `default.settings.php` exists, and `web/sites` contains exactly one immediate site directory (`default`), bootstrap should create `settings.php`. Multi-site layouts should continue to skip auto-creation.
+
+**Done definition:**
+
+- [x] `README.md` documents that `settings.php` is auto-created only when `default.settings.php` exists and `default` is the only site directory.
+- [x] `tests/test-bootstrap-app.sh` covers both default-only single-site creation and multi-site skip behavior.
+- [x] `scripts/bootstrap-app.sh` creates `settings.php` only when `web/sites` contains exactly one immediate site directory and it is `default`.
+- [x] Required verification commands pass locally:
+  - `bash tests/test-bootstrap-app.sh`
+  - `bash tests/unit-test.sh`
+  - `bash tests/test-shellcheck.sh`
+
+**Implementation notes:**
+
+- Simplified `ensure_settings_php_exists` to remove pre-bootstrap `default.settings.php` tracking and instead count immediate `web/sites` directories after bootstrap work completes.
+- Auto-creation now proceeds only when `default.settings.php` exists, `settings.php` is absent, and the site-directory count is exactly one.
+- Added a positive default-only single-site bootstrap test and a negative multi-site regression test, and updated the direct function-call test for the new helper signature.
+
+Status: ✅ Complete (2026-03-31)
+
 ## Remove repo-managed Drush and MariaDB client config files
 
 ### Migrate ownership to base image

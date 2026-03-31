@@ -27,20 +27,14 @@ error() {
 
 ensure_settings_php_exists() {
   local app_root="$1"
-  local has_default_settings="$2"
+  local web_root="${WEB_ROOT:-${app_root}/web}"
+  local sites_dir="${web_root}/sites"
   local default_settings="${WEB_ROOT:-${app_root}/web}/sites/default/default.settings.php"
   local settings_file="${WEB_ROOT:-${app_root}/web}/sites/default/settings.php"
-  local target_owner_spec current_spec
+  local target_owner_spec current_spec site_directory_count
 
   if [ -f "$settings_file" ]; then
     log "Drupal settings.php already exists at $settings_file"
-    return 0
-  fi
-
-  # Only create settings.php if default.settings.php did NOT exist BEFORE bootstrap
-  # This means it was likely added during bootstrap (via git submodules or composer)
-  if [ "$has_default_settings" -eq 1 ]; then
-    log "default.settings.php existed before bootstrap; not auto-creating settings.php"
     return 0
   fi
 
@@ -49,7 +43,13 @@ ensure_settings_php_exists() {
     return 0
   fi
 
-  log "Creating settings.php from default.settings.php that was added during bootstrap..."
+  site_directory_count="$(find "$sites_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]')"
+  if [ "$site_directory_count" != "1" ]; then
+    log "Detected $site_directory_count site directories under $sites_dir; not auto-creating settings.php"
+    return 0
+  fi
+
+  log "Creating settings.php from default.settings.php for single-site default configuration..."
 
   target_owner_spec="$(id -u):$(id -g)"
   if sudo -n cp "$default_settings" "$settings_file"; then
@@ -259,17 +259,6 @@ main() {
   # Cross-platform directory owner lookup: GNU/Linux `stat -c` and macOS/BSD `stat -f`.
   log "Directory owner: $(stat -c '%U (%u)' "$(pwd)" 2>/dev/null || stat -f '%Su (%u)' "$(pwd)" 2>/dev/null || echo 'unknown')"
   
-  # Check if default.settings.php exists BEFORE bootstrap
-  # We'll use this to determine if we should create settings.php
-  local default_settings="${WEB_ROOT:-${app_root}/web}/sites/default/default.settings.php"
-  local has_default_settings=0
-  if [ -f "$default_settings" ]; then
-    has_default_settings=1
-    log "default.settings.php exists before bootstrap; will NOT auto-create settings.php"
-  else
-    log "default.settings.php does not exist before bootstrap; will create settings.php if it appears during bootstrap"
-  fi
-  
   # Initialize and update Git submodules recursively
   if [ -d ".git" ]; then
     log "Initializing Git submodules..."
@@ -339,7 +328,7 @@ main() {
     log "No composer.json found, skipping composer install"
   fi
 
-  ensure_settings_php_exists "$app_root" "$has_default_settings"
+  ensure_settings_php_exists "$app_root"
   ensure_devpanel_settings_include "$app_root"
   ensure_settings_directories_exist "$app_root"
   

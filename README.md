@@ -91,8 +91,9 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 - Initializing and updating Git submodules recursively
 - Running `composer install` if `composer.json` exists
 - Creating Drupal `settings.php` from `default.settings.php` if:
-  - `default.settings.php` **did not exist** before bootstrap (likely was added via Git submodules or Composer)
-  - `default.settings.php` **now exists** after bootstrap
+  - `settings.php` does not already exist
+  - `default.settings.php` exists at `web/sites/default/default.settings.php`
+  - `web/sites` contains exactly one immediate site directory: `default`
 - Ensuring Drupal `settings.php` includes DevPanel configuration from two levels above the Drupal `$app_root` variable (`dirname($app_root, 2) . '/settings.devpanel.php'`) if the project has `web/sites/default/settings.php`
 
 **Permission Handling:** The bootstrap script uses non-interactive `sudo` for settings file operations.
