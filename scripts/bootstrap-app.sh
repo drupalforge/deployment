@@ -275,6 +275,16 @@ main() {
     log "Initializing Git submodules..."
     # Add current directory as safe directory to avoid dubious ownership errors
     git config --global --add safe.directory "$(pwd)" || true
+    # Restore any git-tracked files deleted before bootstrap (e.g. DevPanel deletes sites/).
+    # This ensures tracked paths like web/sites/ and web/sites/default/ exist with correct
+    # ownership before any subsequent mkdir or install operations run.
+    log "Restoring git-tracked files deleted before bootstrap..."
+    if git checkout -- .; then
+      log "Git working tree restored successfully"
+    else
+      error "Failed to restore git-tracked files via git checkout"
+      return 1
+    fi
     if git submodule update --init --recursive; then
       log "Git submodules initialized successfully"
     else

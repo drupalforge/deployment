@@ -568,6 +568,35 @@ EOF
     fi
 }
 
+# Test: git checkout restores git-tracked directories deleted before bootstrap (e.g. by DevPanel)
+test_git_checkout_restores_deleted_sites_dir() {
+    local test_repo="$TEMP_DIR/test-git-restore"
+    local sites_dir="$test_repo/web/sites/default"
+
+    mkdir -p "$sites_dir"
+    cd "$test_repo"
+    git init . >/dev/null 2>&1
+    git config user.email "test@test.local"
+    git config user.name "Test"
+    touch "$sites_dir/.gitkeep"
+    git add . >/dev/null 2>&1
+    git commit -m "initial" >/dev/null 2>&1
+
+    # Simulate DevPanel deleting the sites directory
+    rm -rf "$test_repo/web/sites"
+
+    set +e
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    set -e
+
+    if [ -d "$sites_dir" ]; then
+        echo -e "${GREEN}✓ git checkout restores git-tracked directories deleted before bootstrap${NC}"
+    else
+        echo -e "${RED}✗ git checkout did not restore deleted sites directory${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_script_executable
 test_error_handling
@@ -585,6 +614,7 @@ test_settings_copy_owner_matches_invoking_user
 
 # Non-sudo tests
 test_settings_not_created_if_default_existed_before
+test_git_checkout_restores_deleted_sites_dir
 test_git_submodules
 test_composer_detection
 test_composer_install_flags
