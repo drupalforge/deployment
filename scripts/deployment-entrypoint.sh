@@ -37,30 +37,32 @@ if [ -n "${DP_HOSTNAME:-}" ]; then
   export DRUSH_OPTIONS_URI="${DP_HOSTNAME}"
 fi
 
-# Wait for APP_ROOT to be non-empty before proceeding.
+# Wait for APP_ROOT git worktree readiness before proceeding.
 # DevPanel clones the repository into APP_ROOT after the container starts,
-# so the directory may be empty on first boot until the clone completes.
-# Root-owned entries (e.g. lost+found created by the mounted volume filesystem)
-# are ignored when determining whether APP_ROOT has been populated.
-_app_root_non_root_contents() {
-  find "$APP_ROOT" -maxdepth 1 -mindepth 1 ! -user root 2>/dev/null
+# so `.git` may exist before HEAD is available during transient clone states.
+
+_app_root_git_head_ready() {
+  (
+    cd "$APP_ROOT" &&
+      git rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+      git rev-parse --verify HEAD >/dev/null 2>&1
+  )
 }
+
 if [ "$APP_ROOT_TIMEOUT" -gt 0 ] && [ -d "$APP_ROOT" ]; then
   elapsed=0
-  while [ -z "$(_app_root_non_root_contents)" ]; do
+  while ! _app_root_git_head_ready; do
     if [ "$elapsed" -eq 0 ]; then
-      log "Waiting for APP_ROOT to be populated: $APP_ROOT (timeout: ${APP_ROOT_TIMEOUT}s)"
+      log "Waiting for APP_ROOT git worktree readiness: $APP_ROOT (timeout: ${APP_ROOT_TIMEOUT}s)"
     fi
     if [ "$elapsed" -ge "$APP_ROOT_TIMEOUT" ]; then
-      log "Warning: APP_ROOT is still empty after ${APP_ROOT_TIMEOUT}s; continuing anyway"
-      break
+      log "Error: APP_ROOT git worktree is not ready after ${APP_ROOT_TIMEOUT}s; failing startup"
+      exit 1
     fi
     sleep 5
     elapsed=$((elapsed + 5))
   done
-  if [ -n "$(_app_root_non_root_contents)" ]; then
-    log "APP_ROOT is ready: $APP_ROOT"
-  fi
+  log "APP_ROOT is ready: $APP_ROOT"
 fi
 
 # Bootstrap application code

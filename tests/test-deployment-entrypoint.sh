@@ -47,15 +47,22 @@ test_app_root_wait_present() {
 # Test 4: Wait is skipped when APP_ROOT_TIMEOUT=0
 test_app_root_wait_skipped_at_zero() {
     local app_root="$TEMP_DIR/empty-root-zero"
+    local fake_bin="$TEMP_DIR/fake-sudo-zero"
 
     mkdir -p "$app_root"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/sudo" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+    chmod +x "$fake_bin/sudo"
 
     # With timeout=0 the script should proceed immediately without waiting.
     # We pass a no-op command so exec succeeds without starting Apache.
     local start end elapsed
     start=$(date +%s)
     set +e
-    APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no \
+    PATH="$fake_bin:$PATH" APP_ROOT="$app_root" APP_ROOT_TIMEOUT=0 BOOTSTRAP_REQUIRED=no FILE_PROXY_PATHS="" \
         bash "$ENTRYPOINT" true >/dev/null 2>&1
     set -e
     end=$(date +%s)
@@ -72,14 +79,27 @@ test_app_root_wait_skipped_at_zero() {
 # Test 5: Script proceeds immediately when APP_ROOT is non-empty
 test_app_root_ready_immediately() {
     local app_root="$TEMP_DIR/populated-root"
+    local fake_bin="$TEMP_DIR/fake-sudo-ready"
 
     mkdir -p "$app_root"
+    mkdir -p "$fake_bin"
+    cd "$app_root"
+    git init . >/dev/null 2>&1
+    git config user.email "test@test.local"
+    git config user.name "Test"
     touch "$app_root/composer.json"
+    git add composer.json >/dev/null 2>&1
+    git commit -m "initial" >/dev/null 2>&1
+    cat > "$fake_bin/sudo" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+    chmod +x "$fake_bin/sudo"
 
     local start end elapsed
     start=$(date +%s)
     set +e
-    APP_ROOT="$app_root" APP_ROOT_TIMEOUT=30 BOOTSTRAP_REQUIRED=no \
+    PATH="$fake_bin:$PATH" APP_ROOT="$app_root" APP_ROOT_TIMEOUT=30 BOOTSTRAP_REQUIRED=no FILE_PROXY_PATHS="" \
         bash "$ENTRYPOINT" true >/dev/null 2>&1
     set -e
     end=$(date +%s)
@@ -93,58 +113,61 @@ test_app_root_ready_immediately() {
     fi
 }
 
-# Test 6: Root-owned entries (e.g. lost+found) are ignored when waiting for APP_ROOT
-test_app_root_ignores_root_owned_entries() {
-    local app_root="$TEMP_DIR/root-owned-root"
-    # This test requires sudo.
-    if ! ensure_active_sudo; then
-        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires sudo${NC}"
-        return 0
-    fi
+# Test 6: APP_ROOT without .git times out and fails startup
+test_app_root_without_git_times_out() {
+    local app_root="$TEMP_DIR/empty-root-timeout"
+    local fake_bin="$TEMP_DIR/fake-sudo-no-git"
 
     mkdir -p "$app_root"
-    # Create a root-owned lost+found directory (simulates the mounted volume filesystem)
-    if ! sudo -n mkdir -p "$app_root/lost+found"; then
-        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires active sudo credentials${NC}"
-        return 0
-    fi
-    if ! sudo -n chown root "$app_root/lost+found"; then
-        echo -e "${YELLOW}⊘ Skipped: root-owned entries test requires active sudo credentials${NC}"
-        return 0
-    fi
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/sudo" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+    chmod +x "$fake_bin/sudo"
 
     local output
     set +e
-    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+    output=$(PATH="$fake_bin:$PATH" APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no FILE_PROXY_PATHS="" \
         bash "$ENTRYPOINT" true 2>&1)
+    local status=$?
     set -e
 
-    # Script should treat the directory as empty (only root-owned content) and log a warning
-    if echo "$output" | grep -q "Warning:"; then
-        echo -e "${GREEN}✓ Root-owned entries (lost+found) are ignored when checking if APP_ROOT is empty${NC}"
+    if [ "$status" -ne 0 ] && echo "$output" | grep -q "failing startup"; then
+        echo -e "${GREEN}✓ APP_ROOT without .git timeout fails startup${NC}"
     else
-        echo -e "${RED}✗ Expected timeout warning when APP_ROOT contains only root-owned entries${NC}"
+        echo -e "${RED}✗ APP_ROOT without .git timeout should fail startup${NC}"
         echo "$output"
         exit 1
     fi
 }
 
-# Test 7: Timeout warning is logged when APP_ROOT remains empty
-test_app_root_timeout_warning() {
-    local app_root="$TEMP_DIR/empty-root-timeout"
+# Test 7: Timeout fails startup when APP_ROOT has .git but git HEAD is not ready
+test_app_root_git_not_ready_timeout_failure() {
+    local app_root="$TEMP_DIR/git-not-ready-root"
+    local fake_bin="$TEMP_DIR/fake-sudo-git-not-ready"
 
     mkdir -p "$app_root"
+    mkdir -p "$fake_bin"
+    cd "$app_root"
+    git init . >/dev/null 2>&1
+    cat > "$fake_bin/sudo" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+    chmod +x "$fake_bin/sudo"
 
     local output
     set +e
-    output=$(APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no \
+    output=$(PATH="$fake_bin:$PATH" APP_ROOT="$app_root" APP_ROOT_TIMEOUT=1 BOOTSTRAP_REQUIRED=no FILE_PROXY_PATHS="" \
         bash "$ENTRYPOINT" true 2>&1)
+    local status=$?
     set -e
 
-    if echo "$output" | grep -q "Warning:"; then
-        echo -e "${GREEN}✓ Timeout warning logged when APP_ROOT remains empty${NC}"
+    if [ "$status" -ne 0 ] && echo "$output" | grep -q "failing startup"; then
+        echo -e "${GREEN}✓ APP_ROOT git HEAD timeout fails startup${NC}"
     else
-        echo -e "${RED}✗ Expected timeout warning in output${NC}"
+        echo -e "${RED}✗ APP_ROOT git HEAD timeout should fail startup${NC}"
         echo "$output"
         exit 1
     fi
@@ -161,7 +184,7 @@ test_proxy_path_directory_creation() {
     fi
 }
 
-# Test 8: DRUSH_OPTIONS_URI is exported when DP_HOSTNAME is set.
+# Test 9: DRUSH_OPTIONS_URI is exported when DP_HOSTNAME is set.
 # Requires sudo because the entrypoint unconditionally runs `sudo -n chown` on
 # the proxy path directories. Uses the invoking user's identity instead of
 # www-data so the test works on macOS where www-data does not exist.
@@ -196,7 +219,7 @@ test_drush_options_uri_exported_from_dp_hostname() {
     fi
 }
 
-# Test 9: DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent.
+# Test 10: DRUSH_OPTIONS_URI is not set when DP_HOSTNAME is absent.
 # Requires sudo for the same reason as test 8.
 test_drush_options_uri_unset_without_dp_hostname() {
     if ! ensure_active_sudo; then
@@ -234,12 +257,12 @@ test_error_handling
 # Sudo-dependent tests first (shortest to longest expected runtime)
 test_drush_options_uri_exported_from_dp_hostname
 test_drush_options_uri_unset_without_dp_hostname
-test_app_root_ignores_root_owned_entries
 
 # Non-sudo tests
 test_app_root_ready_immediately
 test_app_root_wait_skipped_at_zero
-test_app_root_timeout_warning
+test_app_root_without_git_times_out
+test_app_root_git_not_ready_timeout_failure
 test_app_root_wait_present
 test_proxy_path_directory_creation
 

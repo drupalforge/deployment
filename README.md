@@ -88,6 +88,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
 
 **Deployment image handles (on startup):**
 
+- Restoring git-tracked files via `git checkout -- .` before submodule/composer work
 - Initializing and updating Git submodules recursively
 - Running `composer install` if `composer.json` exists
 - Creating Drupal `settings.php` from `default.settings.php` if:
@@ -95,6 +96,8 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
   - `default.settings.php` exists at `web/sites/default/default.settings.php`
   - `web/sites` contains exactly one immediate site directory: `default`
 - Ensuring Drupal `settings.php` includes DevPanel configuration from two levels above the Drupal `$app_root` variable (`dirname($app_root, 2) . '/settings.devpanel.php'`) if the project has `web/sites/default/settings.php`
+
+The entrypoint waits for a valid git worktree and resolvable HEAD before starting bootstrap. If readiness is not reached before `APP_ROOT_TIMEOUT` expires, startup fails.
 
 **Permission Handling:** The bootstrap script uses non-interactive `sudo` for settings file operations.
 

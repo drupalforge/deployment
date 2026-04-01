@@ -110,7 +110,7 @@ test_version() {
         # Test CMD execution: container runs with default CMD
         echo -e "${YELLOW}  Testing CMD execution...${NC}"
         docker rm -f "$run_container_name" >/dev/null 2>&1 || true
-        if docker run -d --name "$run_container_name" "$tag" >/dev/null 2>&1; then
+        if docker run -d --name "$run_container_name" -e APP_ROOT_TIMEOUT=0 "$tag" >/dev/null 2>&1; then
             sleep 8  # Wait for container to initialize
 
             # Check if container is still running
@@ -214,7 +214,7 @@ test_version() {
 
         # Test command override
         echo -e "${YELLOW}  Testing command override...${NC}"
-        override_output=$(docker run --rm "$tag" echo "Override works" 2>&1)
+        override_output=$(docker run --rm -e APP_ROOT_TIMEOUT=0 "$tag" echo "Override works" 2>&1)
         if echo "$override_output" | grep -q "Override works"; then
             echo -e "${GREEN}  ✓ Command override works${NC}"
         else

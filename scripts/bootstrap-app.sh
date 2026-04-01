@@ -268,10 +268,12 @@ main() {
     # This ensures tracked paths like web/sites/ and web/sites/default/ exist with correct
     # ownership before any subsequent mkdir or install operations run.
     log "Restoring git-tracked files deleted before bootstrap..."
-    if git checkout -- .; then
+    local checkout_output
+    if checkout_output=$(git checkout -- . 2>&1); then
       log "Git working tree restored successfully"
     else
       error "Failed to restore git-tracked files via git checkout"
+      error "git checkout output: $checkout_output"
       return 1
     fi
     if git submodule update --init --recursive; then

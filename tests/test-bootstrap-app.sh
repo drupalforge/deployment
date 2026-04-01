@@ -592,6 +592,33 @@ EOF
     fi
 }
 
+# Test: bootstrap fails when git repo exists but has no restorable HEAD
+test_git_checkout_fails_when_repo_not_ready() {
+    local test_repo="$TEMP_DIR/test-git-not-ready"
+    local output_file="$TEMP_DIR/test-git-not-ready.log"
+
+    mkdir -p "$test_repo"
+    cd "$test_repo"
+    git init . >/dev/null 2>&1
+
+    set +e
+    APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >"$output_file" 2>&1
+    local status=$?
+    set -e
+
+    if [ "$status" -eq 0 ]; then
+        echo -e "${RED}✗ Bootstrap should fail when git repository is not ready for restore${NC}"
+        exit 1
+    fi
+
+    if grep -q "Failed to restore git-tracked files via git checkout" "$output_file"; then
+        echo -e "${GREEN}✓ Bootstrap fails when git repository is not ready for checkout restore${NC}"
+    else
+        echo -e "${RED}✗ Missing git checkout failure diagnostics when repository is not restorable${NC}"
+        exit 1
+    fi
+}
+
 # Test: git checkout restores git-tracked directories deleted before bootstrap (e.g. by DevPanel)
 test_git_checkout_restores_deleted_sites_dir() {
     local test_repo="$TEMP_DIR/test-git-restore"
@@ -639,6 +666,7 @@ test_settings_copy_owner_matches_invoking_user
 
 # Non-sudo tests
 test_settings_not_created_for_multisite
+test_git_checkout_fails_when_repo_not_ready
 test_git_checkout_restores_deleted_sites_dir
 test_git_submodules
 test_composer_detection

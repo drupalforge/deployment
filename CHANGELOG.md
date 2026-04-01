@@ -2,6 +2,27 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Gate APP_ROOT wait on git worktree readiness
+
+### Fail startup when git readiness is not reached before timeout
+
+**Context:**
+Entrypoint readiness could continue startup before Git checkout state was fully usable. The final change makes entrypoint responsible for git readiness timing and startup failure on timeout.
+
+**Done definition:**
+
+- [x] The entrypoint waits for git to confirm a valid worktree and a resolvable HEAD, not merely for non-root-owned files to appear in APP_ROOT.
+- [x] If the git worktree is not ready before `APP_ROOT_TIMEOUT` expires, startup fails with a non-zero exit rather than logging a warning and continuing.
+- [x] Bootstrap trusts that the entrypoint has already verified git readiness and does not repeat the check. When `git checkout` fails, the error output from git is captured and logged alongside the failure message.
+- [x] Verification commands passed locally:
+  - `bash tests/test-bootstrap-app.sh`
+  - `bash tests/test-deployment-entrypoint.sh`
+  - `bash tests/unit-test.sh`
+  - `bash tests/docker-build-test.sh`
+  - `bash tests/integration-test.sh`
+
+Status: ✅ Complete (2026-03-31)
+
 ## Auto-create Drupal settings.php for default-only single-site apps
 
 ### Create settings.php when default.settings.php exists and `sites/default` is the only site directory
