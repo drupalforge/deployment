@@ -2,6 +2,23 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Fix workflow warnings: upgrade deprecated GitHub Actions
+
+**Completed:** 2026-04-01
+
+**Context:**
+GitHub Actions workflow runs emitted Node.js 20 deprecation warnings because `tests.yml` used
+`actions/checkout@v3` and `docker/setup-buildx-action@v2`, both of which run on Node.js 20.
+Node.js 20 actions will be forced to Node.js 24 on June 2nd 2026 and removed on September 16th 2026.
+
+**Done definition:**
+
+- [x] `actions/checkout@v3` updated to `actions/checkout@v4` in all three jobs in `tests.yml`.
+- [x] `docker/setup-buildx-action@v2` updated to `docker/setup-buildx-action@v3` in `tests.yml`.
+- [x] `docker-publish-images.yml` was already using the correct versions (no change needed).
+
+---
+
 ## Use absolute DevPanel settings include path in bootstrap
 
 ### Remove web-root assumptions for settings include resolution
