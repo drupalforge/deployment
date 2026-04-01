@@ -274,9 +274,9 @@ else
     ((failed=failed+1))
 fi
 
-# Test 15: Bootstrap injected DevPanel include into settings.php exactly once
+# Test 15: Bootstrap injected absolute DevPanel include statement into settings.php exactly once
 if run_test "Bootstrap injected DevPanel include into settings.php once" \
-    "grep -c \"settings.devpanel.php\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
+    "grep -c \"include '/var/www/settings.devpanel.php';\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))

@@ -5,6 +5,10 @@ set -e
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${TEST_DIR%/*}"
 TEMP_DIR=$(mktemp -d)
+GLOBAL_SETTINGS_FILE="/var/www/settings.devpanel.php"
+GLOBAL_SETTINGS_BACKUP="$TEMP_DIR/settings.devpanel.php.backup"
+GLOBAL_SETTINGS_HAD_ORIGINAL=0
+GLOBAL_SETTINGS_STAGED=0
 
 # shellcheck source=lib/sudo.sh
 source "$TEST_DIR/lib/sudo.sh"
@@ -13,6 +17,39 @@ echo -e "${BLUE}Testing bootstrap-app.sh...${NC}"
 
 # Setup sudo credentials and background refresh
 setup_sudo "$TEMP_DIR"
+
+cleanup_bootstrap_tests() {
+    if [ "$GLOBAL_SETTINGS_STAGED" -eq 1 ]; then
+        if [ "$GLOBAL_SETTINGS_HAD_ORIGINAL" -eq 1 ] && [ -f "$GLOBAL_SETTINGS_BACKUP" ]; then
+            sudo -n cp "$GLOBAL_SETTINGS_BACKUP" "$GLOBAL_SETTINGS_FILE" >/dev/null 2>&1 || true
+        else
+            sudo -n rm -f "$GLOBAL_SETTINGS_FILE" >/dev/null 2>&1 || true
+        fi
+    fi
+    _sudo_cleanup "$TEMP_DIR"
+}
+
+stage_global_devpanel_settings() {
+    if ! ensure_active_sudo; then
+        echo -e "${YELLOW}⊘ Skipped: bootstrap-app tests require active sudo credentials to stage /var/www/settings.devpanel.php${NC}"
+        return 1
+    fi
+
+    sudo -n mkdir -p "$(dirname "$GLOBAL_SETTINGS_FILE")"
+
+    if [ -f "$GLOBAL_SETTINGS_FILE" ]; then
+        sudo -n cp "$GLOBAL_SETTINGS_FILE" "$GLOBAL_SETTINGS_BACKUP"
+        GLOBAL_SETTINGS_HAD_ORIGINAL=1
+    fi
+
+    sudo -n cp "$PROJECT_ROOT/config/settings.devpanel.php" "$GLOBAL_SETTINGS_FILE"
+    GLOBAL_SETTINGS_STAGED=1
+    return 0
+}
+
+trap 'cleanup_bootstrap_tests' EXIT
+
+stage_global_devpanel_settings
 
 write_devpanel_settings_for_repo() {
     local test_repo="$1"
@@ -180,7 +217,7 @@ test_devpanel_settings_include_added() {
 
     APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
-    if grep -q "settings.devpanel.php" "$settings_file"; then
+    if grep -q "'/var/www/settings.devpanel.php'" "$settings_file"; then
         echo -e "${GREEN}✓ DevPanel settings include block is added to settings.php${NC}"
     else
         echo -e "${RED}✗ DevPanel settings include block was not added${NC}"
@@ -204,14 +241,16 @@ test_devpanel_settings_include_not_duplicated() {
     echo '<?php' > "$settings_file"
 
     APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
+    local include_count_first
+    include_count_first=$(grep -c "'/var/www/settings.devpanel.php'" "$settings_file")
     APP_ROOT="$test_repo" bash "$PROJECT_ROOT/scripts/bootstrap-app.sh" >/dev/null 2>&1
 
-    local include_count
-    include_count=$(grep -c "settings.devpanel.php" "$settings_file")
-    if [ "$include_count" -eq 1 ]; then
+    local include_count_second
+    include_count_second=$(grep -c "'/var/www/settings.devpanel.php'" "$settings_file")
+    if [ "$include_count_first" -gt 0 ] && [ "$include_count_second" -eq "$include_count_first" ]; then
         echo -e "${GREEN}✓ DevPanel settings include block is not duplicated${NC}"
     else
-        echo -e "${RED}✗ DevPanel settings include block duplicated (count: $include_count)${NC}"
+        echo -e "${RED}✗ DevPanel settings include block duplicated (before: $include_count_first, after: $include_count_second)${NC}"
         exit 1
     fi
 }
@@ -426,7 +465,7 @@ test_default_config_sync_directory_created() {
         write_devpanel_settings_for_repo "$test_repo"
     cat > "$settings_file" <<'EOF'
 <?php
-$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+$devpanel_settings = '/var/www/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
@@ -459,7 +498,7 @@ test_custom_config_sync_directory_created() {
     cat > "$settings_file" <<'EOF'
 <?php
 $settings['config_sync_directory'] = '../custom/sync';
-$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+$devpanel_settings = '/var/www/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
@@ -493,7 +532,7 @@ test_file_private_path_directory_created() {
 <?php
 // Override settings.devpanel.php default to ensure bootstrap respects settings.php value.
 $settings['file_private_path'] = '../private-files';
-$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+$devpanel_settings = '/var/www/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
@@ -526,7 +565,7 @@ test_empty_file_private_path_is_skipped() {
     cat > "$settings_file" <<'EOF'
 <?php
 $settings['file_private_path'] = '';
-$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+$devpanel_settings = '/var/www/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }
@@ -565,7 +604,7 @@ test_file_private_path_owner_matches_webserver() {
     cat > "$settings_file" <<'EOF'
 <?php
 $settings['file_private_path'] = '../private-files';
-$devpanel_settings = dirname($app_root, 2) . '/settings.devpanel.php';
+$devpanel_settings = '/var/www/settings.devpanel.php';
 if (file_exists($devpanel_settings)) {
   include $devpanel_settings;
 }

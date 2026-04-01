@@ -74,7 +74,7 @@ ensure_devpanel_settings_include() {
     return 0
   fi
 
-  if grep -q "settings.devpanel.php" "$settings_file"; then
+  if grep -q "'/var/www/settings.devpanel.php'" "$settings_file"; then
     log "DevPanel settings include already exists in $settings_file"
     return 0
   fi
@@ -83,9 +83,8 @@ ensure_devpanel_settings_include() {
 /**
  * Load DevPanel override configuration, if available.
  */
-$devpanel_settings = dirname($app_root, 2) . \'/settings.devpanel.php\';
-if (file_exists($devpanel_settings)) {
-  include $devpanel_settings;
+if (file_exists(\'/var/www/settings.devpanel.php\')) {
+  include \'/var/www/settings.devpanel.php\';
 }'
 
   if echo "$devpanel_block" | sudo -n tee -a "$settings_file" >/dev/null; then

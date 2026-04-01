@@ -2,6 +2,35 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Use absolute DevPanel settings include path in bootstrap
+
+### Remove web-root assumptions for settings include resolution
+
+**Context:**
+Bootstrap injected a `settings.php` include block that referenced `settings.devpanel.php` via
+`dirname($app_root, 2)`. That assumed a specific web-root layout and could miss DevPanel
+overrides in alternate project structures. The image already ships `settings.devpanel.php` at
+`/var/www/settings.devpanel.php`, so bootstrap now targets that absolute path directly.
+
+**Done definition:**
+
+- [x] `scripts/bootstrap-app.sh` checks for `/var/www/settings.devpanel.php` in `settings.php` when determining whether the include already exists.
+- [x] `scripts/bootstrap-app.sh` appends an include block that references `/var/www/settings.devpanel.php` (absolute path).
+- [x] Legacy include detection behavior based on generic `settings.devpanel.php` substrings is removed.
+- [x] `tests/test-bootstrap-app.sh` assertions are updated for absolute include path behavior and pass.
+- [x] `README.md` documents absolute include path usage for DevPanel settings include behavior.
+- [x] Required verification commands passed locally:
+  - `bash tests/test-bootstrap-app.sh < /dev/null`
+  - `bash tests/unit-test.sh < /dev/null`
+
+**Implementation notes:**
+
+- Updated `ensure_devpanel_settings_include()` to detect and append only the absolute include path `/var/www/settings.devpanel.php`.
+- Updated bootstrap test fixtures and include assertions to use the absolute include contract.
+- Updated README bootstrap/settings documentation to match the absolute include behavior.
+
+Status: ✅ Complete (2026-03-31)
+
 ## Gate APP_ROOT wait on git worktree readiness
 
 ### Fail startup when git readiness is not reached before timeout

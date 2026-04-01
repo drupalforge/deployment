@@ -95,7 +95,7 @@ Code is mounted into the container at `$APP_ROOT` (default: `/var/www/html`).
   - `settings.php` does not already exist
   - `default.settings.php` exists at `web/sites/default/default.settings.php`
   - `web/sites` contains exactly one immediate site directory: `default`
-- Ensuring Drupal `settings.php` includes DevPanel configuration from two levels above the Drupal `$app_root` variable (`dirname($app_root, 2) . '/settings.devpanel.php'`) if the project has `web/sites/default/settings.php`
+- Ensuring Drupal `settings.php` includes DevPanel configuration from the absolute path `/var/www/settings.devpanel.php` if the project has `web/sites/default/settings.php`
 
 The entrypoint waits for a valid git worktree and resolvable HEAD before starting bootstrap. If readiness is not reached before `APP_ROOT_TIMEOUT` expires, startup fails.
 
@@ -150,11 +150,11 @@ Digital assets are retrieved on-demand from the origin site using one of two met
 
 ### Drupal Settings Overrides (`settings.devpanel.php`)
 
-When `settings.php` includes the Drupal app-root-grandparent path (`dirname($app_root, 2) . '/settings.devpanel.php'`), the image configures Drupal database settings from environment variables and applies safe defaults for DevPanel environments.
+When `settings.php` includes `/var/www/settings.devpanel.php`, the image configures Drupal database settings from environment variables and applies safe defaults for DevPanel environments.
 
 - `hash_salt` is derived deterministically from the configured `$databases['default']['default']` connection values.
 - `config_sync_directory` defaults to `../config/sync` unless already defined.
-- If `config_sync_directory` does not exist, bootstrap creates it recursively after ensuring `settings.php` includes `settings.devpanel.php`.
+- If `config_sync_directory` does not exist, bootstrap creates it recursively after ensuring `settings.php` includes `/var/www/settings.devpanel.php`.
 - `file_private_path` defaults to `../private` unless already defined.
 - If `file_private_path` is non-empty and the directory does not exist, bootstrap creates it recursively.
 - Bootstrap aligns non-empty `file_private_path` ownership to Apache runtime user/group (`APACHE_RUN_USER`/`APACHE_RUN_GROUP`, with Apache envvars fallback).
