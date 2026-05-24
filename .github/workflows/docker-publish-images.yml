@@ -56,7 +56,7 @@ jobs:
       - name: Extract CMD from base image
         id: extract-cmd
         run: |
-          BASE_IMAGE="devpanel/php:${{ matrix.php_version }}-base-rc"
+          BASE_IMAGE="devpanel/php:${{ matrix.php_version }}-base"
           echo "Pulling base image: ${BASE_IMAGE}"
           docker pull "${BASE_IMAGE}"
 
