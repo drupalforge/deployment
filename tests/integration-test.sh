@@ -98,6 +98,18 @@ cd "$SCRIPT_DIR"
 # Ensure a clean compose state immediately before building and starting services.
 bash "$CLEANUP_SCRIPT" --mode stale --project "$TEST_COMPOSE_PROJECT" --compose-file "$SCRIPT_DIR/docker-compose.test.yml"
 
+# Build the test image locally if it's not present to avoid Compose trying to pull
+# the `test-df-deployment:8.3` image (which produces a noisy warning when no
+# remote repository exists). This works with both `docker-compose` and
+# `docker compose` invocations since we use the resolved `$DOCKER_COMPOSE`.
+if ! docker image inspect test-df-deployment:8.3 >/dev/null 2>&1; then
+    echo -e "${YELLOW}Building local test image test-df-deployment:8.3 to avoid pull warnings...${NC}"
+    if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml build; then
+        echo -e "${RED}✗ Failed to build test image test-df-deployment:8.3${NC}"
+        exit 1
+    fi
+fi
+
 compose_up_ok=0
 for start_attempt in 1 2; do
     if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml up $COMPOSE_UP_FLAGS -d; then
