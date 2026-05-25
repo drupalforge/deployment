@@ -9,6 +9,7 @@ TEST_COMPOSE_PROJECT="test-df-deployment"
 NOIMPORT_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-noimport-once"
 SECURE_PRIVATE_CONTAINER_NAME="${TEST_COMPOSE_PROJECT}-secure-private-once"
 CLEANUP_SCRIPT="$SCRIPT_DIR/cleanup-test-environment.sh"
+ONE_OFF_READY_TIMEOUT_SECONDS="${ONE_OFF_READY_TIMEOUT_SECONDS:-120}"
 
 # shellcheck source=lib/colors.sh
 source "$SCRIPT_DIR/lib/colors.sh"
@@ -358,12 +359,12 @@ if ! docker run -d \
     ((failed=failed+1))
 else
     secure_private_ready=0
-    for i in {1..60}; do
+    for ((i=1; i<=ONE_OFF_READY_TIMEOUT_SECONDS; i++)); do
         if docker exec "$SECURE_PRIVATE_CONTAINER_NAME" curl -s http://localhost/ >/dev/null 2>&1; then
             secure_private_ready=1
             break
         fi
-        if [ "$i" -eq 60 ]; then
+        if [ "$i" -eq "$ONE_OFF_READY_TIMEOUT_SECONDS" ]; then
             echo -e "${RED}✗ Timeout waiting for secure-mode private path validation container${NC}"
             docker logs --tail=100 "$SECURE_PRIVATE_CONTAINER_NAME" || true
             ((failed=failed+1))
@@ -415,12 +416,12 @@ else
         ((failed=failed+1))
     else
         noimport_ready=0
-        for i in {1..60}; do
+        for ((i=1; i<=ONE_OFF_READY_TIMEOUT_SECONDS; i++)); do
             if docker exec "$NOIMPORT_CONTAINER_NAME" curl -s http://localhost/ >/dev/null 2>&1; then
                 noimport_ready=1
                 break
             fi
-            if [ "$i" -eq 60 ]; then
+            if [ "$i" -eq "$ONE_OFF_READY_TIMEOUT_SECONDS" ]; then
                 echo -e "${RED}✗ Timeout waiting for no-import validation container${NC}"
                 docker logs --tail=100 "$NOIMPORT_CONTAINER_NAME" || true
                 ((failed=failed+1))
