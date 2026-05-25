@@ -37,7 +37,7 @@ $web_root = rtrim($web_root, '/');
 // Always redirect back to the styled URL so Drupal can generate the derivative;
 // only download the original from origin when it is not already on disk.
 $download_path = $requested_path;
-if (preg_match('#^(/[^/]+/[^/]+/files)/styles/[^/]+/public/(.+)$#', $requested_path, $matches)) {
+if (preg_match('#^(/[^/]+.*(?=/styles/))/styles/[^/]+/[^/]+/([^/]+.*)$#', $requested_path, $matches)) {
     $download_path = $matches[1] . '/' . $matches[2];
 }
 
@@ -113,39 +113,63 @@ if (file_exists($save_path)) {
 $origin_url = rtrim($origin_url, '/');
 $full_url = $origin_url . $download_path;
 
-// Download file using curl
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $full_url);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_FAILONERROR, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+// Helper: download a URL and save it to $save_path. Returns ['ok'=>bool,'error'=>string|null,'http_code'=>int]
+function download_and_save(string $url, string $save_path): array {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_FAILONERROR, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-$file_content = curl_exec($ch);
-$curl_error = curl_error($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-unset($ch);
+    $file_content = curl_exec($ch);
+    $curl_error = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    unset($ch);
 
-// Check for download errors
-if ($file_content === false) {
-    http_response_code(502);
-    die("Failed to download from origin: $curl_error\n");
+    // Check for download errors.
+    if ($file_content === false) {
+        return ['ok' => false, 'error' => "Failed to download from origin: $curl_error\n", 'http_code' => 502];
+    }
+
+    if ($http_code >= 400) {
+        return ['ok' => false, 'error' => "Origin returned HTTP $http_code\n", 'http_code' => 502];
+    }
+
+    // Write file to disk at the original (non-styled) path.
+    if (file_put_contents($save_path, $file_content) === false) {
+        return ['ok' => false, 'error' => "Failed to write file to $save_path\n", 'http_code' => 500];
+    }
+
+    // Set standard file permissions.
+    chmod($save_path, 0644);
+
+    return ['ok' => true, 'error' => null, 'http_code' => $http_code];
 }
 
-if ($http_code >= 400) {
-    http_response_code(502);
-    die("Origin returned HTTP $http_code\n");
-}
+// Attempt primary download and save.
+$res = download_and_save($full_url, $save_path);
 
-// Write file to disk at the original (non-styled) path
-if (file_put_contents($save_path, $file_content) === false) {
-    http_response_code(500);
-    die("Failed to write file to $save_path\n");
-}
+if (!$res['ok']) {
+    // If this is a styled image request with multiple extensions, attempt a
+    // fallback download with the last extension stripped.
+    $basename = basename($download_path);
+    if ($download_path !== $requested_path && substr_count($basename, '.') >= 2) {
+        $download_path = dirname($download_path) . '/' . pathinfo($download_path, PATHINFO_FILENAME);
+        $full_url = $origin_url . $download_path;
+        $save_path = $web_root . $download_path;
+        $alt_res = download_and_save($full_url, $save_path);
+        if ($alt_res['ok']) {
+            $res = $alt_res;
+        }
+    }
 
-// Set standard file permissions
-chmod($save_path, 0644);
+    if (!$res['ok']) {
+        http_response_code($res['http_code']);
+        die($res['error']);
+    }
+}
 
 // File is now on disk. Redirect so Apache serves it directly with correct MIME detection
 // via mod_mime. For image styles the redirect returns to the styled URL so Drupal can

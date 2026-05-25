@@ -159,16 +159,26 @@ configure_apache_proxy() {
     printf '\n'
 
     for path in "${normalized_paths[@]}"; do
-      # Rule 1: image style proxy — fires only when the original source file is missing.
-      # Condition 1 is a POSITIVE (non-negated) match so that the capture group
-      # sets %1 to the original file's subpath (the portion after /public/).
-      # Condition 2 then uses %1 to test that the original file is absent on disk.
-      printf '        # Image style proxy: %s\n' "$path"
-      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
+      # Rule 1: image style proxy for requests with multiple extensions.
+      # Route to handler only when both original variants are missing:
+      #   - as requested (e.g. foo.jpg.webp)
+      #   - with last extension stripped (e.g. foo.jpg)
+      printf '        # Image style proxy: %s (multiple extensions)\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/[^/]+/([^/]+.*)$\n' "$path"
+      printf '        RewriteCond %%1 ^(.+\\.[^/]+)\\.[^/]+$\n'
+      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
+      printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%{C:1} !-f\n' "$path"
+      printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
+      printf '\n'
+      # Rule 2: image style proxy for single-extension requests.
+      # For multiple-extension requests, rule 1a above handles the fallback check.
+      printf '        # Image style proxy: %s (single extension)\n' "$path"
+      printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/[^/]+/([^/]+.*)$\n' "$path"
+      printf '        RewriteCond %%1 !^.+\\.[^/]+\\.[^/]+$\n'
       printf '        RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f\n' "$path"
       printf '        RewriteRule ^ /drupalforge-proxy-handler.php [END,PT]\n'
       printf '\n'
-      # Rule 2: regular file proxy — handles non-image-style files under the proxy path.
+      # Rule 3: regular file proxy — handles non-image-style files under the proxy path.
       # Excludes styles/ subtree so that when the original exists and Drupal needs to
       # generate a derivative, the request falls through to Drupal's own routing.
       printf '        # File proxy: %s\n' "$path"

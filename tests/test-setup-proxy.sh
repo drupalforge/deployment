@@ -125,11 +125,12 @@ test_vhost_rewrite_scope() {
 # fall through to Drupal routing when appropriate.
 test_image_style_proxied_when_original_missing() {
     # Image style rule: positive match captures the original subpath into %1
-    if grep -q 'RewriteCond %%{REQUEST_URI} \^.*styles.*/public/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q 'RewriteCond %%{DOCUMENT_ROOT}.*%%1 !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q 'RewriteCond %%{REQUEST_URI} !\^.*css/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q 'RewriteCond %%{REQUEST_URI} !\^.*js/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
-       grep -q 'RewriteCond %%{REQUEST_URI} !.*styles/' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
+    if grep -q 'RewriteCond %%{REQUEST_URI} \^%s/styles/\[\^/]+/\[\^/]+/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{DOCUMENT_ROOT}%s/%%1 !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{DOCUMENT_ROOT}%s/%%{C:1} !-f' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{REQUEST_URI} !\^%s/css/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{REQUEST_URI} !\^%s/js/' "$SCRIPT_DIR/scripts/setup-proxy.sh" && \
+       grep -q 'RewriteCond %%{REQUEST_URI} !\^%s/styles/' "$SCRIPT_DIR/scripts/setup-proxy.sh"; then
         echo -e "${GREEN}✓ Image style rule uses positive match (%1 set correctly); regular-file rule excludes css/js/styles subtrees${NC}"
     else
         echo -e "${RED}✗ Per-path rule structure incorrect — image style or regular-file rule exclusions missing${NC}"
@@ -144,11 +145,11 @@ test_image_style_proxied_when_original_missing() {
 test_image_style_apache_regex() {
     # Extract the regex portion from the image-style RewriteCond printf line.
     # The line in setup-proxy.sh is:
-    #   printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/public/(.+)$\n' "$path"
+    #   printf '        RewriteCond %%{REQUEST_URI} ^%s/styles/[^/]+/[^/]+/([^/]+.*)$\n' "$path"
     # After stripping everything up to "REQUEST_URI} " and trimming the trailing \n...:
-    #   ^%s/styles/[^/]+/public/(.+)$
+    #   ^%s/styles/[^/]+/[^/]+/([^/]+.*)
     local pattern_fmt
-    pattern_fmt=$(grep 'RewriteCond.*styles.*public' "$SCRIPT_DIR/scripts/setup-proxy.sh" \
+    pattern_fmt=$(grep 'RewriteCond %%{REQUEST_URI} \^%s/styles/\[\^/]+/\[\^/]+/' "$SCRIPT_DIR/scripts/setup-proxy.sh" \
         | sed 's/.*REQUEST_URI} //; s/\\n.*//' \
         | head -1)
     if [ -z "$pattern_fmt" ]; then

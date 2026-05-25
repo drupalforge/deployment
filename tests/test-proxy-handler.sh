@@ -200,6 +200,16 @@ test_skip_download_if_exists() {
     fi
 }
 
+# Test 14: Extension-strip retry logic present
+test_extension_strip_retry() {
+    if grep -q "pathinfo(" "$HANDLER"; then
+        echo -e "${GREEN}✓ Handler includes extension-strip retry logic${NC}"
+    else
+        echo -e "${RED}✗ Handler may be missing extension-strip retry logic${NC}"
+        exit 1
+    fi
+}
+
 # Run tests
 test_file_exists
 test_php_syntax
@@ -214,5 +224,6 @@ test_env_origin
 test_image_styles
 test_image_style_regex
 test_skip_download_if_exists
+test_extension_strip_retry
 
 echo -e "${GREEN}✓ PHP handler tests passed${NC}"

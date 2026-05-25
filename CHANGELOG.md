@@ -2,6 +2,24 @@
 
 All completed work for the Drupal Forge deployment image is tracked here. When a task is finished, move it from `TODO.md` to this file, including its context, done definition, and completion status.
 
+## Retry origin download with extension-stripped filename
+
+### Attempt origin fetch again after removing final extension from multi-extension filenames
+
+**Completed:** 2026-05-25
+
+**Context:**
+When image-style or derivation URLs contain multiple extensions (for example `file.jpg.webp`), the origin may store the file under the base filename without the final extension. The proxy handler should attempt a secondary download using the filename with the last extension stripped before failing.
+
+**Done definition:**
+
+- [x] `scripts/proxy-handler.php` attempts a single fallback download using `pathinfo(..., PATHINFO_FILENAME)` to strip only the last extension when the initial download fails and the request path differs from the download path.
+- [x] Download logic refactored into `download_and_save()` and `perform_curl_download()` helpers to centralize curl, directory creation, and file writing.
+- [x] `tests/test-proxy-handler.sh` updated to assert extension-strip retry logic and to require the `pathinfo()`-based approach.
+- [x] Unit tests run locally: `bash tests/test-proxy-handler.sh` passes.
+
+Status: ✅ Complete (2026-05-25)
+
 ## Fix workflow warnings: upgrade deprecated GitHub Actions
 
 **Completed:** 2026-04-01

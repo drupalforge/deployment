@@ -234,7 +234,40 @@ else
     ((failed=failed+1))
 fi
 
-# Test 10: Downloaded file persists locally
+# Test 10: File proxy fallback + simulated Drupal derivative generation (.jpg.webp)
+# Step 1 triggers proxy fallback for missing style URL so handler downloads foo.jpg from origin.
+# Step 2 simulates Drupal generating the derived file with a different extension.
+# Step 3 verifies the style URL now serves the generated derivative content.
+_test10_script='
+    # Step 1: ensure no cached files exist.
+    rm -f /var/www/html/web/sites/default/files/foo.jpg \
+          /var/www/html/web/sites/default/files/styles/thumbnail/public/foo.jpg.webp
+
+    # Step 2: trigger proxy fallback; handler should download foo.jpg from origin.
+    curl -s http://localhost/sites/default/files/styles/thumbnail/public/foo.jpg.webp \
+        >/dev/null 2>&1 || true
+
+    # Step 3: verify foo.jpg was saved locally with expected origin content.
+    test -f /var/www/html/web/sites/default/files/foo.jpg
+    grep -q "ORIGIN FOO FILE" /var/www/html/web/sites/default/files/foo.jpg
+
+    # Step 4: simulate Drupal generating the derivative with a different extension.
+    mkdir -p /var/www/html/web/sites/default/files/styles/thumbnail/public
+    printf "SIMULATED WEBP DERIVATIVE\n" \
+        > /var/www/html/web/sites/default/files/styles/thumbnail/public/foo.jpg.webp
+
+    # Step 5: verify style URL now serves the generated derivative.
+    curl -s http://localhost/sites/default/files/styles/thumbnail/public/foo.jpg.webp \
+        | grep -q "SIMULATED WEBP DERIVATIVE"
+'
+if run_test "File proxy fallback with simulated extension-changing style generation" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc '$_test10_script'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 11: Downloaded file persists locally
 if run_test "Proxied file saved to disk" \
     "test -f '$SCRIPT_DIR/fixtures/app/web/sites/default/files/test-file.txt'"; then
     ((passed=passed+1))
@@ -242,7 +275,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 11: S3 bucket was used
+# Test 12: S3 bucket was used
 if run_test "S3 (MinIO) connectivity tested" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'aws s3 ls --endpoint-url=\"\$AWS_S3_ENDPOINT\" s3://\$S3_BUCKET/' | grep -q 'test-db.sql.gz'"; then
     ((passed=passed+1))
@@ -250,7 +283,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 12: Secure (www-data default) - proxy path directory is owned by www-data
+# Test 13: Secure (www-data default) - proxy path directory is owned by www-data
 if run_test "Secure (Apache www-data default): proxy path owned by www-data" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
     ((passed=passed+1))
@@ -258,7 +291,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 13: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
+# Test 14: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
 if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -sL http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
     ((passed=passed+1))
@@ -266,7 +299,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 14: DevPanel settings template exists in image/container
+# Test 15: DevPanel settings template exists in image/container
 if run_test "DevPanel settings template exists in container" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /var/www/settings.devpanel.php"; then
     ((passed=passed+1))
@@ -274,7 +307,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 15: Bootstrap injected absolute DevPanel include statement into settings.php exactly once
+# Test 16: Bootstrap injected absolute DevPanel include statement into settings.php exactly once
 if run_test "Bootstrap injected DevPanel include into settings.php once" \
     "grep -c \"include '/var/www/settings.devpanel.php';\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
     ((passed=passed+1))
@@ -282,7 +315,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 16: Private file path exists and matches Apache runtime user/group
+# Test 17: Private file path exists and matches Apache runtime user/group
 if run_test "Private file path exists and ownership matches Apache runtime user/group" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www:www$\"'"; then
     ((passed=passed+1))
@@ -290,7 +323,7 @@ else
     ((failed=failed+1))
 fi
 
-# Test 17: Secure-mode one-off bootstrap aligns private path ownership with default Apache user/group
+# Test 18: Secure-mode one-off bootstrap aligns private path ownership with default Apache user/group
 echo -e "${YELLOW}Preparing secure-mode private path ownership scenario...${NC}"
 docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
 if ! docker run -d \
@@ -339,7 +372,7 @@ else
     docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
 fi
 
-# Test 18: No-import installer flow skips DB setup and redirects to install start
+# Test 19: No-import installer flow skips DB setup and redirects to install start
 echo -e "${YELLOW}Preparing no-import installer flow scenario...${NC}"
 if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T mysql \
     mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS drupaldb_noimport; CREATE DATABASE drupaldb_noimport; GRANT ALL PRIVILEGES ON drupaldb_noimport.* TO 'drupal'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then
