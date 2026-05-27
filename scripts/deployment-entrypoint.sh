@@ -22,6 +22,12 @@ log() {
 log "Starting Drupal Forge deployment initialization"
 log "Entrypoint: $0"
 
+# Source shared dir helpers
+# Resolve the script directory relative to the current script invocation.
+# Source shared dir helpers from project root `lib/` relative to this script.
+# shellcheck disable=SC1090,SC1091
+. "$(dirname "${BASH_SOURCE[0]:-$0}")/../lib/dir-helpers.sh"
+
 BOOTSTRAP_REQUIRED="${BOOTSTRAP_REQUIRED:-yes}"
 APP_ROOT_TIMEOUT="${APP_ROOT_TIMEOUT:-300}"
 if ! [[ "$APP_ROOT_TIMEOUT" =~ ^[0-9]+$ ]]; then
@@ -102,7 +108,7 @@ for _path in "${_proxy_paths[@]}"; do
   [[ "$_path" != /* ]] && _path="/$_path"
   full_path="${WEB_ROOT}${_path}"
   if [ ! -d "$full_path" ]; then
-    sudo -n install -d -o "$_apache_user" -g "$_apache_group" -m 0755 "$full_path"
+    create_dirs_owned_by_current_user "$full_path"
     log "Created proxy path directory: $full_path"
   fi
   sudo -n chown -R "$_apache_user:$_apache_group" "$full_path"

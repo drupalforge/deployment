@@ -34,6 +34,60 @@ run_test() {
     fi
 }
 
+# Run a test with retries to tolerate transient timing/race issues.
+run_test_retry() {
+    local test_name="$1"
+    local test_cmd="$2"
+    local tries="${3:-5}"
+    local delay="${4:-1}"
+
+    echo -n "Testing: $test_name ... "
+    for i in $(seq 1 "$tries"); do
+        if eval "$test_cmd" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC}"
+            return 0
+        fi
+        sleep "$delay"
+    done
+    echo -e "${RED}✗${NC}"
+    return 1
+}
+
+# Wait for the deployment container bootstrap to complete (logs or include present).
+wait_for_bootstrap() {
+    # Resolve deployment container id and poll for bootstrap completion indicators.
+    DEP=$($DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml ps -q deployment 2>/dev/null || true)
+    if [ -z "$DEP" ]; then
+        return 1
+    fi
+    for i in $(seq 1 60); do
+        if docker exec "$DEP" sh -c 'grep -q "Deployment initialization complete" /tmp/drupalforge-deployment.log >/dev/null 2>&1' >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+# Helper to check for DevPanel include inside the deployment container.
+# shellcheck disable=SC2329
+check_devpanel_include() {
+    DEP=$($DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml ps -q deployment 2>/dev/null || true)
+    if [ -z "$DEP" ]; then
+        return 1
+    fi
+    docker exec "$DEP" sh -c 'grep -m1 -F "include '\''/var/www/settings.devpanel.php'\'';" /var/www/html/web/sites/default/settings.php >/dev/null 2>&1'
+}
+
+# Helper to validate the no-import installer flow inside the one-off no-import container.
+# shellcheck disable=SC2329
+check_noimport_installer() {
+    if [ -z "${NOIMPORT_CONTAINER_NAME:-}" ]; then
+        return 1
+    fi
+    docker exec "$NOIMPORT_CONTAINER_NAME" sh -c 'curl -sI "http://localhost/core/install.php?rewrite=ok&langcode=en&profile=minimal" | tr -d "\r" | grep -i -m1 "^location:" | sed -E "s/[Ll]ocation: //g" | grep -qi "op=start"'
+}
+
 # shellcheck disable=SC2329  # Invoked indirectly via trap
 cleanup() {
     if [ "${KEEP_TEST_ENV:-no}" = "yes" ]; then
@@ -136,7 +190,7 @@ fi
 # Wait for regular deployment container to be ready
 echo -e "${YELLOW}Waiting for services to be ready...${NC}"
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment curl -s http://localhost/ >/dev/null 2>&1; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec deployment curl -s http://localhost/ >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Deployment container ready${NC}"
         break
     fi
@@ -152,7 +206,7 @@ echo ""
 
 # Wait for secure deployment container to be ready
 for i in {1..60}; do
-    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T deployment-secure curl -s http://localhost/ >/dev/null 2>&1; then
+    if $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec deployment-secure curl -s http://localhost/ >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Secure deployment container ready${NC}"
         break
     fi
@@ -169,13 +223,17 @@ echo ""
 # Run tests
 echo -e "${YELLOW}Running integration tests...${NC}"
 echo ""
+echo -e "${YELLOW}Waiting for deployment bootstrap to complete...${NC}"
+if ! wait_for_bootstrap; then
+    echo -e "${YELLOW}Warning: bootstrap readiness check timed out; proceeding anyway${NC}"
+fi
 
 failed=0
 passed=0
 
 # Test 1: Database import
 if run_test "Database import (users table exists)" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T mysql mysql -uroot -proot_password -Ddrupaldb -e 'SELECT COUNT(*) FROM users' | grep -q '[0-9]'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec mysql mysql -uroot -proot_password -Ddrupaldb -e 'SELECT COUNT(*) FROM users' | grep -q '[0-9]'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -183,7 +241,7 @@ fi
 
 # Test 2: Installed fixtures should not redirect home page traffic to installer.
 if run_test "Drupal home page does not redirect to installer" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'location=\$(curl -sI http://localhost/ | awk '\''tolower(\$1)==\"location:\" {print \$2}'\'' | tr -d \"\\r\"); [ -z \"\$location\" ] || ! echo \"\$location\" | grep -qi \"/core/install.php\"'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'location=\$(curl -sI http://localhost/ | awk '\''tolower(\$1)==\"location:\" {print \$2}'\'' | tr -d \"\\r\"); [ -z \"\$location\" ] || ! echo \"\$location\" | grep -qi \"/core/install.php\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -191,23 +249,23 @@ fi
 
 # Test 3: Drupal entrypoint responds
 if run_test "Drupal index endpoint reachable" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'curl -sL http://localhost/ | grep -qi \"Drupal\"'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'curl -sL http://localhost/ | grep -qi \"Drupal\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
 # Test 4: Bootstrap ran (git repo initialized)
-if run_test "Bootstrap initialized git" \
-    "test -d '$SCRIPT_DIR/fixtures/app/.git'"; then
+if run_test_retry "Bootstrap initialized git" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment test -d /var/www/html/.git" 10 1; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
 # Test 5: Composer.json exists
-if run_test "composer.json present" \
-    "test -f '$SCRIPT_DIR/fixtures/app/composer.json'"; then
+if run_test_retry "composer.json present" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment test -f /var/www/html/composer.json" 10 1; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -215,7 +273,7 @@ fi
 
 # Test 6: File proxy - request missing file from origin
 if run_test "File proxy setup (rewrite rules)" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc \"grep -q 'RewriteRule.*proxy-handler' /etc/apache2/sites-enabled/000-default.conf\""; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc \"grep -q 'RewriteRule.*proxy-handler' /etc/apache2/sites-enabled/000-default.conf\""; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -223,7 +281,7 @@ fi
 
 # Test 7: PHP handler is accessible
 if run_test "PHP proxy handler deployed" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /var/www/drupalforge-proxy-handler.php"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment test -f /var/www/drupalforge-proxy-handler.php"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -231,7 +289,7 @@ fi
 
 # Test 8: Origin server is reachable
 if run_test "Origin server is reachable" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -s http://origin-server:8000/ | grep -q '<!DOCTYPE'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment curl -s http://origin-server:8000/ | grep -q '<!DOCTYPE'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -241,7 +299,7 @@ fi
 # Use -L so curl follows the 302 redirect that the proxy handler issues after saving the file;
 # Apache then serves the file directly on the second request with correct MIME detection.
 if run_test "File proxy downloads from origin" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment curl -sL http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment curl -sL http://localhost/sites/default/files/test-file.txt | grep -q 'test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -274,15 +332,15 @@ _test10_script='
         | grep -q "SIMULATED WEBP DERIVATIVE"
 '
 if run_test "File proxy fallback with simulated extension-changing style generation" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc '$_test10_script'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc '$_test10_script'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
 # Test 11: Downloaded file persists locally
-if run_test "Proxied file saved to disk" \
-    "test -f '$SCRIPT_DIR/fixtures/app/web/sites/default/files/test-file.txt'"; then
+if run_test_retry "Proxied file saved to disk" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment test -f /var/www/html/web/sites/default/files/test-file.txt" 10 1; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
@@ -290,61 +348,82 @@ fi
 
 # Test 12: S3 bucket was used
 if run_test "S3 (MinIO) connectivity tested" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'aws s3 ls --endpoint-url=\"\$AWS_S3_ENDPOINT\" s3://\$S3_BUCKET/' | grep -q 'test-db.sql.gz'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'aws s3 ls --endpoint-url=\"\$AWS_S3_ENDPOINT\" s3://\$S3_BUCKET/' | grep -q 'test-db.sql.gz'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 13: Secure (www-data default) - proxy path directory is owned by www-data
+# Test 13: Deployment web root ownership matches Apache runtime user/group
+if run_test "Deployment: web root owned by Apache runtime user/group" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'test -d /var/www/html/web && stat -c \"%U:%G\" /var/www/html/web | grep -q \"^www:www$\"'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 14: Secure deployment web root ownership matches application owner (www)
+if run_test "Secure deployment: web root owned by application owner (www)" \
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment-secure sh -lc 'test -d /var/www/html/web && stat -c \"%U:%G\" /var/www/html/web | grep -q \"^www:www$\"'"; then
+    ((passed=passed+1))
+else
+    ((failed=failed+1))
+fi
+
+# Test 15: Secure (www-data default) - proxy path directory is owned by www-data
 if run_test "Secure (Apache www-data default): proxy path owned by www-data" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment-secure stat -c '%U' /var/www/html/web/sites/www-data-test-files | grep -q 'www-data'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 14: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
+# Test 16: Secure (www-data default) - Apache can write proxy-downloaded files as www-data
 if run_test "Secure (Apache www-data default): file proxy downloads from origin" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment-secure curl -sL http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment-secure curl -sL http://localhost/sites/www-data-test-files/test-file.txt | grep -q 'www-data test file'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 15: DevPanel settings template exists in image/container
+# Test 17: DevPanel settings template exists in image/container
 if run_test "DevPanel settings template exists in container" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment test -f /var/www/settings.devpanel.php"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment test -f /var/www/settings.devpanel.php"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 16: Bootstrap injected absolute DevPanel include statement into settings.php exactly once
-if run_test "Bootstrap injected DevPanel include into settings.php once" \
-    "grep -c \"include '/var/www/settings.devpanel.php';\" '$SCRIPT_DIR/fixtures/app/web/sites/default/settings.php' | grep -q '^1$'"; then
+# Test 18: Bootstrap injected absolute DevPanel include statement into settings.php exactly once
+if run_test_retry "Bootstrap injected DevPanel include into settings.php once" \
+    "check_devpanel_include" 10 1; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 17: Private file path exists and matches Apache runtime user/group
+# Test 19: Private file path exists and matches Apache runtime user/group
 if run_test "Private file path exists and ownership matches Apache runtime user/group" \
-    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec -T deployment sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www:www$\"'"; then
+    "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'test -d /var/www/html/private && stat -c \"%U:%G\" /var/www/html/private | grep -q \"^www:www$\"'"; then
     ((passed=passed+1))
 else
     ((failed=failed+1))
 fi
 
-# Test 18: Secure-mode one-off bootstrap aligns private path ownership with default Apache user/group
+# Test 20: Secure-mode one-off bootstrap aligns private path ownership with default Apache user/group
 echo -e "${YELLOW}Preparing secure-mode private path ownership scenario...${NC}"
 docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
+# Use a temporary named volume for the private path to avoid host bind-mount
+# permission issues on macOS and ensure the container can write the directory.
+TMP_PRIVATE_VOL="${TEST_COMPOSE_PROJECT}_secure_private_tmp"
+docker volume create "$TMP_PRIVATE_VOL" >/dev/null 2>&1 || true
 if ! docker run -d \
     --rm \
     --name "$SECURE_PRIVATE_CONTAINER_NAME" \
     --network "${TEST_COMPOSE_PROJECT}_default" \
-    -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
-    -v /var/www/html/private \
+    -v "${TEST_COMPOSE_PROJECT}_app_fixture:/var/www/html" \
+    -v "$TMP_PRIVATE_VOL:/var/www/html/private" \
+    -e APP_ROOT_TIMEOUT=0 \
     -e DB_HOST=mysql \
     -e DB_PORT=3306 \
     -e DB_USER=drupal \
@@ -383,11 +462,13 @@ else
     fi
 
     docker rm -f "$SECURE_PRIVATE_CONTAINER_NAME" >/dev/null 2>&1 || true
+    # Clean up the temporary named volume
+    docker volume rm "$TMP_PRIVATE_VOL" >/dev/null 2>&1 || true
 fi
 
-# Test 19: No-import installer flow skips DB setup and redirects to install start
+# Test 21: No-import installer flow skips DB setup and redirects to install start
 echo -e "${YELLOW}Preparing no-import installer flow scenario...${NC}"
-if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec -T mysql \
+if ! $DOCKER_COMPOSE -p "$TEST_COMPOSE_PROJECT" -f docker-compose.test.yml exec mysql \
     mysql -uroot -proot_password -e "DROP DATABASE IF EXISTS drupaldb_noimport; CREATE DATABASE drupaldb_noimport; GRANT ALL PRIVILEGES ON drupaldb_noimport.* TO 'drupal'@'%'; FLUSH PRIVILEGES;" >/dev/null 2>&1; then
     echo -e "${RED}✗ Failed to prepare empty installer test database${NC}"
     ((failed=failed+1))
@@ -399,8 +480,9 @@ else
     if ! docker run -d \
         --name "$NOIMPORT_CONTAINER_NAME" \
         --network "${TEST_COMPOSE_PROJECT}_default" \
-        -v "$SCRIPT_DIR/fixtures/app:/var/www/html" \
+        -v "${TEST_COMPOSE_PROJECT}_app_fixture:/var/www/html" \
         -e APACHE_RUN_USER=www \
+        -e APP_ROOT_TIMEOUT=0 \
         -e APACHE_RUN_GROUP=www \
         -e DB_HOST=mysql \
         -e DB_PORT=3306 \
@@ -432,7 +514,7 @@ else
 
         if [ "$noimport_ready" -eq 1 ]; then
             if run_test "No-import installer flow skips database setup" \
-                "docker exec $NOIMPORT_CONTAINER_NAME sh -lc 'location=\"\$(curl -sI \"http://localhost/core/install.php?rewrite=ok&langcode=en&profile=minimal\" | tr -d \"\\r\" | awk -F\": \" '\''tolower(\$1)==\"location\" {print \$2; exit}'\'')\" && echo \"\$location\" | grep -q \"op=start\"'"; then
+                "check_noimport_installer"; then
                 ((passed=passed+1))
             else
                 ((failed=failed+1))

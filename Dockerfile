@@ -35,6 +35,7 @@ COPY scripts/bootstrap-app.sh /usr/local/bin/bootstrap-app
 COPY scripts/import-database.sh /usr/local/bin/import-database
 COPY scripts/setup-proxy.sh /usr/local/bin/setup-proxy
 COPY scripts/deployment-entrypoint.sh /usr/local/bin/deployment-entrypoint
+COPY lib/dir-helpers.sh /usr/local/lib/dir-helpers.sh
 
 # Copy Apache configuration for proxy and PHP proxy handler
 COPY config/apache-proxy.conf /etc/apache2/conf-available/drupalforge-proxy.conf

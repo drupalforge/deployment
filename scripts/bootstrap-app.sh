@@ -181,6 +181,14 @@ ensure_directory_owned_by_apache() {
   return 1
 }
 
+# Create all missing directories in a path, using sudo when needed,
+# but ensure each created component is owned by the invoking (non-root) user.
+# Source shared dir helpers
+# Resolve the script directory relative to the current script invocation.
+# Source shared dir helpers from project root `lib/` relative to this script.
+# shellcheck disable=SC1090,SC1091
+. "$(dirname "${BASH_SOURCE[0]:-$0}")/../lib/dir-helpers.sh"
+
 ensure_settings_directories_exist() {
   local app_root="$1"
   local web_root="${WEB_ROOT:-${app_root}/web}"
@@ -216,12 +224,14 @@ ensure_settings_directories_exist() {
 
   if [ -d "$config_sync_directory" ]; then
     log "Config sync directory already exists at $config_sync_directory"
-  elif sudo -n mkdir -p "$config_sync_directory"; then
+  elif create_dirs_owned_by_current_user "$config_sync_directory"; then
     log "Created config sync directory at $config_sync_directory"
   else
     error "Failed to create config sync directory at $config_sync_directory"
     return 1
   fi
+
+  ensure_directory_owned_by_apache "$config_sync_directory" "config sync directory"
 
   if [ -z "$file_private_path" ]; then
     log "Drupal file_private_path is empty or not set in $settings_file; skipping directory creation"
@@ -230,7 +240,7 @@ ensure_settings_directories_exist() {
 
   if [ -d "$file_private_path" ]; then
     log "Private files directory already exists at $file_private_path"
-  elif sudo -n mkdir -p "$file_private_path"; then
+  elif create_dirs_owned_by_current_user "$file_private_path"; then
     log "Created private files directory at $file_private_path"
   else
     error "Failed to create private files directory at $file_private_path"

@@ -84,7 +84,11 @@ services:
     entrypoint:
       - /bin/bash
       - -lc
-      - >
+      - |
+        # If the app volume is empty, seed it from the local fixtures directory
+        if [ -z "$(ls -A /var/www/html 2>/dev/null)" ] && [ -d /tmp/fixture-src ]; then
+          cp -a /tmp/fixture-src/. /var/www/html || true;
+        fi;
         if [ ! -f /var/www/html/composer.json ]; then
           case "$$DP_REPO_BRANCH" in
             */-/tree/*)
@@ -115,7 +119,8 @@ services:
         (chmod -R a+rwX /var/www/html/web/sites/default/files 2>/dev/null || true) &&
         (chown -R www:www /var/www/html 2>/dev/null || true)
     volumes:
-      - ./fixtures/app:/var/www/html
+      - ./fixtures/app:/tmp/fixture-src:ro
+      - app_fixture:/var/www/html
 
   # Deployment container - runs the full initialization
   deployment:
@@ -133,7 +138,7 @@ services:
       - .env.shared
       - .env.test
     volumes:
-      - ./fixtures/app:/var/www/html
+      - app_fixture:/var/www/html
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       start_period: 120s
@@ -168,10 +173,11 @@ services:
       FILE_PROXY_PATHS: /sites/default/files,/sites/www-data-test-files
       WEB_ROOT: /var/www/html/web
     volumes:
-      - ./fixtures/app:/var/www/html
+      - app_fixture:/var/www/html
       - secure_proxy_files:/var/www/html/web/sites/www-data-test-files
 
 volumes:
   minio_data:
   mysql_data:
   secure_proxy_files:
+  app_fixture:

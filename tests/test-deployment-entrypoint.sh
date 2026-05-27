@@ -175,7 +175,7 @@ EOF
 
 # Test 8: Proxy path directories are created unconditionally after bootstrap
 test_proxy_path_directory_creation() {
-    if grep -q "install -d\|mkdir -p" "$ENTRYPOINT" && \
+    if grep -q "create_dirs_owned_by_current_user" "$ENTRYPOINT" && \
        grep -q "chown" "$ENTRYPOINT"; then
         echo -e "${GREEN}✓ Entrypoint creates and sets ownership of proxy path directories${NC}"
     else
