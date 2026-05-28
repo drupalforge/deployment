@@ -7,6 +7,12 @@
 set -e
 
 LOG_FILE="/tmp/drupalforge-deployment.log"
+# Install regardless of security audit.
+export COMPOSER_NO_AUDIT=1
+export COMPOSER_NO_BLOCKING=1
+# Keep deprecated var for compatibility with Composer versions where
+# COMPOSER_NO_BLOCKING/--no-blocking is not supported yet.
+export COMPOSER_NO_SECURITY_BLOCKING=1
 
 # Function to log messages
 log() {
