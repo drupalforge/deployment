@@ -287,7 +287,9 @@ main() {
     if checkout_output=$(git checkout -- . 2>&1); then
       log "Git working tree restored successfully"
     else
+      set +e
       error "Failed to restore git-tracked files via git checkout"
+      set -e
       error "git checkout output: $checkout_output"
       return 1
     fi
