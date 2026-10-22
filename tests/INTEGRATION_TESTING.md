@@ -194,7 +194,7 @@ docker-compose -f docker-compose.test.yml logs deployment
 
 ```bash
 # Check if S3Mock is running and the test object is present
-docker-compose -f docker-compose.test.yml exec s3mock-setup \
+docker-compose -f docker-compose.test.yml exec deployment \
   aws s3 ls --endpoint-url=http://s3mock:9090 s3://test-deployments/
 ```
 

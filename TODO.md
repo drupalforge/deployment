@@ -4,14 +4,15 @@
 
 **Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) cannot pull `minio/minio` and `minio/mc`; the integration environment then fails to start.
 
-**Status:** In progress.
+**Status:** Implementation complete; CI validation is awaiting approval. The local end-to-end run stops during the image build because this environment cannot resolve PECL hosts.
 
 **Done definition:**
 
-- [ ] Document the S3-compatible mock used by integration tests.
-- [ ] Add regression checks for its Compose configuration and fixture upload.
-- [ ] Replace unavailable MinIO images and verify the setup with focused tests.
-- [ ] Run integration tests and CI validation, or record any environment limitation.
+- [x] Document Adobe S3Mock as the S3-compatible mock used by integration tests.
+- [x] Add regression checks for its Compose configuration and fixture upload.
+- [x] Replace unavailable MinIO images and verify setup with focused tests and an AWS CLI/S3Mock smoke test.
+- [x] Record local integration limitation: image build fails before startup because DNS cannot resolve `pecl.php.net` and `doc.php.net`.
+- [ ] Complete CI validation after the Actions run is approved.
 - [ ] Move the completed task to `CHANGELOG.md`.
 
 ## Fix PHP 7.4 image build after PostgreSQL repository retirement

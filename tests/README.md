@@ -185,11 +185,10 @@ See [.githooks/README.md](../.githooks/README.md) for details.
 In CI, tests run in this order:
 
 1. **unit-tests** job: Runs all `test-*.sh` scripts (grep-based validation)
-2. **docker-build** job: Builds Docker images for PHP 8.2 and 8.3
+2. **docker-build-tests** job: Builds Docker images for PHP 8.2 and 8.3
+3. **integration-tests** job: Runs the complete Docker Compose integration test
 
-Both must pass for the workflow to succeed.
-
-**Note**: Integration tests are NOT run in CI by default (they require docker-compose and take longer). They should be run manually during development or as part of release validation.
+All three jobs must pass for the workflow to succeed.
 
 ## Common Gotchas
 
