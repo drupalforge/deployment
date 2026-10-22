@@ -158,6 +158,16 @@ test_pecl_extensions() {
     fi
 }
 
+# PECL uses existing build tools, so retired inherited APT repositories must not block builds.
+test_no_apt_refresh() {
+    if grep -Eq 'apt(-get)?[[:space:]]+update' "$DOCKERFILE"; then
+        echo -e "${RED}✗ Unnecessary APT refresh can fail on retired base-image repositories${NC}"
+        exit 1
+    else
+        echo -e "${GREEN}✓ PECL installation does not refresh inherited APT repositories${NC}"
+    fi
+}
+
 # Test 14: Cleans up apt package manager cache
 test_apt_cleanup() {
     if grep -q "apt-get clean" "$DOCKERFILE" && \
@@ -183,6 +193,7 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_pecl_extensions
+test_no_apt_refresh
 test_apt_cleanup
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

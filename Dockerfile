@@ -9,8 +9,8 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 USER root
 
 # Install additional PHP extensions not already provided by the base image.
-RUN apt-get update -qq \
-    && pecl update-channels \
+# Existing build tools suffice; legacy base images may reference retired APT repositories.
+RUN pecl update-channels \
     && printf '' | pecl install apcu \
     && echo 'extension=apcu.so' > /usr/local/etc/php/conf.d/apcu.ini \
     && printf '' | pecl install uploadprogress \
