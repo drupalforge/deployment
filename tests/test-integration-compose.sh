@@ -36,6 +36,25 @@ else
     exit 1
 fi
 
+if grep -q "minio/minio\\|minio/mc" "$COMPOSE_FILE"; then
+    echo -e "${RED}✗ Compose file still references unavailable MinIO images${NC}"
+    exit 1
+elif grep -A3 "^[[:space:]]*s3mock:" "$COMPOSE_FILE" | grep -q "image: adobe/s3mock:latest"; then
+    echo -e "${GREEN}✓ Compose file uses Adobe S3Mock instead of retired MinIO images${NC}"
+else
+    echo -e "${RED}✗ Compose file must use Adobe S3Mock${NC}"
+    exit 1
+fi
+
+if grep -q "s3mock-setup:" "$COMPOSE_FILE" &&
+   grep -q "aws s3api create-bucket" "$COMPOSE_FILE" &&
+   grep -q "aws s3 cp /fixtures/test-database.sql.gz" "$COMPOSE_FILE"; then
+    echo -e "${GREEN}✓ S3Mock setup creates a bucket and uploads the database fixture${NC}"
+else
+    echo -e "${RED}✗ S3Mock setup must create a bucket and upload the database fixture${NC}"
+    exit 1
+fi
+
 if grep -A20 "deployment:" "$COMPOSE_FILE" | grep -q "app-fixture-prepare:"; then
     echo -e "${GREEN}✓ Deployment depends on fixture prepare service${NC}"
 else
@@ -99,7 +118,7 @@ else
 fi
 
 if [ -f "$TEST_ENV_FILE" ] &&
-   grep -q "^AWS_S3_ENDPOINT=http://minio:9000$" "$TEST_ENV_FILE"; then
+   grep -q "^AWS_S3_ENDPOINT=http://s3mock:9090$" "$TEST_ENV_FILE"; then
     echo -e "${GREEN}✓ .env.test defines test-only AWS_S3_ENDPOINT default${NC}"
 else
     echo -e "${RED}✗ .env.test must exist and define AWS_S3_ENDPOINT default${NC}"
@@ -173,7 +192,7 @@ fi
 
 if grep -q "deployment-secure:" "$MANUAL_COMPOSE_FILE" ||
    grep -q "mysql:" "$MANUAL_COMPOSE_FILE" ||
-   grep -q "minio:" "$MANUAL_COMPOSE_FILE"; then
+   grep -q "s3mock:" "$MANUAL_COMPOSE_FILE"; then
     echo -e "${RED}✗ Manual compose override should not modify non-deployment services${NC}"
     exit 1
 else

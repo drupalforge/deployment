@@ -104,8 +104,8 @@ These tests:
 These tests:
 
 - **Build the deployment Docker image** (PHP 8.3) via docker-compose
-- Start complete environment (MySQL, MinIO, origin server)
-- Test database imports from S3/MinIO
+- Start complete environment (MySQL, S3Mock, origin server)
+- Test database imports from S3/S3Mock
 - Validate application bootstrapping
 - Test file proxy functionality
 - Simulate real deployment scenarios

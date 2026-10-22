@@ -1,5 +1,19 @@
 # TODO List
 
+## Fix integration tests failing on retired MinIO images
+
+**Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) cannot pull `minio/minio` and `minio/mc`; the integration environment then fails to start.
+
+**Status:** In progress.
+
+**Done definition:**
+
+- [ ] Document the S3-compatible mock used by integration tests.
+- [ ] Add regression checks for its Compose configuration and fixture upload.
+- [ ] Replace unavailable MinIO images and verify the setup with focused tests.
+- [ ] Run integration tests and CI validation, or record any environment limitation.
+- [ ] Move the completed task to `CHANGELOG.md`.
+
 ## Fix PHP 7.4 image build after PostgreSQL repository retirement
 
 **Context:** [Build job 120090873865](https://github.com/drupalforge/deployment/actions/runs/39854997072/job/120090873865) fails because the inherited `bullseye-pgdg` APT repository no longer has a Release file. The deployment Dockerfile installs no APT packages.
