@@ -80,7 +80,7 @@ import_from_s3() {
   
   log "Downloading database from S3: $s3_url"
   
-  # Build aws s3 cp command with optional endpoint URL for S3-compatible services (e.g., MinIO)
+  # Build aws s3 cp command with optional endpoint URL for S3-compatible services (e.g., S3Mock)
   local aws_cmd="aws s3 cp"
   if [ -n "$AWS_S3_ENDPOINT" ]; then
     aws_cmd="$aws_cmd --endpoint-url=$AWS_S3_ENDPOINT"

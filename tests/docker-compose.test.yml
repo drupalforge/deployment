@@ -1,32 +1,34 @@
 services:
-  # MinIO S3-compatible object storage
-  minio:
-    image: minio/minio:latest
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: minio server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # Adobe S3Mock provides an S3-compatible API for integration tests.
+  s3mock:
+    image: adobe/s3mock:latest
 
-  # Create MinIO bucket and upload test database
-  minio-setup:
-    image: minio/mc:latest
+  # Create an S3 bucket and upload the test database using the AWS CLI in the test image.
+  s3mock-setup:
+    image: test-df-deployment:8.3
     depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set minio http://minio:9000 minioadmin minioadmin;
-      mc mb minio/test-deployments --ignore-existing;
-      mc cp /fixtures/test-database.sql.gz minio/test-deployments/test-db.sql.gz;
-      echo 'MinIO setup complete';
-      "
+      s3mock:
+        condition: service_started
+    env_file:
+      - .env.shared
+      - .env.test
+    entrypoint: ["/bin/bash", "-lc"]
+    command: |
+      set -e
+      for attempt in {1..30}; do
+        if aws s3api list-buckets --endpoint-url="$${AWS_S3_ENDPOINT}" >/dev/null 2>&1; then
+          break
+        fi
+        if [ "$$attempt" -eq 30 ]; then
+          echo "S3Mock did not become ready" >&2
+          exit 1
+        fi
+        sleep 1
+      done
+      aws s3api create-bucket --bucket "$${S3_BUCKET}" --endpoint-url="$${AWS_S3_ENDPOINT}"
+      aws s3 cp /fixtures/test-database.sql.gz \
+        "s3://$${S3_BUCKET}/$${S3_DATABASE_PATH}" \
+        --endpoint-url="$${AWS_S3_ENDPOINT}"
     volumes:
       - ./fixtures/test-database.sql.gz:/fixtures/test-database.sql.gz
 
@@ -130,7 +132,7 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      minio-setup:
+      s3mock-setup:
         condition: service_completed_successfully
       origin-server:
         condition: service_healthy
@@ -177,7 +179,6 @@ services:
       - secure_proxy_files:/var/www/html/web/sites/www-data-test-files
 
 volumes:
-  minio_data:
   mysql_data:
   secure_proxy_files:
   app_fixture:
