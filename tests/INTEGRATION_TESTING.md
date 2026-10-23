@@ -15,7 +15,7 @@ This directory contains fixtures and scripts for integration testing the deploym
 
 The test environment includes:
 
-1. **S3Mock** - Adobe's S3-compatible API mock (replaces S3 for testing)
+1. **RustFS** - Community-maintained S3-compatible object storage for integration tests
 2. **MySQL** - Database server
 3. **Origin Server** - Python HTTP server simulating the production origin
 4. **Deployment Container** - The built image being tested
@@ -41,7 +41,7 @@ This will:
 3. Initialize `fixtures/app` in compose when fixture root files are missing.
 4. Run 18 validation tests covering:
 
-   - Database import from S3/S3Mock.
+   - Database import from S3/RustFS.
    - Application connectivity to database.
    - Drupal install-state detection (homepage must not redirect to installer).
    - No-import installer flow skips database setup when DevPanel settings are included (validated via one-off container using the same built image).
@@ -101,7 +101,7 @@ Shared defaults are loaded from `tests/.env.shared` for both test and manual
 runs.
 
 `tests/.env.test` is layered only by `docker-compose.test.yml` and sets
-`AWS_S3_ENDPOINT` for S3Mock-backed integration tests.
+`AWS_S3_ENDPOINT` for RustFS-backed integration tests.
 
 `docker-compose.manual.yml` uses `!override` so manual runs load
 `tests/.env.shared` plus `tests/.env.manual` (and do not inherit
@@ -149,7 +149,7 @@ bash cleanup-test-environment.sh --mode docker-build
 
 The integration test validates:
 
-✓ Database import from S3 (via S3Mock)
+✓ Database import from S3 (via RustFS)
 ✓ Drupal home page does not redirect to installer
 ✓ Application database connectivity
 ✓ Git initialization during bootstrap
@@ -160,7 +160,7 @@ The integration test validates:
 ✓ File proxy downloads from origin
 ✓ Proxied files persist locally
 ✓ Apache proxy rewrites preserve the original request path when dispatching to the handler alias
-✓ S3/S3Mock connectivity
+✓ S3/RustFS connectivity
 ✓ Secure-mode file proxy download path works with default Apache `www-data`
 ✓ DevPanel settings template exists in container
 ✓ DevPanel include injection into `settings.php` is idempotent
@@ -190,12 +190,12 @@ docker-compose -f docker-compose.test.yml ps
 docker-compose -f docker-compose.test.yml logs deployment
 ```
 
-### S3Mock connection issues
+### RustFS connection issues
 
 ```bash
-# Check if S3Mock is running and the test object is present
+# Check if RustFS is running and the test object is present
 docker-compose -f docker-compose.test.yml exec deployment \
-  aws s3 ls --endpoint-url=http://s3mock:9090 s3://test-deployments/
+  aws s3 ls --endpoint-url=http://rustfs:9000 s3://test-deployments/
 ```
 
 ### Database import didn't happen
@@ -218,7 +218,7 @@ S3_BUCKET=test-deployments
 S3_DATABASE_PATH=test-db.sql.gz
 AWS_ACCESS_KEY_ID=test
 AWS_SECRET_ACCESS_KEY=test
-AWS_S3_ENDPOINT=http://s3mock:9090
+AWS_S3_ENDPOINT=http://rustfs:9000
 ORIGIN_URL=http://origin-server:8000
 FILE_PROXY_PATHS=/sites/default/files
 WEB_ROOT=/var/www/html/web

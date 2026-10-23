@@ -445,7 +445,7 @@ bash tests/integration-test.sh
 
 This validates:
 
-- Database import from S3 (using Adobe S3Mock for local testing)
+- Database import from S3 (using RustFS for local integration testing)
 - Application database connectivity
 - Git bootstrap and Composer installation
 - Drupal install state detection against imported fixture data
@@ -456,7 +456,7 @@ This validates:
 **Setup:** The integration test automatically:
 
 1. Builds the deployment image
-2. Starts S3Mock, MySQL, and a mock origin server
+2. Starts RustFS, MySQL, and a mock origin server
 3. Runs the deployment container with full initialization
 4. Executes 18 validation checks
 5. Cleans up resources

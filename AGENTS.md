@@ -328,7 +328,7 @@ Tests must cover all of the following dimensions:
 ### Functionality — Whole Project
 
 - Integration tests (`tests/integration-test.sh`) must validate the complete startup flow end-to-end:
-  - Database import from S3 (mocked with S3Mock locally).
+  - Database import from S3 (using RustFS locally).
   - File proxy setup and on-demand download.
   - Bootstrap (Git submodules + Composer).
 - Run integration tests before finalizing any change that touches the `Dockerfile`, `scripts/`, or `config/`.

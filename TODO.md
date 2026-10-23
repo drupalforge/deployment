@@ -1,19 +1,18 @@
 # TODO List
 
-## Fix integration tests failing on retired MinIO images
+## Switch integration tests from S3Mock to RustFS
 
-**Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) cannot pull `minio/minio` and `minio/mc`; the integration environment then fails to start.
+**Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) could not pull the retired `minio/minio` and `minio/mc` images. The first replacement used Adobe S3Mock; RustFS is preferred as a community-maintained S3-compatible storage server. Do not pin the RustFS image tag.
 
-**Status:** Implementation complete; CI validation is awaiting approval. The local end-to-end run stops during the image build because this environment cannot resolve PECL hosts.
+**Status:** In progress.
 
 **Done definition:**
 
-- [x] Document Adobe S3Mock as the S3-compatible mock used by integration tests.
-- [x] Add regression checks for its Compose configuration and fixture upload.
-- [x] Replace unavailable MinIO images and verify setup with focused tests and an AWS CLI/S3Mock smoke test.
-- [x] Record local integration limitation: image build fails before startup because DNS cannot resolve `pecl.php.net` and `doc.php.net`.
-- [ ] Complete CI validation after the Actions run is approved.
-- [ ] Move the completed task to `CHANGELOG.md`.
+- [ ] Document RustFS as the integration S3 backend.
+- [ ] Update regression checks and Compose to run RustFS without pinning the image tag.
+- [ ] Verify AWS CLI bucket creation and database fixture upload/download against RustFS.
+- [ ] Run focused tests and the full integration suite; document any environment limitation.
+- [ ] Complete CI validation and move this task to `CHANGELOG.md`.
 
 ## Fix PHP 7.4 image build after PostgreSQL repository retirement
 
