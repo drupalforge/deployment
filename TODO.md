@@ -4,14 +4,14 @@
 
 **Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) could not pull the retired `minio/minio` and `minio/mc` images. The first replacement used Adobe S3Mock; RustFS is preferred as a community-maintained S3-compatible storage server. Do not pin the RustFS image tag.
 
-**Status:** In progress.
+**Status:** Implementation complete; CI validation is pending. The full integration run stops before Compose startup because this environment cannot resolve PECL hosts. The unit suite also has pre-existing missing-tool and ShellCheck failures.
 
 **Done definition:**
 
-- [ ] Document RustFS as the integration S3 backend.
-- [ ] Update regression checks and Compose to run RustFS without pinning the image tag.
-- [ ] Verify AWS CLI bucket creation and database fixture upload/download against RustFS.
-- [ ] Run focused tests and the full integration suite; document any environment limitation.
+- [x] Document RustFS as the integration S3 backend.
+- [x] Update regression checks and Compose to run RustFS without pinning the image tag.
+- [x] Verify AWS CLI bucket creation and database fixture upload/download against RustFS.
+- [x] Run focused tests; attempt full integration and unit suites, and record environment limitations.
 - [ ] Complete CI validation and move this task to `CHANGELOG.md`.
 
 ## Fix PHP 7.4 image build after PostgreSQL repository retirement
