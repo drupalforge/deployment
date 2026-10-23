@@ -36,22 +36,34 @@ else
     exit 1
 fi
 
-if grep -q "minio/minio\\|minio/mc" "$COMPOSE_FILE"; then
-    echo -e "${RED}✗ Compose file still references unavailable MinIO images${NC}"
+if grep -q "adobe/s3mock\\|minio/minio\\|minio/mc" "$COMPOSE_FILE"; then
+    echo -e "${RED}✗ Compose file still references the retired S3 backend images${NC}"
     exit 1
-elif grep -A3 "^[[:space:]]*s3mock:" "$COMPOSE_FILE" | grep -q "image: adobe/s3mock:latest"; then
-    echo -e "${GREEN}✓ Compose file uses Adobe S3Mock instead of retired MinIO images${NC}"
+elif grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" | grep -q "image: rustfs/rustfs:latest"; then
+    echo -e "${GREEN}✓ Compose file uses the unpinned RustFS latest image${NC}"
 else
-    echo -e "${RED}✗ Compose file must use Adobe S3Mock${NC}"
+    echo -e "${RED}✗ Compose file must use rustfs/rustfs:latest${NC}"
     exit 1
 fi
 
-if grep -q "s3mock-setup:" "$COMPOSE_FILE" &&
+if grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q "RUSTFS_ACCESS_KEY: test" &&
+   grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q "RUSTFS_SECRET_KEY: test" &&
+   grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q 'RUSTFS_ADDRESS: ":9000"'; then
+    echo -e "${GREEN}✓ RustFS has S3 credentials and listens on port 9000${NC}"
+else
+    echo -e "${RED}✗ RustFS must have test credentials and listen on port 9000${NC}"
+    exit 1
+fi
+
+if grep -q "rustfs-setup:" "$COMPOSE_FILE" &&
    grep -q "aws s3api create-bucket" "$COMPOSE_FILE" &&
    grep -q "aws s3 cp /fixtures/test-database.sql.gz" "$COMPOSE_FILE"; then
-    echo -e "${GREEN}✓ S3Mock setup creates a bucket and uploads the database fixture${NC}"
+    echo -e "${GREEN}✓ RustFS setup creates a bucket and uploads the database fixture${NC}"
 else
-    echo -e "${RED}✗ S3Mock setup must create a bucket and upload the database fixture${NC}"
+    echo -e "${RED}✗ RustFS setup must create a bucket and upload the database fixture${NC}"
     exit 1
 fi
 
@@ -118,7 +130,7 @@ else
 fi
 
 if [ -f "$TEST_ENV_FILE" ] &&
-   grep -q "^AWS_S3_ENDPOINT=http://s3mock:9090$" "$TEST_ENV_FILE"; then
+   grep -q "^AWS_S3_ENDPOINT=http://rustfs:9000$" "$TEST_ENV_FILE"; then
     echo -e "${GREEN}✓ .env.test defines test-only AWS_S3_ENDPOINT default${NC}"
 else
     echo -e "${RED}✗ .env.test must exist and define AWS_S3_ENDPOINT default${NC}"
@@ -192,7 +204,7 @@ fi
 
 if grep -q "deployment-secure:" "$MANUAL_COMPOSE_FILE" ||
    grep -q "mysql:" "$MANUAL_COMPOSE_FILE" ||
-   grep -q "s3mock:" "$MANUAL_COMPOSE_FILE"; then
+   grep -q "rustfs:" "$MANUAL_COMPOSE_FILE"; then
     echo -e "${RED}✗ Manual compose override should not modify non-deployment services${NC}"
     exit 1
 else
