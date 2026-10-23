@@ -20,22 +20,23 @@ services:
       - .env.shared
       - .env.test
     entrypoint: ["/bin/bash", "-lc"]
-    command: |
-      set -e
-      for attempt in {1..30}; do
-        if aws s3api list-buckets --endpoint-url="$${AWS_S3_ENDPOINT}" >/dev/null 2>&1; then
-          break
-        fi
-        if [ "$$attempt" -eq 30 ]; then
-          echo "RustFS did not become ready" >&2
-          exit 1
-        fi
-        sleep 1
-      done
-      aws s3api create-bucket --bucket "$${S3_BUCKET}" --endpoint-url="$${AWS_S3_ENDPOINT}"
-      aws s3 cp /fixtures/test-database.sql.gz \
-        "s3://$${S3_BUCKET}/$${S3_DATABASE_PATH}" \
-        --endpoint-url="$${AWS_S3_ENDPOINT}"
+    command:
+      - |
+        set -e
+        for attempt in {1..30}; do
+          if aws s3api list-buckets --endpoint-url="$${AWS_S3_ENDPOINT}" >/dev/null 2>&1; then
+            break
+          fi
+          if [ "$$attempt" -eq 30 ]; then
+            echo "RustFS did not become ready" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        aws s3api create-bucket --bucket "$${S3_BUCKET}" --endpoint-url="$${AWS_S3_ENDPOINT}"
+        aws s3 cp /fixtures/test-database.sql.gz \
+          "s3://$${S3_BUCKET}/$${S3_DATABASE_PATH}" \
+          --endpoint-url="$${AWS_S3_ENDPOINT}"
     volumes:
       - ./fixtures/test-database.sql.gz:/fixtures/test-database.sql.gz
 

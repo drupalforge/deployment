@@ -4,13 +4,15 @@
 
 **Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) could not pull the retired `minio/minio` and `minio/mc` images. The first replacement used Adobe S3Mock; RustFS is preferred as a community-maintained S3-compatible storage server. Do not pin the RustFS image tag.
 
-**Status:** Implementation complete; CI validation is pending. The full integration run stops before Compose startup because this environment cannot resolve PECL hosts. The unit suite also has pre-existing missing-tool and ShellCheck failures.
+**Status:** Fixed the setup command parsing bug exposed by CI job [120495821066](https://github.com/drupalforge/deployment/actions/runs/39976955022/job/120495821066): Compose split the multiline command, so Bash executed only `set` and exited successfully without uploading the fixture. The script is now one argument, with a passing rendered-command regression test covering success and readiness/create/upload failures. YAML lint passes. Full integration validation remains blocked by PECL DNS resolution during the image build; the unit suite passes 9 suites and fails 3 on missing `markdownlint`/`phpcs` and existing ShellCheck findings in unchanged files. CI validation is pending.
 
 **Done definition:**
 
 - [x] Document RustFS as the integration S3 backend.
 - [x] Update regression checks and Compose to run RustFS without pinning the image tag.
 - [x] Verify AWS CLI bucket creation and database fixture upload/download against RustFS.
+- [x] Add a regression test executing the rendered setup command with mocked AWS CLI success and failure paths.
+- [x] Preserve the complete setup script as one Bash command argument.
 - [x] Run focused tests; attempt full integration and unit suites, and record environment limitations.
 - [ ] Complete CI validation and move this task to `CHANGELOG.md`.
 

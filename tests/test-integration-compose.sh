@@ -67,6 +67,74 @@ else
     exit 1
 fi
 
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 &&
+   command -v python3 >/dev/null 2>&1; then
+    if output=$(python3 - "$COMPOSE_FILE" <<'PY' 2>&1
+import json
+import subprocess
+import sys
+
+config = subprocess.check_output(
+    ["docker", "compose", "-f", sys.argv[1], "config", "--format", "json"],
+    text=True,
+)
+setup = json.loads(config)["services"]["rustfs-setup"]
+assert setup["entrypoint"] == ["/bin/bash", "-lc"], setup["entrypoint"]
+assert len(setup["command"]) == 1, "Setup script must remain one Bash argument"
+# Compose preserves $$ in config output and unescapes it when creating containers.
+script = setup["command"][0].replace("$$", "$")
+
+mock = """
+aws() {
+    case "$*" in
+        "s3api list-buckets"*)
+            [ "$MOCK_FAILURE" != readiness ]
+            return
+            ;;
+    esac
+    printf '%s\\n' "$*"
+    case "$*" in
+        "s3api create-bucket"*) [ "$MOCK_FAILURE" != create ] ;;
+        "s3 cp"*) [ "$MOCK_FAILURE" != upload ] ;;
+        *) return 1 ;;
+    esac
+}
+sleep() { :; }
+export AWS_S3_ENDPOINT=http://rustfs:9000
+export S3_BUCKET=test-bucket S3_DATABASE_PATH=test-db.sql.gz
+"""
+for failure in ("none", "readiness", "create", "upload"):
+    result = subprocess.run(
+        [*setup["entrypoint"], mock + "\n" + script],
+        env={"PATH": "/usr/bin:/bin", "MOCK_FAILURE": failure},
+        capture_output=True, text=True,
+    )
+    assert (result.returncode == 0) == (failure == "none"), (
+        failure, result.stdout, result.stderr
+    )
+    if failure in ("none", "upload"):
+        assert (
+            "s3api create-bucket --bucket test-bucket --endpoint-url=http://rustfs:9000"
+            in result.stdout
+        ), result.stdout
+        assert (
+            "s3 cp /fixtures/test-database.sql.gz s3://test-bucket/test-db.sql.gz "
+            "--endpoint-url=http://rustfs:9000" in result.stdout
+        ), result.stdout
+    else:
+        assert "s3 cp" not in result.stdout, result.stdout
+PY
+    ); then
+        echo -e "${GREEN}✓ Rendered RustFS setup runs bucket/upload commands and propagates failures${NC}"
+    else
+        printf '%s\n' "$output"
+        echo -e "${RED}✗ Rendered RustFS setup command did not execute as expected${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⊘ Skipped: rendered RustFS setup test requires Docker Compose and Python 3${NC}"
+fi
+
 if grep -A20 "deployment:" "$COMPOSE_FILE" | grep -q "app-fixture-prepare:"; then
     echo -e "${GREEN}✓ Deployment depends on fixture prepare service${NC}"
 else

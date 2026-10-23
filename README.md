@@ -456,7 +456,7 @@ This validates:
 **Setup:** The integration test automatically:
 
 1. Builds the deployment image
-2. Starts RustFS, MySQL, and a mock origin server
+2. Starts RustFS, MySQL, and a mock origin server. The RustFS setup service passes its complete script as one Bash argument so bucket creation and fixture upload finish successfully before deployment starts.
 3. Runs the deployment container with full initialization
 4. Executes 18 validation checks
 5. Cleans up resources
