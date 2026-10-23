@@ -96,6 +96,7 @@ cleanup_compose_state() {
     fi
 
     for stale_volume in \
+        "${PROJECT_NAME}_rustfs_data" \
         "${PROJECT_NAME}_minio_data" \
         "${PROJECT_NAME}_mysql_data" \
         "${PROJECT_NAME}_secure_proxy_files"; do

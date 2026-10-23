@@ -1,13 +1,20 @@
 services:
-  # Adobe S3Mock provides an S3-compatible API for integration tests.
-  s3mock:
-    image: adobe/s3mock:latest
+  # RustFS provides S3-compatible object storage for integration tests.
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: test
+      RUSTFS_SECRET_KEY: test
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "false"
+    volumes:
+      - rustfs_data:/data
 
   # Create an S3 bucket and upload the test database using the AWS CLI in the test image.
-  s3mock-setup:
+  rustfs-setup:
     image: test-df-deployment:8.3
     depends_on:
-      s3mock:
+      rustfs:
         condition: service_started
     env_file:
       - .env.shared
@@ -20,7 +27,7 @@ services:
           break
         fi
         if [ "$$attempt" -eq 30 ]; then
-          echo "S3Mock did not become ready" >&2
+          echo "RustFS did not become ready" >&2
           exit 1
         fi
         sleep 1
@@ -132,7 +139,7 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      s3mock-setup:
+      rustfs-setup:
         condition: service_completed_successfully
       origin-server:
         condition: service_healthy
@@ -179,6 +186,7 @@ services:
       - secure_proxy_files:/var/www/html/web/sites/www-data-test-files
 
 volumes:
+  rustfs_data:
   mysql_data:
   secure_proxy_files:
   app_fixture:
