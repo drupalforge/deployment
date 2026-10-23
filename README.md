@@ -63,7 +63,7 @@ Extends `devpanel/php:${PHP_VERSION}-base-rc` with:
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
 - PECL extensions enabled: `apcu` and `uploadprogress`
-  - Installation uses the base image's existing build tools without refreshing APT repositories; no additional APT packages are needed, and legacy base images may reference retired repositories.
+  - The image keeps APT usable by switching the inherited Debian Bullseye PostgreSQL repository to PostgreSQL's archive suite before refreshing package indexes.
 
 The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
 

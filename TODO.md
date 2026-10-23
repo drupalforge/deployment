@@ -14,18 +14,18 @@
 - [x] Run focused tests; attempt full integration and unit suites, and record environment limitations.
 - [ ] Complete CI validation and move this task to `CHANGELOG.md`.
 
-## Fix PHP 7.4 image build after PostgreSQL repository retirement
+## Repair inherited PostgreSQL APT source for Debian Bullseye
 
 **Context:** [Build job 120090873865](https://github.com/drupalforge/deployment/actions/runs/39854997072/job/120090873865) fails because the inherited `bullseye-pgdg` APT repository no longer has a Release file. The deployment Dockerfile installs no APT packages.
 
-**Status:** Fix implemented; full validation remains blocked locally.
+**Status:** In progress. The initial fix removed the unnecessary APT refresh but did not repair the inherited source, as called out in PR feedback.
 
 **Done definition:**
 
-- [x] Document why PECL installation does not refresh inherited APT repositories.
-- [x] Add a regression test rejecting unnecessary APT refreshes while retaining extension and cache-cleanup checks.
-- [x] Remove the unnecessary APT refresh; confirm the regression test fails before the fix and passes afterward, and the changed test passes ShellCheck.
-- [ ] Complete unit, Docker build (including PHP 7.4), integration, and CI validation. Local builds cannot resolve PECL hosts; the unit suite passes 9 suites but fails on missing `markdownlint`/`phpcs` and existing ShellCheck diagnostics in unchanged files.
+- [x] Confirm the inherited PHP 7.4 image uses active Debian mirrors and a separate PGDG `bullseye-pgdg` source.
+- [ ] Migrate only the retired Bullseye PGDG source to `apt-archive.postgresql.org` / `bullseye-pgdg-archive`, then run `apt-get update`.
+- [ ] Replace the regression test that forbids APT refresh with checks for the source migration and refresh.
+- [ ] Validate the PHP 7.4 build and relevant tests; record any remaining network limitations.
 
 ## Add Apache-only proxy exclusions env var and S3 asset ZIP import
 

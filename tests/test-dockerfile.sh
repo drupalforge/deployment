@@ -158,13 +158,15 @@ test_pecl_extensions() {
     fi
 }
 
-# PECL uses existing build tools, so retired inherited APT repositories must not block builds.
-test_no_apt_refresh() {
-    if grep -Eq 'apt(-get)?[[:space:]]+update' "$DOCKERFILE"; then
-        echo -e "${RED}✗ Unnecessary APT refresh can fail on retired base-image repositories${NC}"
-        exit 1
+# Bullseye's PGDG source must use PostgreSQL's archive before refreshing APT indexes.
+test_pgdg_archive_migration() {
+    if grep -q "apt-archive.postgresql.org/pub/repos/apt" "$DOCKERFILE" &&
+       grep -q "bullseye-pgdg-archive" "$DOCKERFILE" &&
+       grep -q "apt-get update -qq" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Migrates retired Bullseye PGDG source before refreshing APT indexes${NC}"
     else
-        echo -e "${GREEN}✓ PECL installation does not refresh inherited APT repositories${NC}"
+        echo -e "${RED}✗ Must migrate retired Bullseye PGDG source and refresh APT indexes${NC}"
+        exit 1
     fi
 }
 
@@ -193,7 +195,7 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_pecl_extensions
-test_no_apt_refresh
+test_pgdg_archive_migration
 test_apt_cleanup
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"
