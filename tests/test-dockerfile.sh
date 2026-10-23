@@ -160,7 +160,8 @@ test_pecl_extensions() {
 
 # Bullseye's PGDG source must use PostgreSQL's archive before refreshing APT indexes.
 test_pgdg_archive_migration() {
-    if grep -q "apt-archive.postgresql.org/pub/repos/apt" "$DOCKERFILE" &&
+    if grep -q "grep -q 'bullseye-pgdg main' /etc/apt/sources.list.d/pgdg.list" "$DOCKERFILE" &&
+       grep -q "apt-archive.postgresql.org/pub/repos/apt" "$DOCKERFILE" &&
        grep -q "bullseye-pgdg-archive" "$DOCKERFILE" &&
        grep -q "apt-get update -qq" "$DOCKERFILE"; then
         echo -e "${GREEN}✓ Migrates retired Bullseye PGDG source before refreshing APT indexes${NC}"

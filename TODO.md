@@ -20,14 +20,14 @@
 
 **Context:** [Build job 120090873865](https://github.com/drupalforge/deployment/actions/runs/39854997072/job/120090873865) fails because the inherited `bullseye-pgdg` APT repository no longer has a Release file. The deployment Dockerfile installs no APT packages.
 
-**Status:** In progress. The initial fix removed the unnecessary APT refresh but did not repair the inherited source, as called out in PR feedback.
+**Status:** The source migration and regression test are implemented. The focused Dockerfile test passes; full Docker builds remain unverified because this sandbox cannot resolve PECL hosts, and archive access is also subject to its DNS restrictions.
 
 **Done definition:**
 
 - [x] Confirm the inherited PHP 7.4 image uses active Debian mirrors and a separate PGDG `bullseye-pgdg` source.
-- [ ] Migrate only the retired Bullseye PGDG source to `apt-archive.postgresql.org` / `bullseye-pgdg-archive`, then run `apt-get update`.
-- [ ] Replace the regression test that forbids APT refresh with checks for the source migration and refresh.
-- [ ] Validate the PHP 7.4 build and relevant tests; record any remaining network limitations.
+- [x] Migrate only the retired Bullseye PGDG source to `apt-archive.postgresql.org` / `bullseye-pgdg-archive`, then run `apt-get update`.
+- [x] Replace the regression test that forbids APT refresh with checks for the source migration and refresh.
+- [ ] Validate the PHP 7.4 build in CI; record any remaining network limitations.
 
 ## Add Apache-only proxy exclusions env var and S3 asset ZIP import
 
