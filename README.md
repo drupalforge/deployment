@@ -63,6 +63,7 @@ Extends `devpanel/php:${PHP_VERSION}-base-rc` with:
 - Deployment entrypoint (`deployment-entrypoint.sh`)
 - Apache proxy configuration template with conditional rewrite rules
 - PECL extensions enabled: `apcu` and `uploadprogress`
+  - The image keeps APT usable by switching the inherited Debian Bullseye PostgreSQL repository to PostgreSQL's archive suite before refreshing package indexes.
 
 The image installs AWS CLI v2 using the official bundled installer (architecture-aware) rather than distro package managers. This avoids Python package post-install instability seen in emulated cross-platform Docker builds while keeping S3 import support consistent.
 
@@ -444,7 +445,7 @@ bash tests/integration-test.sh
 
 This validates:
 
-- Database import from S3 (using MinIO for local testing)
+- Database import from S3 (using RustFS for local integration testing)
 - Application database connectivity
 - Git bootstrap and Composer installation
 - Drupal install state detection against imported fixture data
@@ -455,7 +456,7 @@ This validates:
 **Setup:** The integration test automatically:
 
 1. Builds the deployment image
-2. Starts MinIO, MySQL, and a mock origin server
+2. Starts RustFS, MySQL, and a mock origin server. The RustFS setup service passes its complete script as one Bash argument so bucket creation and fixture upload finish successfully before deployment starts.
 3. Runs the deployment container with full initialization
 4. Executes 18 validation checks
 5. Cleans up resources

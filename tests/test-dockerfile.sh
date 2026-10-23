@@ -158,6 +158,19 @@ test_pecl_extensions() {
     fi
 }
 
+# Bullseye's PGDG source must use PostgreSQL's archive before refreshing APT indexes.
+test_pgdg_archive_migration() {
+    if grep -q "grep -q 'bullseye-pgdg main' /etc/apt/sources.list.d/pgdg.list" "$DOCKERFILE" &&
+       grep -q "apt-archive.postgresql.org/pub/repos/apt" "$DOCKERFILE" &&
+       grep -q "bullseye-pgdg-archive" "$DOCKERFILE" &&
+       grep -q "apt-get update -qq" "$DOCKERFILE"; then
+        echo -e "${GREEN}✓ Migrates retired Bullseye PGDG source before refreshing APT indexes${NC}"
+    else
+        echo -e "${RED}✗ Must migrate retired Bullseye PGDG source and refresh APT indexes${NC}"
+        exit 1
+    fi
+}
+
 # Test 14: Cleans up apt package manager cache
 test_apt_cleanup() {
     if grep -q "apt-get clean" "$DOCKERFILE" && \
@@ -183,6 +196,7 @@ test_entrypoint
 test_aws_cli_install
 test_labels
 test_pecl_extensions
+test_pgdg_archive_migration
 test_apt_cleanup
 
 echo -e "${GREEN}✓ Dockerfile tests passed${NC}"

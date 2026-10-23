@@ -9,7 +9,15 @@ ARG BASE_CMD="sudo -E /bin/bash /scripts/apache-start.sh"
 USER root
 
 # Install additional PHP extensions not already provided by the base image.
-RUN apt-get update -qq \
+# PostgreSQL moved Bullseye packages to its archive after ending support for that suite.
+RUN if [ -f /etc/apt/sources.list.d/pgdg.list ] \
+    && grep -q 'bullseye-pgdg main' /etc/apt/sources.list.d/pgdg.list; then \
+        sed -i \
+            -e 's|https://apt.postgresql.org/pub/repos/apt|https://apt-archive.postgresql.org/pub/repos/apt|' \
+            -e 's|bullseye-pgdg main|bullseye-pgdg-archive main|' \
+            /etc/apt/sources.list.d/pgdg.list; \
+    fi \
+    && apt-get update -qq \
     && pecl update-channels \
     && printf '' | pecl install apcu \
     && echo 'extension=apcu.so' > /usr/local/etc/php/conf.d/apcu.ini \

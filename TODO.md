@@ -1,5 +1,34 @@
 # TODO List
 
+## Switch integration tests from S3Mock to RustFS
+
+**Context:** [Integration job 120113548672](https://github.com/drupalforge/deployment/actions/runs/39860508216/job/120113548672) could not pull the retired `minio/minio` and `minio/mc` images. The first replacement used Adobe S3Mock; RustFS is preferred as a community-maintained S3-compatible storage server. Do not pin the RustFS image tag.
+
+**Status:** Fixed the setup command parsing bug exposed by CI job [120495821066](https://github.com/drupalforge/deployment/actions/runs/39976955022/job/120495821066): Compose split the multiline command, so Bash executed only `set` and exited successfully without uploading the fixture. The script is now one argument, with a passing rendered-command regression test covering success and readiness/create/upload failures. YAML lint passes. Full integration validation remains blocked by PECL DNS resolution during the image build; the unit suite passes 9 suites and fails 3 on missing `markdownlint`/`phpcs` and existing ShellCheck findings in unchanged files. CI validation is pending.
+
+**Done definition:**
+
+- [x] Document RustFS as the integration S3 backend.
+- [x] Update regression checks and Compose to run RustFS without pinning the image tag.
+- [x] Verify AWS CLI bucket creation and database fixture upload/download against RustFS.
+- [x] Add a regression test executing the rendered setup command with mocked AWS CLI success and failure paths.
+- [x] Preserve the complete setup script as one Bash command argument.
+- [x] Run focused tests; attempt full integration and unit suites, and record environment limitations.
+- [ ] Complete CI validation and move this task to `CHANGELOG.md`.
+
+## Repair inherited PostgreSQL APT source for Debian Bullseye
+
+**Context:** [Build job 120090873865](https://github.com/drupalforge/deployment/actions/runs/39854997072/job/120090873865) fails because the inherited `bullseye-pgdg` APT repository no longer has a Release file. The deployment Dockerfile installs no APT packages.
+
+**Status:** The source migration and regression test are implemented. The focused Dockerfile test passes; full Docker builds remain unverified because this sandbox cannot resolve PECL hosts, and archive access is also subject to its DNS restrictions.
+
+**Done definition:**
+
+- [x] Confirm the inherited PHP 7.4 image uses active Debian mirrors and a separate PGDG `bullseye-pgdg` source.
+- [x] Migrate only the retired Bullseye PGDG source to `apt-archive.postgresql.org` / `bullseye-pgdg-archive`, then run `apt-get update`.
+- [x] Replace the regression test that forbids APT refresh with checks for the source migration and refresh.
+- [ ] Validate the PHP 7.4 build in CI; record any remaining network limitations.
+
 ## Add Apache-only proxy exclusions env var and S3 asset ZIP import
 
 ### Documented plan only (no implementation in this task)

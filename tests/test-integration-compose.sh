@@ -36,6 +36,105 @@ else
     exit 1
 fi
 
+if grep -q "adobe/s3mock\\|minio/minio\\|minio/mc" "$COMPOSE_FILE"; then
+    echo -e "${RED}✗ Compose file still references the retired S3 backend images${NC}"
+    exit 1
+elif grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" | grep -q "image: rustfs/rustfs:latest"; then
+    echo -e "${GREEN}✓ Compose file uses the unpinned RustFS latest image${NC}"
+else
+    echo -e "${RED}✗ Compose file must use rustfs/rustfs:latest${NC}"
+    exit 1
+fi
+
+if grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q "RUSTFS_ACCESS_KEY: test" &&
+   grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q "RUSTFS_SECRET_KEY: test" &&
+   grep -A10 "^[[:space:]]*rustfs:" "$COMPOSE_FILE" |
+       grep -q 'RUSTFS_ADDRESS: ":9000"'; then
+    echo -e "${GREEN}✓ RustFS has S3 credentials and listens on port 9000${NC}"
+else
+    echo -e "${RED}✗ RustFS must have test credentials and listen on port 9000${NC}"
+    exit 1
+fi
+
+if grep -q "rustfs-setup:" "$COMPOSE_FILE" &&
+   grep -q "aws s3api create-bucket" "$COMPOSE_FILE" &&
+   grep -q "aws s3 cp /fixtures/test-database.sql.gz" "$COMPOSE_FILE"; then
+    echo -e "${GREEN}✓ RustFS setup creates a bucket and uploads the database fixture${NC}"
+else
+    echo -e "${RED}✗ RustFS setup must create a bucket and upload the database fixture${NC}"
+    exit 1
+fi
+
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 &&
+   command -v python3 >/dev/null 2>&1; then
+    if output=$(python3 - "$COMPOSE_FILE" <<'PY' 2>&1
+import json
+import subprocess
+import sys
+
+config = subprocess.check_output(
+    ["docker", "compose", "-f", sys.argv[1], "config", "--format", "json"],
+    text=True,
+)
+setup = json.loads(config)["services"]["rustfs-setup"]
+assert setup["entrypoint"] == ["/bin/bash", "-lc"], setup["entrypoint"]
+assert len(setup["command"]) == 1, "Setup script must remain one Bash argument"
+# Compose preserves $$ in config output and unescapes it when creating containers.
+script = setup["command"][0].replace("$$", "$")
+
+mock = """
+aws() {
+    case "$*" in
+        "s3api list-buckets"*)
+            [ "$MOCK_FAILURE" != readiness ]
+            return
+            ;;
+    esac
+    printf '%s\\n' "$*"
+    case "$*" in
+        "s3api create-bucket"*) [ "$MOCK_FAILURE" != create ] ;;
+        "s3 cp"*) [ "$MOCK_FAILURE" != upload ] ;;
+        *) return 1 ;;
+    esac
+}
+sleep() { :; }
+export AWS_S3_ENDPOINT=http://rustfs:9000
+export S3_BUCKET=test-bucket S3_DATABASE_PATH=test-db.sql.gz
+"""
+for failure in ("none", "readiness", "create", "upload"):
+    result = subprocess.run(
+        [*setup["entrypoint"], mock + "\n" + script],
+        env={"PATH": "/usr/bin:/bin", "MOCK_FAILURE": failure},
+        capture_output=True, text=True,
+    )
+    assert (result.returncode == 0) == (failure == "none"), (
+        failure, result.stdout, result.stderr
+    )
+    if failure in ("none", "upload"):
+        assert (
+            "s3api create-bucket --bucket test-bucket --endpoint-url=http://rustfs:9000"
+            in result.stdout
+        ), result.stdout
+        assert (
+            "s3 cp /fixtures/test-database.sql.gz s3://test-bucket/test-db.sql.gz "
+            "--endpoint-url=http://rustfs:9000" in result.stdout
+        ), result.stdout
+    else:
+        assert "s3 cp" not in result.stdout, result.stdout
+PY
+    ); then
+        echo -e "${GREEN}✓ Rendered RustFS setup runs bucket/upload commands and propagates failures${NC}"
+    else
+        printf '%s\n' "$output"
+        echo -e "${RED}✗ Rendered RustFS setup command did not execute as expected${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⊘ Skipped: rendered RustFS setup test requires Docker Compose and Python 3${NC}"
+fi
+
 if grep -A20 "deployment:" "$COMPOSE_FILE" | grep -q "app-fixture-prepare:"; then
     echo -e "${GREEN}✓ Deployment depends on fixture prepare service${NC}"
 else
@@ -99,7 +198,7 @@ else
 fi
 
 if [ -f "$TEST_ENV_FILE" ] &&
-   grep -q "^AWS_S3_ENDPOINT=http://minio:9000$" "$TEST_ENV_FILE"; then
+   grep -q "^AWS_S3_ENDPOINT=http://rustfs:9000$" "$TEST_ENV_FILE"; then
     echo -e "${GREEN}✓ .env.test defines test-only AWS_S3_ENDPOINT default${NC}"
 else
     echo -e "${RED}✗ .env.test must exist and define AWS_S3_ENDPOINT default${NC}"
@@ -173,7 +272,7 @@ fi
 
 if grep -q "deployment-secure:" "$MANUAL_COMPOSE_FILE" ||
    grep -q "mysql:" "$MANUAL_COMPOSE_FILE" ||
-   grep -q "minio:" "$MANUAL_COMPOSE_FILE"; then
+   grep -q "rustfs:" "$MANUAL_COMPOSE_FILE"; then
     echo -e "${RED}✗ Manual compose override should not modify non-deployment services${NC}"
     exit 1
 else

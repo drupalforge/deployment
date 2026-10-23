@@ -347,7 +347,7 @@ else
 fi
 
 # Test 12: S3 bucket was used
-if run_test "S3 (MinIO) connectivity tested" \
+if run_test "S3 (RustFS) connectivity tested" \
     "$DOCKER_COMPOSE -p $TEST_COMPOSE_PROJECT -f docker-compose.test.yml exec deployment sh -lc 'aws s3 ls --endpoint-url=\"\$AWS_S3_ENDPOINT\" s3://\$S3_BUCKET/' | grep -q 'test-db.sql.gz'"; then
     ((passed=passed+1))
 else
